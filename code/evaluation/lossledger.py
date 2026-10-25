@@ -9,10 +9,11 @@ Reasons (from the engine's own assessment and log, never from gold):
   unresolved:catalog     catalog claim with no confirming artifact (ADR 0005)
   contradicted           REJECTED_LINK, the artifact shows someone else (ADR 0005)
   unproven               a linked resource with no provable end state (ADR 0006)
-  no-step:<why>          a linked resource that policy cannot plan (not observable, unresolved
-  category, ...) unlabeled:<rule>       decided by a rule no sample labels: DELETION_PENDING (ADR
-  0010), legal hold (ADR 0011),
-                         INCOMPLETE [] (ADR 0015), stale link dropped (ADR 0016)
+  no-step:<why>          a linked resource that policy cannot plan (not observable,
+                         unresolved category, ...)
+  unlabeled:<rule>       decided by a rule no sample labels: DELETION_PENDING (ADR 0010),
+                         legal hold (ADR 0011), INCOMPLETE [] (ADR 0015), stale link dropped
+                         (ADR 0016)
 """
 
 import sys
@@ -22,44 +23,65 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 # sample-measured rates for the step-ceiling estimate (docs/03_ID_RECOVERY_PROTOTYPE.md §6, docs/02
 # §4.5)
+# VERIFY_RECORD_ANONYMIZED steps per deletion case lost to analytics reachable only through activity
+# bursts, and audit records that appear in no file (about 3 of 32 samples)
+ANALYTICS_MISSING_PER_CASE = 0.22
+AUDIT_RECORD_MISSING_PER_CASE = 0.09
 STEPS_PER_UNRESOLVED_ACCOUNT = (
     1 + 2 * 0.14
 )  # VERIFY_ABSENT, plus finding+remediation when still present (3/22)
 
 
-def reasons(a, linker_status):
+def _account_link_reason(line):
+    return "unresolved:tied" if "survive" in line or "claimed" in line else "unresolved:window"
+
+
+def _no_step_reason(line):
+    why = line.split(": ", 1)[1].rstrip(")")
+    return "no-step:" + why.split("(")[0].split(",")[0].strip()
+
+
+# (log line prefix, reason or reason function), checked in this order
+LOG_REASONS = (
+    ("UNRESOLVED_LINK(primary account", _account_link_reason),
+    ("UNRESOLVED_LINK(", "unresolved:catalog"),
+    ("REJECTED_LINK(", "contradicted"),
+    ("UNPROVEN(", "unproven"),
+    ("NO_STEP(", _no_step_reason),
+    ("STALE_LINK(", "unlabeled:stale link (ADR 0016)"),
+)
+
+
+def _log_reason(line):
+    if line == "NO_GROUNDED_STEP":
+        return "unlabeled:INCOMPLETE [] (ADR 0015)"
+    for prefix, reason in LOG_REASONS:
+        if line.startswith(prefix):
+            return reason(line) if callable(reason) else reason
+    return None
+
+
+def _account_status(r):
+    attrs = r.state.observation.attrs if r.state and r.state.observation else ()
+    return dict(attrs).get("account_status")
+
+
+def _resource_reasons(a, r):
     out = []
-    for line in a.log:
-        if line.startswith("UNRESOLVED_LINK(primary account"):
-            out.append(
-                "unresolved:tied" if "survive" in line or "claimed" in line else "unresolved:window"
-            )
-        elif line.startswith("UNRESOLVED_LINK("):
-            out.append("unresolved:catalog")
-        elif line.startswith("REJECTED_LINK("):
-            out.append("contradicted")
-        elif line.startswith("UNPROVEN("):
-            out.append("unproven")
-        elif line.startswith("NO_STEP("):
-            why = line.split(": ", 1)[1].rstrip(")")
-            out.append("no-step:" + why.split("(")[0].split(",")[0].strip())
-        elif line.startswith("STALE_LINK("):
-            out.append("unlabeled:stale link (ADR 0016)")
-        elif line == "NO_GROUNDED_STEP":
-            out.append("unlabeled:INCOMPLETE [] (ADR 0015)")
+    if r.treatment.kind == "unproven" and a.status == "INCOMPLETE":
+        out.append("unproven")
+    if r.system_id == "account_service" and _account_status(r) == "DELETION_PENDING":
+        out.append("unlabeled:DELETION_PENDING (ADR 0010)")
+    if r.system_id == "legal_service" and r.treatment.verification == "VERIFY_RECORD_PRESENT":
+        out.append("unlabeled:legal hold (ADR 0011)")
+    return out
+
+
+def reasons(a, linker_status):
+    """Every loss reason of one assessed case, from its log and its resources."""
+    out = [x for x in map(_log_reason, a.log) if x]
     for r in a.resources:
-        if r.treatment.kind == "unproven" and a.status == "INCOMPLETE":
-            out.append("unproven")
-        if (
-            r.system_id == "account_service"
-            and dict(r.state.observation.attrs if r.state and r.state.observation else ()).get(
-                "account_status"
-            )
-            == "DELETION_PENDING"
-        ):
-            out.append("unlabeled:DELETION_PENDING (ADR 0010)")
-        if r.system_id == "legal_service" and r.treatment.verification == "VERIFY_RECORD_PRESENT":
-            out.append("unlabeled:legal hold (ADR 0011)")
+        out += _resource_reasons(a, r)
     return sorted(set(out))
 
 
@@ -71,8 +93,8 @@ def ceiling(counts, n_cases, emitted):
     missing = (
         unres * STEPS_PER_UNRESOLVED_ACCOUNT
         + counts.get("unresolved:catalog", 0)
-        + 0.22 * deletion
-        + 0.09 * deletion
+        + ANALYTICS_MISSING_PER_CASE * deletion
+        + AUDIT_RECORD_MISSING_PER_CASE * deletion
     )
     return {
         "emitted": emitted,
