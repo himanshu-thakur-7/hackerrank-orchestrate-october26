@@ -126,6 +126,56 @@ def _lines(path, obs):
     return out[:6]
 
 
+ABSENCE_NOTE = "This snapshot lists every record of the system and does not list the resource."
+
+
+def _facts(text, subject, captured_at, audit_at, resource_id):
+    """Facts computed in code (not by the model) that the questions may rely on."""
+    ids = sorted(subject.emails) + [subject.user_id] if subject else []
+    match = any(re.search(rf"(?<![\w.]){re.escape(i.lower())}(?![\w])", text) for i in ids)
+    return {
+        "identifier_match": "exact" if match else "none",
+        "evidence_captured_before_audit": captured_at <= audit_at,
+        "resource_mentioned_in_evidence": bool(re.search(rf"\b{re.escape(resource_id)}\b", text)),
+    }
+
+
+def _item_key(state, claim):
+    """sha256(model + state + questions): the cache key of one scored step."""
+    payload = (
+        MODEL + json.dumps(state, sort_keys=True) + json.dumps(questions(claim), sort_keys=True)
+    )
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _cited_item(eng, d, view, q, subject, s):
+    """state, claim, key and where for a cited step: the cited lines plus identifiers, times and
+    code facts. A step proven by omission carries a note instead of lines."""
+    fid, res = s["evidence_id"], s["resource_id"]
+    f_ = eng.store.files[fid]
+    obs = [o for o in view.observations(res) if o.file_id == fid and o.system_id == s["system_id"]]
+    lines = _lines(d / f_.file_path, obs) if obs else []
+    evidence = {"file_id": fid, "captured_at": f_.captured_at, "lines": lines}
+    if not obs:
+        evidence["note"] = ABSENCE_NOTE
+    state = {
+        "subject": {
+            "emails": sorted(subject.emails) if subject else [],
+            "user_id": subject.user_id if subject else "",
+        },
+        "audit_at": q["audit_at"],
+        "evidence": evidence,
+        "precomputed_facts": _facts(
+            " ".join(lines).lower(), subject, f_.captured_at, q["audit_at"], res
+        ),
+    }
+    claim = CLAIMS[s["operation"]].format(sys=s["system_id"], res=res)
+    where = f"{fid} {f_.file_path} " + (
+        ", ".join(o.locator for o in obs) if obs else "(absence by omission)"
+    )
+    return {"state": state, "claim": claim, "key": _item_key(state, claim), "where": where}
+
+
 def build_items(data_dir, output_path):
     """One item per step of output_path: cited steps get a state (lines + identifiers + times +
     code facts)."""
@@ -159,57 +209,7 @@ def build_items(data_dir, output_path):
                 "where": "",
             }
             if s["evidence_id"]:
-                fid, res = s["evidence_id"], s["resource_id"]
-                f_ = eng.store.files[fid]
-                obs = [
-                    o
-                    for o in view.observations(res)
-                    if o.file_id == fid and o.system_id == s["system_id"]
-                ]
-                lines = _lines(d / f_.file_path, obs) if obs else []
-                text = " ".join(lines).lower()
-                ids = sorted(subject.emails) + [subject.user_id] if subject else []
-                facts = {
-                    "identifier_match": "exact"
-                    if any(
-                        re.search(rf"(?<![\w.]){re.escape(i.lower())}(?![\w])", text) for i in ids
-                    )
-                    else "none",
-                    "evidence_captured_before_audit": f_.captured_at <= q["audit_at"],
-                    "resource_mentioned_in_evidence": bool(
-                        re.search(rf"\b{re.escape(res)}\b", text)
-                    ),
-                }
-                evidence = {"file_id": fid, "captured_at": f_.captured_at, "lines": lines}
-                if not obs:
-                    evidence["note"] = (
-                        "This snapshot lists every record of the system and does not list the "
-                        "resource."
-                    )
-                state = {
-                    "subject": {
-                        "emails": sorted(subject.emails) if subject else [],
-                        "user_id": subject.user_id if subject else "",
-                    },
-                    "audit_at": q["audit_at"],
-                    "evidence": evidence,
-                    "precomputed_facts": facts,
-                }
-                claim = CLAIMS[s["operation"]].format(sys=s["system_id"], res=res)
-                key = hashlib.sha256(
-                    (
-                        MODEL
-                        + json.dumps(state, sort_keys=True)
-                        + json.dumps(questions(claim), sort_keys=True)
-                    ).encode()
-                ).hexdigest()
-                item.update(
-                    state=state,
-                    claim=claim,
-                    key=key,
-                    where=f"{fid} {f_.file_path} "
-                    + (", ".join(o.locator for o in obs) if obs else "(absence by omission)"),
-                )
+                item.update(_cited_item(eng, d, view, q, subject, s))
             items.append(item)
     return items
 
@@ -224,14 +224,17 @@ def default_client():
     return TypeSafeClient(retry=RetryPolicy(max_retries=2), timeout=60), ""
 
 
-def score_items(items, client, cache, workers=WORKERS, k=K, usage=None):
-    """{key: {score, supports, contradicts, source}} for items with a state; cache first, then k
-    live calls each."""
-    usage = (
-        usage
-        if usage is not None
-        else {"calls": 0, "in": 0, "out": 0, "lat": [], "models": set(), "errors": 0}
-    )
+def _unscored(source):
+    return {"score": None, "supports": None, "contradicts": None, "source": source}
+
+
+def _new_usage():
+    return {"calls": 0, "in": 0, "out": 0, "lat": [], "models": set(), "errors": 0}
+
+
+def _cached_or_skipped(items, client, cache):
+    """(results so far, items still to call): cache hits are scored, and without a client every
+    other item is skipped."""
     out, todo = {}, []
     for it in items:
         if it["state"] is None or it["key"] in out:
@@ -240,66 +243,69 @@ def score_items(items, client, cache, workers=WORKERS, k=K, usage=None):
         if hit:
             out[it["key"]] = dict(hit, score=hit["supports"] - hit["contradicts"], source="cache")
         elif client is None:
-            out[it["key"]] = {
-                "score": None,
-                "supports": None,
-                "contradicts": None,
-                "source": "skipped (no key/SDK/network)",
-            }
+            out[it["key"]] = _unscored("skipped (no key/SDK/network)")
         else:
             todo.append(it)
+    return out, todo
 
-    def call(it):
-        t0 = time.perf_counter()
-        try:
-            r = client.system_one(state=it["state"], questions=questions(it["claim"]), model=MODEL)
-        except Exception as e:  # network, auth, rate limit: that step stays unscored
-            return it["key"], None, f"{type(e).__name__}"
-        return (
-            it["key"],
-            (
-                r.answers["supports"].noul,
-                r.answers["contradicts"].noul,
-                r.model,
-                r.usage.input_tokens or 0,
-                r.usage.output_tokens or 0,
-                (time.perf_counter() - t0) * 1000,
-            ),
-            "",
-        )
 
+def _call(client, it):
+    """One live call: (key, (supports, contradicts, model, in, out, ms) or None, error name)."""
+    t0 = time.perf_counter()
+    try:
+        r = client.system_one(state=it["state"], questions=questions(it["claim"]), model=MODEL)
+    except Exception as e:  # network, auth, rate limit: that step stays unscored
+        return it["key"], None, f"{type(e).__name__}"
+    answer = (
+        r.answers["supports"].noul,
+        r.answers["contradicts"].noul,
+        r.model,
+        r.usage.input_tokens or 0,
+        r.usage.output_tokens or 0,
+        (time.perf_counter() - t0) * 1000,
+    )
+    return it["key"], answer, ""
+
+
+def _record_usage(usage, ok, failed):
+    for r in ok:
+        usage["calls"] += 1
+        usage["in"] += r[3]
+        usage["out"] += r[4]
+        usage["lat"].append(r[5])
+        usage["models"].add(r[2])
+    usage["errors"] += failed
+
+
+def _aggregate(key, rs, k, cache, usage):
+    """The mean of k calls for one step, cached; a partial mean is not cached and the step is
+    reported as unscored."""
+    ok = [r for r, _e in rs if r]
+    _record_usage(usage, ok, len(rs) - len(ok))
+    if len(ok) < k:
+        return _unscored(f"error ({len(rs) - len(ok)} failed calls)")
+    sup, con = statistics.mean(r[0] for r in ok), statistics.mean(r[1] for r in ok)
+    cache[key] = {
+        "supports": round(sup, 4),
+        "contradicts": round(con, 4),
+        "k": k,
+        "model": ok[0][2],
+    }
+    return dict(cache[key], score=cache[key]["supports"] - cache[key]["contradicts"], source="live")
+
+
+def score_items(items, client, cache, workers=WORKERS, k=K, usage=None):
+    """{key: {score, supports, contradicts, source}} for items with a state; cache first, then k
+    live calls each, on a bounded worker pool."""
+    usage = usage if usage is not None else _new_usage()
+    out, todo = _cached_or_skipped(items, client, cache)
     jobs = [it for it in todo for _ in range(k)]
     results = {}
     with ThreadPoolExecutor(max_workers=workers) as ex:
-        for key, res, err in ex.map(call, jobs):
+        for key, res, err in ex.map(lambda it: _call(client, it), jobs):
             results.setdefault(key, []).append((res, err))
     for key, rs in results.items():
-        ok = [r for r, e in rs if r]
-        for r in ok:
-            usage["calls"] += 1
-            usage["in"] += r[3]
-            usage["out"] += r[4]
-            usage["lat"].append(r[5])
-            usage["models"].add(r[2])
-        usage["errors"] += len(rs) - len(ok)
-        if len(ok) < k:  # a partial mean is not cached; the step is reported as unscored
-            out[key] = {
-                "score": None,
-                "supports": None,
-                "contradicts": None,
-                "source": f"error ({len(rs) - len(ok)} failed calls)",
-            }
-            continue
-        sup, con = statistics.mean(r[0] for r in ok), statistics.mean(r[1] for r in ok)
-        cache[key] = {
-            "supports": round(sup, 4),
-            "contradicts": round(con, 4),
-            "k": k,
-            "model": ok[0][2],
-        }
-        out[key] = dict(
-            cache[key], score=cache[key]["supports"] - cache[key]["contradicts"], source="live"
-        )
+        out[key] = _aggregate(key, rs, k, cache, usage)
     return out
 
 
