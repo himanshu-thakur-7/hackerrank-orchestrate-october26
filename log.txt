@@ -358,3 +358,27 @@ repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
 
+## [2026-10-25T00:43:08Z] Pass 7: categories, support/analytics signals, DELETION_PENDING, legal holds
+
+User Prompt (verbatim, secrets redacted):
+[Relayed by peer session "Prompt playbook website publishing" for the user, to be treated as the user's prompt]
+For each data category in deletion_rules.csv, find a concrete evidence example and the gold treatment (if any sample covers it). Specifically resolve: when is a support record REDACT vs DELETE? When is an analytics record ANONYMIZE vs DELETE (look at case_12)? What does a correctly redacted tombstone look like?
+Also answer, with evidence and counts from the eval data: (a) for support records whose evidence row has NO category tag, does the system_activity event type for that resource (REDACT_RECORD vs DELETE_RECORD) reveal the category? How many gold examples and how many eval cases depend on it, and what is the agreement rate? Treat an activity event type as a claim about category, never as proof of state. (b) How many eval cases have an account with status DELETION_PENDING, and how many have a legal hold? Which rule rows apply, and do any samples cover them? Report honestly where no sample label exists.
+Append to docs/02_DATA_NOTES.md, commit and push, and keep logging per AGENTS.md.
+
+Agent Response Summary:
+Mapped all 15 categories to evidence examples and gold treatment. Six have no sample label (secondary identifier except case_12, cache, telemetry, marketing, email delivery, legal hold), and cache and email-delivery resources never appear in any evidence. Support: an attachment uploaded by the customer is DELETE, and a message with shared context is REDACT. Analytics: case_12's record is only a hash-keyed contact lookup, so DELETE (secondary identifier); everything else is ANONYMIZE. A compliant tombstone keeps subject_reference with all PII null (evidence_51 tombstone_440). (a) For untagged support records the activity type agrees with gold 8/8 and with tags 31/31; 159 eval cases depend on it. (b) 8 eval cases have a DELETION_PENDING account (rule_01) and 6 have a pre-audit legal_hold record (rule_13); no sample covers either.
+
+Actions:
+* Wrote and ran scratch/pass7_categories.py; inspected evidence_01 line 92, evidence_36, evidence_47 and evidence_63
+* Appended a Pass 7 section to docs/02_DATA_NOTES.md
+* Committed and pushed to claude/stoic-bell-1t82oq
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+

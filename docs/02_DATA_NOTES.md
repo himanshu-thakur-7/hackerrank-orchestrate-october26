@@ -772,3 +772,126 @@ This is a summary; full method, numbers and scripts are in `docs/03_ID_RECOVERY_
 - They are **batched by clock time across users**. For example, `activity_3602` and `activity_3603` both run at 2026-09-02 11:31, so time windows attribute rows poorly (precision 0.22 to 0.28).
 - Every gold search, support, data_flow, backup, export and tombstone resource is directly linked by a pre-audit record.
 - The 7 unlinked analytics IDs are exactly the already-anonymized ones (case_03, 04, 21, 25, 26, 27, 28). Five of them are recoverable only through the rank artifact.
+
+---
+
+## Pass 7 — Categories, treatments, and category signals
+
+Script: `scratch/pass7_categories.py`. Activity event types are treated as **claims about category**, never as proof of state. "Gold" means `sample_output.csv`.
+
+### 7.1 Each category: an evidence example and its gold treatment
+
+"Tagged units" counts the evidence record units that carry the category name literally, such as the handover CATEGORY column or `record_type`.
+
+| rule | Category (action) | Tagged units | Concrete evidence example | Gold treatment in samples |
+| --- | --- | --- | --- | --- |
+| rule_01 | USER_PROFILE (DELETE) | 98 | `evidence_03` line 6: `account_146 \| USER_PROFILE \| NOT_FOUND \| e.lindberg18@yahoo.com` | `account_service` → DELETE / VERIFY_ABSENT, 32 pairs (3 tagged, 29 untagged) |
+| rule_02 | SECONDARY_IDENTIFIER (DELETE) | **0** | No tag anywhere. Best candidate: `evidence_01` line 92, `analytics_9914 … contact_lookup_completed rows=1 email_opt_in=true correlation_key="44a65154…"`, a record keyed **only by a user_12 email hash** | case_12 `analytics_9914` → **DELETE** (the only analytics DELETE) |
+| rule_03 | SEARCH_INDEX_ENTRY (DELETE) | 54 | `evidence_03` line 26: `search_052 \| SEARCH_INDEX_ENTRY \| FOUND \| novak.tomasz@icloud.com` | DELETE, 12 pairs |
+| rule_04 | CACHE_ENTRY (DELETE) | **0** | **No evidence file mentions any `cache_N`**; only 284 `REFRESH_CACHE` activity rows | **No sample label** |
+| rule_05 | SUPPORT_MESSAGE (REDACT) | 30 | `evidence_03` line 46: `support_864 \| SUPPORT_MESSAGE \| IDENTIFIABLE \| novak.tomasz@icloud.com` | REDACT, 8 pairs (1 tagged) |
+| rule_06 | SUPPORT_ATTACHMENT (DELETE) | **1** | `evidence_03` line 43: `support_4218 \| SUPPORT_ATTACHMENT \| FOUND \| noor-khalil@proton.me`; `evidence_58` (PDF) `support_001`, "uploader customer" | DELETE, 3 pairs (case_07, case_10, case_13) |
+| rule_07 | ANALYTICS_PROFILE (ANONYMIZE) | 28 | `evidence_03` line 16: `analytics_2034 \| ANALYTICS_PROFILE \| IDENTIFIABLE \| novak.tomasz@icloud.com` | ANONYMIZE, 12 pairs (1 tagged) |
+| rule_08 | PRODUCT_TELEMETRY (ANONYMIZE) | **0** | No tag and no telemetry resource (only infrastructure "telemetry_flushed" noise in `evidence_53` line 243) | **No sample label** |
+| rule_09 | USER_EXPORT (DELETE) | 4 | `evidence_03` line 21: `export_7689 \| USER_EXPORT \| FOUND \| aadebayo3975@fastmail.com` | DELETE, 2 pairs (case_08, case_23) |
+| rule_10 | MARKETING_PROFILE (DELETE) | **0** | Only in the screenshot `evidence_60` (marketing_001, contradicted, see 02b §3) and `activity_4008` | **No sample label** |
+| rule_11 | EMAIL_DELIVERY_LOG (REDACT) | **0** | **No evidence file mentions any `email_delivery_N`**; only 368 `SEND_EMAIL` activity rows | **No sample label** |
+| rule_12 | SECURITY_AUDIT_LOG (RETAIN) | 90 | `evidence_03` line 32: `audit_record_2019 \| SECURITY_AUDIT_LOG \| FOUND \| user_35`; `evidence_55` (PDF) "retain until 25 Aug 2027" | RETAIN → VERIFY_RECORD_PRESENT, 24 pairs |
+| rule_13 | LEGAL_HOLD_RECORD (RETAIN) | 1 | `evidence_36` lines 207–213: `legal_hold_8049 … LEGAL_HOLD_RECORD … FOUND … user_388` | **No sample label** (see 7.5) |
+| rule_14 | BACKUP_ARCHIVE (RETAIN, block restore) | 10 | `evidence_03` line 19: `backup_3870 \| BACKUP_ARCHIVE \| ACTIVE \| y.tanaka32@gmail.com` | RETAIN + BLOCK (never DELETE), 6 pairs |
+| rule_15 | ACCOUNT_TOMBSTONE (REDACT) | **0** (tag) | `evidence_51` `identity_service.deleted_customer_references` (see 7.3) | REDACT / VERIFY_REDACTED, 2 pairs |
+
+**Six categories have no sample label at all:** SECONDARY_IDENTIFIER (except case_12, inferred), CACHE_ENTRY, PRODUCT_TELEMETRY, MARKETING_PROFILE, EMAIL_DELIVERY_LOG, LEGAL_HOLD_RECORD. CACHE_ENTRY and EMAIL_DELIVERY_LOG resources are never observable in any evidence file. Their only trace is activity claims, so under "never attribute without a grounded link" they cannot produce findings.
+
+### 7.2 Support: REDACT vs DELETE
+
+There are 11 gold support resources in the samples:
+
+| Gold | Cases | Signal |
+| --- | --- | --- |
+| **DELETE** (attachment, rule_06) | case_07 `support_001`, case_10 `support_002`, case_13 `support_4218` | case_13: explicit `SUPPORT_ATTACHMENT` tag (`evidence_03` line 43). case_07: PDF content, an uploaded file with "uploader customer" (`evidence_58`). case_10: **no tag**; only the activity claim `activity_3596 DELETE_RECORD` |
+| **REDACT** (message, rule_05) | case_11, 18, 19, 26, 27, 28, 29, 30 | case_11: tag `SUPPORT_MESSAGE` (`evidence_03` line 46). The other 7 are **untagged**; their only category signal is the activity claim `REDACT_RECORD`. Content shows a conversation or excerpt, e.g. `evidence_92` `message_excerpt "Customer followed up about an order update."` and `evidence_02` `"message_text": "[REDACTED]"` |
+
+**Rule as observed:**
+
+- An uploaded file belonging only to the subject is an attachment → DELETE.
+- A conversation or message record, which carries shared customer, agent or order context, is a message → REDACT.
+
+### 7.3 Analytics: ANONYMIZE vs DELETE (case_12)
+
+- 12 of the 13 gold analytics pairs are **ANONYMIZE**. Each is a profile with cohort or metrics plus PII fields. Examples: `evidence_92` `analytics_5208` with `email noah.f438085@outlook.com`; `evidence_03` line 16 `IDENTIFIABLE`.
+- case_12 `analytics_9914` is **DELETE**. Its only evidence is a *contact lookup* row: `evidence_01` line 92, `event=contact_lookup_completed rows=1 email_opt_in=true correlation_key="<sha256 of a user_12 email>"`.
+  - There is no cohort or metrics, only a hash-keyed identifier record. That is consistent with SECONDARY_IDENTIFIER (rule_02 DELETE) rather than ANALYTICS_PROFILE.
+  - The activity claim agrees: `activity_3435` is `DELETE_RECORD` (FAILED), whereas every other gold analytics resource has `ANONYMIZE_RECORD`.
+- The activity claim matches the gold treatment for analytics in **13/13**.
+
+### 7.4 What a correctly redacted tombstone looks like
+
+`evidence_51` (`customer_data_snapshot_bundle_20260915.json`), snapshot `identity_service / deleted_customer_references`:
+
+| | Gold | Record |
+| --- | --- | --- |
+| **Compliant** | case_31 VERIFY_RECORD_REDACTED | `tombstone_440`: `subject_reference "user_541"`, `name null`, `email null`, `phone null`, `email_hash null`, `account_status "DELETED"` |
+| **Not compliant** | case_32 REPORT_EXPOSED_PII → REDACT | `tombstone_9178`: `subject_reference "user_542"` **plus** `name "Kofi Addo"`, `email "addo.kofi@gmail.com"`, `phone "+233 24 991 1328"`, `email_hash "4f4b9c98…"`, `DELETED` |
+
+- So the stable `subject_reference` (user_N) stays, and every direct identifier is null.
+- The screenshot `evidence_42` shows the same compliant pattern: user_17 with only a "Retained reference" and linked order, support and finance refs, and no name, email or phone.
+- A tombstone is never VERIFY_RECORD_PRESENT in gold, only VERIFY_RECORD_REDACTED.
+
+### 7.5 (a) Support records with no category tag: does the activity event type reveal the category?
+
+**Gold:**
+
+- 11 support pairs; **9 are untagged** at or before `audit_at`.
+- Of those 9, **8 have a deletion_worker claim** (REDACT_RECORD or DELETE_RECORD), and **8/8 agree with gold**.
+- The ninth, case_07 `support_001`, has **no activity at all**. Its category comes from PDF content (attachment).
+
+**Consistency on all tagged support records in evidence:** the tag and the activity claim agree in **31/31** (30 SUPPORT_MESSAGE↔REDACT_RECORD, 1 SUPPORT_ATTACHMENT↔DELETE_RECORD). No disagreement exists anywhere.
+
+**Eval dependence:**
+
+| Metric | Count |
+| --- | --- |
+| (eval case, support record) pairs linked to the subject at or before `audit_at` | 182 |
+| … tagged | 18 |
+| … **untagged, with an activity claim** | **164**, in **159 eval cases** |
+| … untagged, with no signal | 0 |
+| Activity claim made at or before `audit_at` | 163 pairs / 158 cases (1 pair has its claim only after the audit) |
+| Claims by type | REDACT 137, DELETE 27 |
+
+**Conclusion:** the activity type is a **reliable category signal** (8/8 gold, 31/31 against tags). It is what the builder must use for about 159 eval cases. The finding and the state still come from evidence: the activity only picks REDACT vs DELETE, never PRESENT vs ABSENT.
+
+### 7.6 (b) DELETION_PENDING and legal holds
+
+**DELETION_PENDING: 8 eval cases, 0 samples.** In every case:
+
+- the account row is still present with an email (sometimes UPPERCASE), `account_status 'DELETION_PENDING'`;
+- the snapshot is captured on the audit day, at or before `audit_at`;
+- an earlier account `DELETE_RECORD` claim exists.
+
+| Case | Account (file, line) | Earlier claim | reported_status |
+| --- | --- | --- | --- |
+| case_499 | account_3626 (`evidence_63` line 19, daniel.m47291@outlook.com) | SUCCESS 01-20 | COMPLETE |
+| case_501 | account_634 (`evidence_63` line 20, O.ERIKSEN10@YAHOO.COM) | SUCCESS | COMPLETE |
+| case_333 | account_2475 (`evidence_72`) | PARTIAL | PARTIALLY_COMPLETE |
+| case_247 | account_2981 (`evidence_78`) | SUCCESS | COMPLETE |
+| case_249 | account_4181 (`evidence_78`) | PARTIAL | PARTIALLY_COMPLETE |
+| case_177 | account_8423 (`evidence_84`) | FAILED | NOT_STARTED |
+| case_129 | account_6673 (`evidence_87`) | SUCCESS | COMPLETE |
+| case_67 | account_9079 (`evidence_93` line 20) | SUCCESS | COMPLETE |
+
+- **Applicable rule: rule_01 USER_PROFILE → DELETE.** The account row still exists with a direct identifier, so the natural reading is REPORT_REMAINING_RECORD → DELETE_RECORD → VERIFY_RECORD_ABSENT, and the case is INCOMPLETE.
+- In 5 of 8, the delete claim says SUCCESS and the status says COMPLETE, which is a classic claim-vs-state trap.
+- **No sample covers DELETION_PENDING, so this reading is unlabeled.**
+
+**Legal holds: `legal_hold_N` records exist and are tagged LEGAL_HOLD_RECORD.**
+
+- Examples: `evidence_36` lines 207–213; `evidence_47` line 30 `legal_hold_2227 … "retention_reason":"payment_dispute_and_tax_record","retained_until":"2033-12-31T23:59:59Z"`, with the same row in the reporting replica at line 62.
+- There are 10 such resources in activity, all `RETAIN_RECORD` claims. 8 are linked to a user in evidence; `legal_hold_1745` and `legal_hold_668` have no user link.
+- **Eval cases with a legal-hold record for the subject at or before `audit_at`: 6.** These are case_261, case_390, case_460, case_473, case_505 and case_511 (captured on the audit day).
+- **3 more only after the audit, so they must not be used:**
+  - case_220 (`evidence_21`, 07-05 > 07-03);
+  - case_432 (`evidence_40`, 03-22 > 03-20);
+  - case_46 (user_17, only via the register PDF `evidence_27`, 05-29 > 03-11).
+- **Applicable rule: rule_13 LEGAL_HOLD_RECORD → RETAIN** ("A supplied legal hold is active"). The natural output is VERIFY_RECORD_PRESENT `legal_service legal_hold_N`, never a delete.
+- **No sample covers a `legal_hold_N` resource.** There are 0 gold steps on `legal_service`. Six sample subjects (user_08, 12, 17, 21, 24, 29) are in the legal register PDF `evidence_27` (orders only, no resource id), and their gold has **no** legal step. So the register entries are **not** treated as gold resources. Whether `legal_hold_N` records get a VERIFY_RECORD_PRESENT step is **unlabeled**.
