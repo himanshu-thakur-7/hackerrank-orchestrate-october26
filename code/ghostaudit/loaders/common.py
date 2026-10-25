@@ -133,3 +133,27 @@ def state_from_fields(f):
     if "enabled" in g:
         return "ACTIVE" if g["enabled"] in ("true", "1") else "DISABLED"
     return "PRESENT"
+
+
+RID_RE = re.compile(r'"resource_id"\s*:\s*"([^"]+)"')
+
+
+def _ordered_dicts(node, out):
+    """Dicts carrying a resource_id, in the textual order of their "resource_id" key."""
+    if isinstance(node, dict):
+        for k, v in node.items():
+            if k == "resource_id":
+                out.append(node)
+            elif isinstance(v, (dict, list)):
+                _ordered_dicts(v, out)
+    elif isinstance(node, list):
+        for v in node:
+            _ordered_dicts(v, out)
+
+
+def json_line_map(text, data):
+    """id(dict) -> 'line N' of that dict's \"resource_id\" key, matched in textual order."""
+    hits = [(m.group(1), text.count("\n", 0, m.start()) + 1) for m in RID_RE.finditer(text)]
+    order = []
+    _ordered_dicts(data, order)
+    return {id(d): f"line {ln}" for d, (rid, ln) in zip(order, hits) if d.get("resource_id") == rid}

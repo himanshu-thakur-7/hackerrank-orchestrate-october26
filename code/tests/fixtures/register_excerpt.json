@@ -1,0 +1,31 @@
+{
+  "exported_at": "2026-04-09T12:00:00Z",
+  "origin": "customer_export_service",
+  "record_count": 3,
+  "records": [
+    {
+      "recorded_at": "2026-04-03T12:00:00Z",
+      "system": "account_service",
+      "resource_id": "account_7618",
+      "record_type": "USER_PROFILE",
+      "result": "FOUND",
+      "subject_reference": "dnakamura7301@gmail.com"
+    },
+    {
+      "recorded_at": "2026-04-09T09:00:00Z",
+      "system": "search_service",
+      "resource_id": "search_9606",
+      "record_type": "SEARCH_INDEX_ENTRY",
+      "result": "FOUND",
+      "subject_reference": "camila.almeida.jr@outlook.com"
+    },
+    {
+      "recorded_at": "2026-04-09T12:00:00Z",
+      "system": "account_service",
+      "resource_id": "account_1718",
+      "record_type": "USER_PROFILE",
+      "result": "NOT_FOUND",
+      "subject_reference": "camila.almeida@outlook.com"
+    }
+  ]
+}

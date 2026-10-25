@@ -632,3 +632,26 @@ repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
 
+## [2026-10-25T01:24:56Z] T06 done: bundles, record lists, record_lookup logs; ADR 0014 proposed (weak coverage)
+
+User Prompt (verbatim, secrets redacted):
+(same relayed prompt as the T04 entry: implement T04-T07 sequentially, tdd, strict loaders)
+
+Agent Response Summary:
+T06 test-first (tdd) with fixtures from evidence_51 and evidence_56 (verbatim) and real records from evidence_31 and evidence_36, plus notification_delivery lines; 6 exact-Observation tests. Before trusting bundle coverage I probed it against gold (scratch/t06_bundle_coverage_probe.py). Non-empty bundle collections contradict 5 gold expectations, an empty list contradicts 1 (case_24), and SQL inventory scope contradicts 1 (case_05 replica). Every gold absence proven only by omission has no positive sighting. So the design assumption "these formats are exhaustive" is wrong. Proposed ADR 0014 (omission proves ABSENT only when nothing visible shows presence; explicit negatives stay strong), adopted provisionally and implemented test-first in CaseView.state. Added a whole-store gold state check to the loaders report: 75 cited expectations, 0 contradictions, 7 pending on T07/T12 loaders. The literal audit caught a case id in a docstring, now removed. Dataset: 669 new observations, 0 unparsed, 0 unknown; scorer delta 0.
+
+Actions:
+* Wrote and ran scratch/t06_bundle_coverage_probe.py
+* Wrote docs/adr/0014-coverage-is-weak-evidence.md and updated docs/adr/README.md
+* Wrote code/ghostaudit/loaders/{bundle,records,record_lookup,register,datarow}.py; moved json_line_map to common; edited store.py (weak coverage) and test_store.py
+* Wrote code/tests/test_loaders_t06.py and fixtures; extended code/evaluation/loader_check.py (store state check)
+* Ran loaders --kind json,register-log --spot, score, audit, all tests; updated docs/BOARD.md
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+

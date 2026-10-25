@@ -17,3 +17,4 @@ Each ADR states the question, my recommendation (with rule text and measured num
 | [0011](0011-legal-hold-retain.md) | Pre-audit legal_hold_N records get VERIFY_RECORD_PRESENT, never delete (unlabeled) | Accepted |
 | [0012](0012-unobservable-categories.md) | Cache, email-log, telemetry and unlinked marketing categories produce no steps; logged as not observable | Accepted |
 | [0013](0013-typesafe-evaluation-only.md) | The TypeSafe System One (Jev) model is evaluation-only, plus an optional log-only intent shadow vote | Accepted |
+| [0014](0014-coverage-is-weak-evidence.md) | Absence by omission (Coverage) is weak: ABSENT only if no visible observation shows the resource present; explicit negatives stay strong | Proposed, adopted provisionally |

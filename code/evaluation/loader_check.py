@@ -126,6 +126,38 @@ def run(root, files=None, kinds=None, spot=False):
     print(f"  gold-cited pairs: {n} checked, {n - fails} ok, {fails} failed; ownership of matched records: {dict(owner)}")
     ok &= fails == 0
 
+    # whole-store check: every gold expectation at audit_at, using all built loaders (validates ADR 0014)
+    from ghostaudit.store import EvidenceFile, EvidenceStore
+    files = [EvidenceFile(f, row["file_path"], row["origin"], row["captured_at"]) for f, row in manifest.items()]
+    store = EvidenceStore(files=files, observations=[o for r in results.values() for o in r.observations],
+                          coverage=[c for r in results.values() for c in r.coverage])
+    must_exist = {"REPORT_REMAINING_RECORD", "REPORT_EXPOSED_PII", "REPORT_ACTIVE_DATA_FLOW", "REPORT_RESTORE_RISK",
+                  "VERIFY_RECORD_PRESENT", "VERIFY_RECORD_REDACTED", "VERIFY_RECORD_ANONYMIZED",
+                  "VERIFY_DATA_FLOW_DISABLED", "VERIFY_RESTORE_BLOCKED"}
+    st_n = st_bad = st_unproven = st_pending = 0
+    for c, steps in gold.items():
+        view = store.as_of(reqs[c]["audit_at"])
+        for s in steps:
+            if s["phase"] == "REMEDIATION" or not s["evidence_id"]:
+                continue          # only cited steps assert an audit-time state; empty evidence = future check
+            exist = s["operation"] in must_exist
+            st_n += 1
+            got = view.state(s["system_id"], s["resource_id"])
+            if got is None:
+                st_unproven += 1
+                continue
+            if (got.state == "ABSENT") == exist:
+                cited = results.get(s["evidence_id"])
+                pending = cited is not None and cited.signature not in loaders.LOADERS
+                st_pending += pending
+                st_bad += not pending
+                tag = f"PENDING (cited {s['evidence_id']} is {cited.signature}, loader not built)" if pending else "CONTRADICTION"
+                print(f"  STATE {tag} {c} {s['operation']} {s['system_id']}/{s['resource_id']}: store says {got.state} "
+                      f"({got.basis} {got.file_id} {got.locator})")
+    print(f"STORE STATE CHECK: {st_n} cited gold expectations, {st_bad} contradictions, {st_pending} pending on unbuilt loaders, "
+          f"{st_unproven} unproven")
+    ok &= st_bad == 0
+
     if spot:
         print("SPOT CHECK (first observation per built signature, against the raw file)")
         seen = set()

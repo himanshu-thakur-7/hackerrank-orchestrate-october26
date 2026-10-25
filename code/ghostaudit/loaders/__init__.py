@@ -6,7 +6,7 @@ Signatures whose adapter is not built yet raise LoaderPending (strict) so nothin
 import json
 from pathlib import Path
 
-from ghostaudit.loaders import handover, readback, service_export, sql
+from ghostaudit.loaders import bundle, handover, readback, record_lookup, records, service_export, sql
 from ghostaudit.loaders.common import LoadResult, Unit  # noqa: F401  (re-exported)
 
 PENDING = {}            # signature -> board task that will implement it
@@ -25,9 +25,11 @@ LOADERS = {
     "json:service_exports": service_export.load,
     "log:readback": readback.load,
     "sql": sql.load,
+    "json:snapshots": bundle.load,
+    "json:records": records.load,
+    "log:record_lookup": record_lookup.load,
 }
-PENDING.update({"json:snapshots": "T06", "json:records": "T06", "log:record_lookup": "T06",
-                "log:observability": "T07", "pdf": "T12", "png": "T12"})
+PENDING.update({"log:observability": "T07", "pdf": "T12", "png": "T12"})
 
 
 def sniff(raw, file_id="?"):
@@ -59,7 +61,7 @@ def sniff(raw, file_id="?"):
         return "txt:handover"
     if readback.matches(text):
         return "log:readback"
-    if "event=record_lookup" in text:
+    if record_lookup.matches(text):
         return "log:record_lookup"
     first = next((l for l in text.splitlines() if l.strip()), "")
     if first[:20].count("-") >= 2 and "T" in first[:20] and first[19:20] == "Z":

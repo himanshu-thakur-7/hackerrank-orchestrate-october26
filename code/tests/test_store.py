@@ -94,3 +94,28 @@ class Links(unittest.TestCase):
         self.assertEqual(v.links_for_user("user_09"), [])            # contradicted links are never returned (ADR 0005)
         self.assertEqual(v.links_for_user("user_11"), [])            # not yet visible at this cutoff
         self.assertEqual([l.resource_id for l in st.as_of("2026-09-27T00:00:00Z").links_for_user("user_11")], ["account_5762"])
+
+
+class WeakCoverage(unittest.TestCase):
+    """ADR 0014: omission never overrides a positive observation; explicit negatives do."""
+
+    def test_coverage_does_not_erase_an_earlier_positive_sighting(self):
+        # like case_24: account_5334 PRESENT at 09:41 (evidence_92); evidence_51 at 12:00 lists customer_profiles: []
+        st = EvidenceStore(files=[f("A", "2026-09-15T11:44:55Z"), f("B", "2026-09-15T12:00:00Z")],
+                           observations=[obs("A", "2026-09-15T09:41:33Z", "account_service", "account_5334", "PRESENT")],
+                           coverage=[Coverage("B", "2026-09-15T12:00:00Z", "account_service", "customer_profiles")])
+        s = st.as_of("2026-09-15T12:00:00Z").state("account_service", "account_5334")
+        self.assertEqual((s.state, s.file_id), ("PRESENT", "A"))
+
+    def test_explicit_negative_still_overrides_older_presence(self):
+        # like case_27: an explicit 404 after an earlier sighting means ABSENT
+        st = EvidenceStore(files=[f("A", "2026-08-01T00:00:00Z"), f("B", "2026-09-15T11:44:55Z")],
+                           observations=[obs("A", "2026-08-01T00:00:00Z", "account_service", "account_3866", "PRESENT"),
+                                         obs("B", "2026-09-15T09:59:48Z", "account_service", "account_3866", "ABSENT")])
+        self.assertEqual(st.as_of("2026-09-15T12:00:00Z").state("account_service", "account_3866").state, "ABSENT")
+
+    def test_coverage_still_proves_absence_of_a_never_seen_resource(self):
+        # like case_31: account_4857 never observed; empty customer_profiles list
+        st = EvidenceStore(files=[f("B", "2026-09-15T12:00:00Z")],
+                           coverage=[Coverage("B", "2026-09-15T12:00:00Z", "account_service", "customer_profiles")])
+        self.assertEqual(st.as_of("2026-09-15T12:00:00Z").state("account_service", "account_4857").basis, "coverage")

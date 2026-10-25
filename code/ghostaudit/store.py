@@ -141,10 +141,13 @@ class CaseView:
             pick = next((o for o in latest if o.state != ABSENT), latest[-1])
             events.append((pick.observed_at, self._s.captured_at(fid), fid,
                            StateResult(pick.state, fid, "observation", pick.observed_at, pick.locator, pick)))
-        covering = {c.file_id: c for c in self._s._coverage_by_system.get(system_id, ()) if self._visible(c.file_id)}
-        for fid, c in covering.items():
-            if fid not in per_file:
-                events.append((c.captured_at, c.captured_at, fid, StateResult(ABSENT, fid, "coverage", c.captured_at)))
+        # ADR 0014: omission is weak evidence; it only counts when no visible observation shows presence
+        seen_present = any(o.state != ABSENT for obs in per_file.values() for o in obs)
+        if not seen_present:
+            covering = {c.file_id: c for c in self._s._coverage_by_system.get(system_id, ()) if self._visible(c.file_id)}
+            for fid, c in covering.items():
+                if fid not in per_file:
+                    events.append((c.captured_at, c.captured_at, fid, StateResult(ABSENT, fid, "coverage", c.captured_at)))
         if not events:
             return None
         return max(events, key=lambda e: e[:3])[3]
