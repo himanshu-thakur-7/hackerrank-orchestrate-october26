@@ -106,3 +106,13 @@ class BaselineFindings(unittest.TestCase):
         code, text = run("score", "--pred", str(tmp_copy(rows=rows)), env_extra=self.env)
         self.assertEqual(code, 0, text)
         self.assertIn("(first run)", text)
+
+
+class LoaderCheck(unittest.TestCase):
+    def test_loaders_command_reports_summary_gold_check_and_losses(self):
+        code, out = run("loaders", "--files", "evidence_03,evidence_92,evidence_94", "--spot")
+        self.assertEqual(code, 0, out)
+        for marker in ("DATASET SUMMARY", "GOLD CHECK", "SPOT CHECK", "UNATTRIBUTED (smallest 10"):
+            self.assertIn(marker, out)
+        self.assertIn("gold-cited pairs: ", out)
+        self.assertIn(" 0 failed", out)

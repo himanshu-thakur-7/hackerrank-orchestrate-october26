@@ -33,6 +33,7 @@ class Observation:
     pii_fields: tuple = ()              # direct identifiers still non-null on the record
     identifiers: tuple = ()             # exact identifiers seen in the record unit
     locator: str = ""                   # line / json path, for --explain
+    attrs: tuple = ()                   # other (key, value) fields of the record, e.g. ("status_code", "404")
 
 
 @dataclass(frozen=True)

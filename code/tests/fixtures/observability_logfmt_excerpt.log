@@ -1,0 +1,6 @@
+2026-09-15T08:51:43Z level=DEBUG service=log_router instance=collector-3 event=export_started sources=platform_services expected_source_events=98
+2026-09-15T08:51:45Z level=DEBUG service=search_service instance=search-2 pod=search-12cc region=ap-south-1 trace_id=tr-5887496 event=index_query_started match_key="g.silva76.jr@gmail.com" attempt=1
+2026-09-15T08:51:53Z level=DEBUG service=search_service instance=search-2 pod=search-12cc region=ap-south-1 trace_id=tr-5887496 event=connection_acquired pool=search_service_replica wait_ms=56
+2026-09-15T08:51:55Z level=WARN service=search_service instance=search-2 pod=search-12cc region=ap-south-1 trace_id=tr-5887496 event=dependency_retry dependency=search_service_store attempt=1 retry_in_ms=474 reason=read_timeout
+2026-09-15T08:51:56Z level=INFO service=search_service instance=search-2 pod=search-12cc region=ap-south-1 trace_id=tr-5887496 event=dependency_recovered attempt=2 route=primary
+2026-09-15T08:51:57Z level=INFO service=search_service instance=search-2 pod=search-12cc region=ap-south-1 trace_id=tr-5887496 resource_id=search_1874 event=index_query_completed index=customer_directory_v3 result=hit shard=2 took_ms=17

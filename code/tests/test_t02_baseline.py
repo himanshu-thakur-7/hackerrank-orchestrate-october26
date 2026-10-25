@@ -95,3 +95,13 @@ class BaselineCli(unittest.TestCase):
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertIn("intent: 508 DELETION / 10 NOT_DELETION", p.stdout)
         self.assertIn("identity: 518/518 resolved", p.stdout)
+
+
+class OwnerLookup(unittest.TestCase):
+    def test_owner_of_any_exact_identifier(self):
+        r = identity.Resolver.from_dataset(DATA)
+        self.assertEqual(r.owner_of("NOAH.F438085@OUTLOOK.COM"), "user_29")
+        self.assertEqual(r.owner_of("user_49"), "user_49")
+        self.assertEqual(r.owner_of(hashlib.sha256(b"abena.o189491@zoho.com").hexdigest()), "user_35")
+        self.assertIsNone(r.owner_of("g.silva76.jr@gmail.com"))
+        self.assertIsNone(r.owner_of("no direct identifier"))

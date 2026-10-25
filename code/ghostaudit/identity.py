@@ -67,3 +67,19 @@ class Resolver:
 
     def user(self, user_id):
         return self._by_user.get(user_id)
+
+    def owner_of(self, token):
+        """user_id whose identifier set contains `token` exactly (email any case, sha256, phone, user_id), else None."""
+        if not hasattr(self, "_owner"):
+            self._owner = {}
+            for u in self._by_user.values():
+                self._owner[u.user_id] = u.user_id
+                for e in u.emails | u.email_hashes:
+                    self._owner[e] = u.user_id
+                for ph in u.phones:
+                    self._owner["tel:" + ph] = u.user_id
+        t = (token or "").strip()
+        hit = self._owner.get(t) or self._owner.get(t.lower())
+        if hit is None and len(_digits(t)) >= 9 and not re.search(r"[A-Za-z]", t):
+            hit = self._owner.get("tel:" + _digits(t))
+        return hit

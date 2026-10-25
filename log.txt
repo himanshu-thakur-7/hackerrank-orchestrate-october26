@@ -588,3 +588,26 @@ repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
 
+## [2026-10-25T01:15:40Z] T04 done: content-signature loaders for handover, service exports, readback logs
+
+User Prompt (verbatim, secrets redacted):
+[Relayed by peer session "Prompt playbook website publishing" for the user, to be treated as the user's prompt]
+Implement T04, then T05, T06, T07 in that order, sequentially (mark each doing, then done in docs/BOARD.md). Use tdd. These loaders are the single riskiest piece of the design (your weak point #1), so be strict: real-snippet fixtures under code/tests/fixtures/ asserting exact Observations (owner identifiers, state fields, observed_at, file and line); dispatch by content signature, never by file name or evidence number; unknown signatures a hard error with a precise message; Coverage only for formats proven exhaustive (SQL table dumps, snapshot_scope, bundle collections, empty record lists) with the proof stated; ADR 0002 (per-line and per-sub-snapshot timestamps kept as observed_at, cutoff applied by as_of). After EACH loader: whole-dataset summary (files parsed, observations per system, unparsed lines or units, unknown signatures), every board acceptance command for that task, scorer re-run, delta in docs/BOARD.md; spot-check one observation per loader against the raw file; print the ten smallest records the loaders could NOT attribute to any person or resource, by loader. Commit and push after each loader, keep logging per AGENTS.md. If a loader reveals that a design assumption is wrong, say so and propose an ADR amendment instead of working around it. Confirm that __pycache__ and runs/ are git-ignored. When all four are done, stop and wait.
+
+Agent Response Summary:
+T04 test-first (tdd): fixtures copied verbatim from evidence_03, evidence_94 and evidence_01, plus real evidence_92 records. Exact-Observation tests cover the handover, service-export JSON (line locators from resource_id key positions), readback trace_id join, sniffing and the hard-error unknown signature. Added Observation.attrs, Resolver.owner_of and an evaluation `loaders` command (summary, gold check, spot check, unattributed report). The whole-dataset summary caught a sniff collision (3 observability logfmt files also carry lookup_key=); fixed test-first by matching the exact readback line grammar. Acceptance: 52/52 gold-cited pairs ok (41 owner-linked, 11 no-identifier records), 0 unknown signatures, scorer proxy unchanged at 0.000 (engine trivial). No coverage is emitted for these formats (probe lists, not exhaustive). Confirmed __pycache__/ and runs/ are git-ignored.
+
+Actions:
+* git check-ignore for __pycache__ and runs/
+* Wrote code/ghostaudit/loaders/{__init__,common,handover,service_export,readback}.py, code/tests/test_loaders_t04.py, fixtures; edited store.py, identity.py
+* Wrote code/evaluation/loader_check.py; added the `loaders` subcommand and a CLI test
+* Ran loaders --files evidence_03,evidence_92,evidence_94 --spot, score, all tests, audit; updated docs/BOARD.md
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+

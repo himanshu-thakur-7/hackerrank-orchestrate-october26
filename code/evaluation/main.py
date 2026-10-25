@@ -3,6 +3,7 @@
   python3 code/evaluation/main.py contract [--file output.csv] [--requests dataset/deletion_requests.csv]
   python3 code/evaluation/main.py score --pred PRED.csv [--reveal-holdout] [--accept-regression REASON]
   python3 code/evaluation/main.py determinism [--cmd "python3 code/main.py"] [--file output.csv]
+  python3 code/evaluation/main.py loaders [--files ID,ID] [--kind sql,json,log,...] [--spot]
   python3 code/evaluation/main.py audit
   python3 code/evaluation/main.py selftest
 
@@ -130,6 +131,13 @@ def cmd_determinism(a):
     return 0 if ok else 1
 
 
+def cmd_loaders(a):
+    from evaluation import loader_check
+    files = [x for x in a.files.split(",") if x] if a.files else None
+    kinds = [x for x in a.kind.split(",") if x] if a.kind else None
+    return loader_check.run(ROOT, files, kinds, a.spot)
+
+
 def cmd_audit(_):
     hits = audit.scan(ROOT / "code")
     print(f"LITERAL AUDIT: {len(hits)} hit(s)")
@@ -212,12 +220,13 @@ def main(argv=None):
     c = sub.add_parser("contract"); c.add_argument("--file", default=str(ROOT / "output.csv")); c.add_argument("--requests", default=str(DATA / "deletion_requests.csv"))
     s = sub.add_parser("score"); s.add_argument("--pred", required=True); s.add_argument("--reveal-holdout", action="store_true"); s.add_argument("--accept-regression", default="")
     d = sub.add_parser("determinism"); d.add_argument("--cmd", default=f"{shlex.quote(sys.executable)} code/main.py"); d.add_argument("--file", default=str(ROOT / "output.csv"))
+    lo = sub.add_parser("loaders"); lo.add_argument("--files", default=""); lo.add_argument("--kind", default=""); lo.add_argument("--spot", action="store_true")
     sub.add_parser("audit")
     sub.add_parser("selftest")
     a = p.parse_args(argv)
     os.chdir(ROOT)
     return {"contract": cmd_contract, "score": cmd_score, "determinism": cmd_determinism,
-            "audit": cmd_audit, "selftest": cmd_selftest}[a.command](a)
+            "audit": cmd_audit, "selftest": cmd_selftest, "loaders": cmd_loaders}[a.command](a)
 
 
 if __name__ == "__main__":
