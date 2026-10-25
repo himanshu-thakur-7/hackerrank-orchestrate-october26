@@ -201,3 +201,124 @@ The classification checks the current snapshot first, then the email audit histo
 - `DISABLE_DATA_FLOW` and `BLOCK_RESTORE`, e.g. `activity_95` and `activity_96`: the detail is a generic "Policy action completed for …". This is a claim that needs corroboration.
 - `RESTORE_BACKUP` appears once, as `activity_3387` (2026-08-22, backup_9287): "Restore job repopulated downstream resource search_4882." `activity_4006` links backup_9287 to user_16, so this is a **recreation event**.
 - `SYNC_RECORD` from account_service → analytics_platform, e.g. `activity_12`, is the sync path that can recreate deleted data.
+
+---
+
+## Pass 2 — sample_output.csv
+
+Scripts: `scratch/pass2_sample.py` (pretty-prints every case and validates the schema) and `scratch/pass2b.py` (tests the sort key, serialization and evidence timing). Each statement below cites a `case_id` from `sample_output.csv`.
+
+### 2.1 Schema
+
+All 32 rows pass the following checks:
+
+- every step has exactly the 7 keys;
+- `step_no` runs 1..n;
+- the phase matches the operation's phase;
+- the state matches the operation's state, as in the triple table in `docs/01_CONTRACT.md` §1.4.
+
+No other operation or state appears anywhere.
+
+### 2.2 Sort-key test
+
+The hypothesis is `(op_rank, system_id, resource_id)` ascending, with `step_no` assigned after sorting. **It holds for 32 of 32 cases.**
+
+How much this test actually proves:
+
+| Key tested | Failures |
+| --- | --- |
+| `(op_rank, system_id, resource_id)` | 0 |
+| `(op_rank, system_id)` | 0 |
+| `(op_rank, resource_id)` | 0 |
+| `(phase, system_id, resource_id)` | **19** (e.g. case_11, where REDACT support_platform comes before ANONYMIZE analytics_platform) |
+| `(phase, resource_id)` | **17** |
+
+- **Operation rank beats system within a phase.** case_11 steps 6 to 8 are DELETE search_service, REDACT support_platform, ANONYMIZE analytics_platform. This is operation order, not alphabetical by system.
+- **The `system_id` tiebreak is supported.** The sample has 30 adjacent pairs with the same operation, and all 30 have `system_id` strictly ascending. Example: case_11 steps 2 and 3 are REPORT_EXPOSED_PII on analytics_platform, then support_platform.
+- **The `resource_id` tiebreak is never exercised.** None of the 30 same-operation pairs share a `system_id`, so whether the order is lexical or natural is still unknown (A2).
+- **A3 (dependency order vs sort key) never comes up.** Remediation is always DISABLE → BLOCK → DELETE → REDACT → ANONYMIZE, which is plain table order. No sample case has two DELETEs where downstream and source would conflict.
+
+### 2.3 Serialization (claim: the grader ignores key order)
+
+- `steps_json` is compact JSON with no spaces.
+- The key order varies:
+  - case_01, case_02, case_04 to case_08 and case_10 use `sort_keys` order (`evidence_id, operation, phase, …`).
+  - The other 24 cases use schema order (`step_no, phase, system_id, …`). An example is case_03.
+- The CSV field is double-quoted, with inner quotes doubled. This is standard `csv` module quoting.
+
+### 2.4 COMPLETE cases
+
+There are 10: case_01 to case_04, case_21 and case_25 to case_28, plus case_31.
+
+- They contain **only VERIFICATION** steps, and every one has a non-empty `evidence_id`.
+- **The primary account always appears.** Every case has `VERIFY_RECORD_ABSENT account_service account_N` (10 of 10).
+- **A retained security record usually appears.** `VERIFY_RECORD_PRESENT security_service audit_record_N` is in 7 of 10 cases; the exceptions are case_01, case_02 and case_04. This matches rule_12, SECURITY_AUDIT_LOG → RETAIN.
+- The remaining verification steps list every other relevant record **in its compliant end state**:
+  - `VERIFY_RECORD_ANONYMIZED analytics_platform` (rule_07);
+  - `VERIFY_RECORD_REDACTED support_platform` (rule_05);
+  - `VERIFY_DATA_FLOW_DISABLED integration_service data_flow_N`;
+  - `VERIFY_RESTORE_BLOCKED backup_service backup_N` (rule_14);
+  - `VERIFY_RECORD_REDACTED identity_service tombstone_N` (rule_15), in case_31.
+- case_26, case_27 and case_28 are the fullest examples, with all six kinds of verification step.
+- **COMPLETE does not depend on the reported status.** case_25, case_26 and case_28 are reported NOT_STARTED but are COMPLETE, and case_02 is reported PARTIALLY_COMPLETE but is COMPLETE.
+- In the other direction, case_05, case_07, case_10, case_11, case_18, case_22, case_24 and case_30 are reported COMPLETE but are INCOMPLETE. **reported_status is noise.**
+
+### 2.5 INCOMPLETE cases (22)
+
+**Findings → remediation → verification mapping.** Every finding gets exactly one matching remediation and one matching verification on the same `(system_id, resource_id)`:
+
+| Finding | Seen on | Remediation | Verification |
+| --- | --- | --- | --- |
+| REPORT_REMAINING_RECORD | account, search, support, export, analytics (case_12) | DELETE_RECORD | VERIFY_RECORD_ABSENT |
+| REPORT_EXPOSED_PII | analytics_platform | ANONYMIZE_RECORD | VERIFY_RECORD_ANONYMIZED |
+| REPORT_EXPOSED_PII | support_platform | REDACT_RECORD | VERIFY_RECORD_REDACTED |
+| REPORT_EXPOSED_PII | identity_service tombstone (case_32) | REDACT_RECORD | VERIFY_RECORD_REDACTED |
+| REPORT_ACTIVE_DATA_FLOW | integration_service data_flow_N | DISABLE_DATA_FLOW | VERIFY_DATA_FLOW_DISABLED |
+| REPORT_RESTORE_RISK | backup_service backup_N (case_09, case_14, case_17) | BLOCK_RESTORE | VERIFY_RESTORE_BLOCKED |
+
+The counts in INCOMPLETE agree: 21 REMAINING / 21 DELETE, 11 EXPOSED / (6 REDACT + 5 ANONYMIZE), 6 FLOW / 6 DISABLE, and 3 RESTORE / 3 BLOCK.
+
+**Verification in INCOMPLETE covers more than the remediated records (resolves A15).** Two kinds of extra step always appear, even though their records were never findings:
+
+- The **primary account** gets `VERIFY_RECORD_ABSENT account_service account_N` with empty evidence in all 22 cases. For example, in case_06 the account was not a finding but is still verified absent.
+- The **retained security record** gets `VERIFY_RECORD_PRESENT security_service audit_record_N` in 17 of 22 cases. It is absent in case_05 to case_08 and case_10, the same "early" group that lacks it in COMPLETE.
+
+The rule appears to be **verify the required final state of every relevant record**, not only remediated ones. Open question: does an already-compliant record (for example an analytics row that is already anonymized) also get a VERIFY step in INCOMPLETE? The sample never shows one, so it is unresolved.
+
+Other findings from the INCOMPLETE cases:
+
+- **Backups are never deleted (resolves A17).** All three restore-risk cases use REPORT_RESTORE_RISK → BLOCK_RESTORE → VERIFY_RESTORE_BLOCKED on `backup_service`, which matches rule_14 RETAIN.
+- **Tombstone steps (resolves A16).** case_32 is REPORT_EXPOSED_PII → REDACT_RECORD → VERIFY_RECORD_REDACTED on `identity_service tombstone_9178`, with **no** VERIFY_RECORD_PRESENT for the tombstone. In COMPLETE case_31, `tombstone_440` is likewise only VERIFY_RECORD_REDACTED.
+- **Support message vs attachment (A9), evidence so far:**
+  - case_07 (an identity document sent to support) has `support_001` → REPORT_REMAINING_RECORD → DELETE. That is the attachment, rule_06.
+  - case_10 has `support_002` → DELETE.
+  - case_11, case_18, case_19, case_29 and case_30 have `support_N` → REPORT_EXPOSED_PII → REDACT. That is the message, rule_05; case_19's text says "messages also relate to another customer".
+  - **Both use `system_id = support_platform`.** The category has to come from the evidence content, which pass 3 will look at.
+- **Analytics is not always anonymized.** In case_12, `analytics_9914` is REPORT_REMAINING_RECORD → DELETE, while every other analytics finding is EXPOSED_PII → ANONYMIZE. The user changed email (see the request text), so this may be a record keyed by an old identifier, i.e. rule_02 SECONDARY_IDENTIFIER → DELETE. That will be checked against `evidence_01` in pass 4.
+- The **account itself** is a finding only in case_05, case_16 and case_24 (REMAINING → DELETE).
+
+### 2.6 Evidence citation patterns (resolves A5 and A7 in part)
+
+- **Usually one evidence file per case.**
+  - 31 of 32 cases cite a single `file_id` for every finding and every COMPLETE verification.
+  - The exception is case_04, which cites `evidence_54` for `account_004` and `evidence_56` for `analytics_901`.
+  - **No sample step cites an `activity_id` or `audit_id`.** Every cited ID is a `file_id`.
+- **Shared bundle files.**
+  - `evidence_92`: 10 cases, case_21 and case_23 to case_30.
+  - `evidence_01`: 4 cases (case_12, case_15, case_17, case_19).
+  - `evidence_03`: 3 cases (case_11, case_13, case_14).
+  - `evidence_94`: 3 cases (case_03, case_18, case_20).
+  - `evidence_05`: 2 cases (case_16, case_22).
+  - `evidence_51`: 2 cases (case_31, case_32).
+  - `evidence_54`: 4 cases (case_01, case_02, case_04, case_05).
+  - Any one file can therefore hold many users, so case membership must come from file **contents**, as AG §6.6 says.
+- **The cutoff is inclusive.** Every cited file has `captured_at <= audit_at`. In 7 cases it is **equal**: case_11, case_13 and case_14 (`evidence_03` at 2026-10-01T12:00:00Z), case_16 and case_22 (`evidence_05` at 2026-09-21T10:00:00Z), and case_31 and case_32 (`evidence_51` at 2026-09-15T12:00:00Z). So "at or before" includes the boundary.
+- **The latest file is not always cited.** case_05 (audit_at 2026-09-08) cites `evidence_54`, captured 2026-09-02T23:00, which is six days before the audit. Whether a newer qualifying file existed, and so whether the rule is "latest file naming the resource" or something else, is checked in pass 4.
+
+### 2.7 Open items carried forward
+
+- A2: the `resource_id` collation is still untested.
+- A15 (part): whether an already-compliant record gets a VERIFY step in an INCOMPLETE case.
+- case_12: why analytics gets DELETE rather than ANONYMIZE.
+- case_05: whether the cited file is the latest one.
+- The support category signal (A9) has to come from evidence content.

@@ -187,3 +187,24 @@ repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
 
+## [2026-10-25T00:10:42Z] /loop data discovery: pass 2 (sample_output)
+
+User Prompt (verbatim, secrets redacted):
+/loop (scheduled iteration; same prompt as the pass-1 entry above — one discovery pass per iteration, passes 1-5, append to docs/02_DATA_NOTES.md)
+
+Agent Response Summary:
+Ran pass 2 on sample_output.csv. The sort key (op_rank, system_id, resource_id) holds for 32 of 32 cases. Phase-then-system keys fail in 19 cases, and the system_id tiebreak is confirmed by 30 adjacent pairs, but the resource_id tiebreak is never exercised. Mapped the findings to remediation and verification. INCOMPLETE verification always adds the primary account (ABSENT) and usually the security audit_record (PRESENT). Backups are blocked, never deleted, and tombstones are redact-only. All cited evidence is file_ids with captured_at <= audit_at, inclusive in 7 cases. Open items: the resource_id collation, case_12's analytics DELETE, and case_05's choice of evidence file.
+
+Actions:
+* Wrote scratch/pass2_sample.py and scratch/pass2b.py and ran them
+* Appended a Pass 2 section to docs/02_DATA_NOTES.md
+* Committed and pushed; scheduled the next iteration
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+
