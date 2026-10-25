@@ -14,7 +14,7 @@ def render(engine, request, intent):
     out.append(f"  visible files at audit_at: {len(view.files())} of {len(engine.store.files)}; "
                f"pending loaders: {len(engine.notes)} file(s) ({', '.join(n.split('(')[1].split(',')[0] for n in engine.notes[:15])})")
     for r in a.resources:
-        out.append(f"  RESOURCE {r.system_id}/{r.resource_id}")
+        out.append(f"  RESOURCE {r.system_id}/{r.resource_id}  (grounding {r.grounding})")
         for o in r.links:
             hit = [t for t in o.identifiers if a.subject.matches(t)]
             out.append(f"    link   {o.file_id} {o.locator} (observed {o.observed_at}) via {hit}")

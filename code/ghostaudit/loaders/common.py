@@ -8,6 +8,20 @@ HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 PHONE_RE = re.compile(r"^\+?[\d][\d ()\-]{7,}\d$")
 ISO_RE = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
 
+PREFIX_SYSTEM = {   # resource-id prefix -> owning system, for formats that print ids without a system column
+    "account": "account_service", "support": "support_platform", "search": "search_service",
+    "analytics": "analytics_platform", "export": "export_service", "backup": "backup_service",
+    "data_flow": "integration_service", "audit_record": "security_service", "legal_hold": "legal_service",
+    "tombstone": "identity_service", "marketing": "marketing_platform", "object": "object_storage",
+}
+
+
+def system_of(resource_id):
+    """Owning system of a resource id by its prefix (account_12 -> account_service), or None."""
+    prefix = resource_id.rsplit("_", 1)[0]
+    return PREFIX_SYSTEM.get(prefix)
+
+
 NAME_FIELDS = {"full_name", "name", "display_name", "requester_name"}
 EMAIL_FIELDS = {"email", "requester_email", "owner_email", "customer_email", "uploaded_by"}
 PHONE_FIELDS = {"phone", "requester_phone", "owner_phone"}

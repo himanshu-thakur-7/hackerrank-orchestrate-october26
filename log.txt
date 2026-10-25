@@ -741,3 +741,24 @@ branch=claude/stoic-bell-1t82oq
 repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
+
+## [2026-10-25T01:58:33Z] T10 done: linking (activity accounts, catalog check, source refs); ADR 0016 proposed
+
+User Prompt (verbatim, secrets redacted):
+(same relayed T12/T10 prompt as the previous entry)
+
+Agent Response Summary:
+T10 test-first (11 linking tests, red then green). linking.py: the activity account candidates use one named window constant ACCOUNT_DELETE_WINDOW_HOURS=(0.5,1.5), result<->status agreement, a pre-audit identity filter and global one-to-one elimination over all 550 requests. Only unique survivors are linked; ties are logged with reason and candidates, and there is no tie-break. Catalog LINK_RESOURCE_IDENTITY claims are checked against their artifact (CONFIRMED / CONTRADICTED / UNCONFIRMED); activity_4008 is rejected (ADR 0005). Search source_resource_id links its account. Citation fixed to the documented rule (the latest file naming the resource; covering file only for omission), test corrected. Investigated case_17 account_6523: a prior-lifecycle 404 (evidence_67 = case_46 readback), the id is deleted again in case_03's window; proposed ADR 0016 (STALE_LINK), 0 eval rows affected. Results: samples 19/32 exact, 0 wrong; eval {0:12, 1:360, 2:110, 3:26}, 136 tied; dev proxy 0.731 -> 0.798, holdout 0.741 -> 0.805; empty INCOMPLETE stays 3. The literal audit caught a case id in the new evaluation check, now generic.
+
+Actions:
+* Wrote code/ghostaudit/linking.py, code/evaluation/linking_check.py, docs/adr/0016-stale-absent-links.md; edited engine.py (_link, citation, grounding), store.py (ActivityEvent.details, CaseView.citation), loaders/common.py (PREFIX_SYSTEM, system_of), main.py (run summary), explain.py, evaluation/main.py (linking)
+* Wrote code/tests/test_linking_t10.py; corrected test_engine_t08/t09 expectations (documented reasons above)
+* Ran unit tests, linking, states, loaders, contract, score --split dev, determinism, selftest, audit, explain on the 5 worst dev cases; updated docs/BOARD.md, docs/adr/README.md
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none

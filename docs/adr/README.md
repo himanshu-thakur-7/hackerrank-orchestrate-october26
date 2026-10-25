@@ -19,3 +19,4 @@ Each ADR states the question, my recommendation (with rule text and measured num
 | [0013](0013-typesafe-evaluation-only.md) | The TypeSafe System One (Jev) model is evaluation-only, plus an optional log-only intent shadow vote | Accepted |
 | [0014](0014-coverage-is-weak-evidence.md) | Absence by omission (Coverage) is weak: ABSENT only if no visible observation shows the resource present; explicit negatives stay strong | Accepted (owner, for now) |
 | [0015](0015-incomplete-with-no-grounded-step.md) | A deletion with nothing grounded to report is INCOMPLETE with [] (gate warning, not violation) | Accepted (owner ratified) |
+| [0016](0016-stale-absent-links.md) | A resource seen only ABSENT before requested_at is an earlier lifecycle: no step, logged STALE_LINK | Proposed, adopted provisionally |

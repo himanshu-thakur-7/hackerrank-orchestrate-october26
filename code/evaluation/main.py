@@ -6,6 +6,7 @@
   python3 code/evaluation/main.py determinism [--cmd "python3 code/main.py"] [--file output.csv]
   python3 code/evaluation/main.py loaders [--files ID,ID] [--kind sql,json,log,...] [--spot]
   python3 code/evaluation/main.py states [--split dev|holdout|all] [--risk]
+  python3 code/evaluation/main.py linking
   python3 code/evaluation/main.py audit
   python3 code/evaluation/main.py selftest
 
@@ -153,6 +154,11 @@ def cmd_states(a):
     return states.run(ROOT, a.split, a.risk)
 
 
+def cmd_linking(_):
+    from evaluation import linking_check
+    return linking_check.run(ROOT)
+
+
 def cmd_audit(_):
     hits = audit.scan(ROOT / "code")
     print(f"LITERAL AUDIT: {len(hits)} hit(s)")
@@ -237,12 +243,13 @@ def main(argv=None):
     d = sub.add_parser("determinism"); d.add_argument("--cmd", default=f"{shlex.quote(sys.executable)} code/main.py"); d.add_argument("--file", default=str(ROOT / "output.csv"))
     lo = sub.add_parser("loaders"); lo.add_argument("--files", default=""); lo.add_argument("--kind", default=""); lo.add_argument("--spot", action="store_true")
     st = sub.add_parser("states"); st.add_argument("--split", default="dev", choices=("dev", "holdout", "all")); st.add_argument("--risk", action="store_true")
+    sub.add_parser("linking")
     sub.add_parser("audit")
     sub.add_parser("selftest")
     a = p.parse_args(argv)
     os.chdir(ROOT)
     return {"contract": cmd_contract, "score": cmd_score, "determinism": cmd_determinism,
-            "audit": cmd_audit, "selftest": cmd_selftest, "loaders": cmd_loaders, "states": cmd_states}[a.command](a)
+            "audit": cmd_audit, "selftest": cmd_selftest, "loaders": cmd_loaders, "states": cmd_states, "linking": cmd_linking}[a.command](a)
 
 
 if __name__ == "__main__":

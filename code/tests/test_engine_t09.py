@@ -35,12 +35,14 @@ class Verdict(unittest.TestCase):
             step(1, "VERIFICATION", "VERIFY_RECORD_ABSENT", "account_service", "account_3866", "ABSENT", "E92"),
             step(2, "VERIFICATION", "VERIFY_RECORD_PRESENT", "security_service", "audit_record_3830", "PRESENT", "E92")]))
 
-    def test_absence_by_omission_cites_the_covering_file(self):
+    def test_absence_cites_the_latest_file_naming_the_resource_not_a_later_covering_file(self):
+        # case_21 / case_27: evidence_92 (11:44) shows the account 404; evidence_51 (12:00) only omits it.
+        # docs/02 §4.3: the cited file is the latest one that NAMES the resource; gold cites evidence_92.
         e = engine([("A", "2026-09-01T00:00:00Z"), ("B", "2026-09-10T00:00:00Z")], [
             ob("A", "2026-09-01T00:00:00Z", "account_service", "account_7", "ABSENT", ids=(NEW,))],
             coverage=[Coverage("B", "2026-09-10T00:00:00Z", "account_service", "customer_profiles")])
         self.assertEqual(e.audit(request(), DELETE)[1:], ("COMPLETE", [
-            step(1, "VERIFICATION", "VERIFY_RECORD_ABSENT", "account_service", "account_7", "ABSENT", "B")]))
+            step(1, "VERIFICATION", "VERIFY_RECORD_ABSENT", "account_service", "account_7", "ABSENT", "A")]))
 
     def test_redacted_tombstone_complete_and_exposed_tombstone_incomplete(self):
         # case_31 tombstone_440 (all identifiers null) vs case_32 tombstone_9178 (name, email, phone, hash)

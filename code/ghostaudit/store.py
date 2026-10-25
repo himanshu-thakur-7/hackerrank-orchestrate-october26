@@ -74,6 +74,7 @@ class ActivityEvent:
     target_system: str
     resource_id: str
     reported_result: str      # a claim, never state
+    details: str = ""         # free text; for LINK_RESOURCE_IDENTITY it names the claimed person
 
 
 @dataclass(frozen=True)
@@ -141,6 +142,12 @@ class CaseView:
 
     def resources_with_identifier(self, tokens):
         return set(self.linking_observations(tokens))
+
+    def citation(self, system_id, resource_id, result):
+        """File to cite for `result` (docs/02 §4.3): the latest visible file that NAMES the resource with that
+        state; a covering file only when absence is known by omission alone."""
+        same = [o for o in self.observations(resource_id) if o.system_id == system_id and o.state == result.state]
+        return same[-1].file_id if same else result.file_id
 
     def later_omissions(self, system_id, resource_id, after):
         """Visible covering files captured after `after` that do not list the resource (ADR 0014 risk)."""

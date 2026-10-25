@@ -25,7 +25,7 @@ class Discovery(unittest.TestCase):
         e = engine([("LATE", "2026-09-17T12:00:00Z")], [ob("LATE", "2026-09-09T12:00:00Z", "account_service", "account_1", ids=(NEW,))])
         a = e.assess(request(), DELETE)
         self.assertEqual(a.resources, [])
-        self.assertIn("UNRESOLVED_LINK(primary account: no grounded link yet, T10)", a.log)
+        self.assertIn("NO_GROUNDED_STEP", a.log)          # account linking (and its log line) is the T10 Linker's job
 
 
 class StateAtAuditTime(unittest.TestCase):

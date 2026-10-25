@@ -12,15 +12,9 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from ghostaudit.loaders.common import EMAIL_IN_TEXT, LoadResult, Unit, identifiers, kind
+from ghostaudit.loaders.common import EMAIL_IN_TEXT, PREFIX_SYSTEM, LoadResult, Unit, identifiers, kind
 from ghostaudit.store import Observation
 
-PREFIX_SYSTEM = {   # resource-id prefix -> owning system, for formats that print ids without a system column
-    "account": "account_service", "support": "support_platform", "search": "search_service",
-    "analytics": "analytics_platform", "export": "export_service", "backup": "backup_service",
-    "data_flow": "integration_service", "audit_record": "security_service", "legal_hold": "legal_service",
-    "tombstone": "identity_service", "marketing": "marketing_platform", "object": "object_storage",
-}
 RES_RE = re.compile(r"\b(" + "|".join(sorted(PREFIX_SYSTEM, key=len, reverse=True)) + r")_\d+\b")
 USER_RE = re.compile(r"\buser_\d+\b")
 PHONE_RE = re.compile(r"\+\d[\d \-]{7,}\d")

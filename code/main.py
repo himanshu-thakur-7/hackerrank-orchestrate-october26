@@ -55,6 +55,7 @@ def main(argv=None):
     rows = [eng.audit(q, intents[q["case_id"]]) for q in reqs]
     writer.write(a.out, rows)
     print(f"wrote {len(rows)} rows -> {a.out}")
+    print(eng.linker.summary([q["case_id"] for q in reqs]))
     return 0
 
 
