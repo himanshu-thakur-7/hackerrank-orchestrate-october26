@@ -114,6 +114,21 @@ class CacheModule(unittest.TestCase):
         self.assertNotIn("marketing lists only", text)
         self.assertEqual(llm_intent.read_cache(d / "cache_mod.py"), {llm_intent.cache_key(MIXED): entry})
 
+    def test_a_run_that_adds_entries_appends_its_totals_to_the_cache_origin(self):
+        d = Path(tempfile.mkdtemp())
+        llm_intent.write_cache(d / "c.py", {}, [{"run_at": "earlier", "live_calls": 3, "input_tokens": 9, "output_tokens": 1, "entries_added": 3}])
+        tracker = usage.Tracker()
+        clf = llm_intent.IntentClassifier(client=FakeClient({"marketing": answer(exclude=True)}), cache=llm_intent.read_cache(d / "c.py"),
+                                          tracker=tracker)
+        clf.classify(MIXED)
+        clf.save(d / "c.py")
+        origin = llm_intent.read_origin(d / "c.py")
+        self.assertEqual(len(origin), 2)
+        self.assertEqual({k: origin[1][k] for k in ("live_calls", "input_tokens", "output_tokens", "entries_added")}, {
+            "live_calls": 1, "input_tokens": 420, "output_tokens": 40, "entries_added": 1})
+        llm_intent.IntentClassifier(client=None, cache=llm_intent.read_cache(d / "c.py"), tracker=usage.Tracker()).save(d / "c.py")
+        self.assertEqual(len(llm_intent.read_origin(d / "c.py")), 2)      # a cache-only run adds nothing
+
 
 class Usage(unittest.TestCase):
     def test_tracker_totals_and_cost(self):

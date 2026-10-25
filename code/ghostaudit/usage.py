@@ -45,7 +45,9 @@ class Tracker:
         return {"calls": len(live), "cache_hits": len(self.calls) - len(live), "degraded": len(self.failures),
                 "failed_attempts": sum(f["attempts"] for f in self.failures), "notes": list(self.notes),
                 "input_tokens": sum(c.input_tokens for c in live), "output_tokens": sum(c.output_tokens for c in live),
-                "latency_ms_total": round(sum(c.latency_ms for c in live), 1), "cost_usd": cost, "per_model": per_model}
+                "latency_ms_total": round(sum(c.latency_ms for c in live), 1), "cost_usd": cost, "per_model": per_model,
+                "cache_hits_per_model": {m: sum(1 for c in self.calls if c.cache_hit and c.model == m)
+                                         for m in sorted({c.model for c in self.calls if c.cache_hit})}}
 
     def summary(self):
         t = self.totals()

@@ -7,6 +7,7 @@
   python3 code/main.py --explain <case_id>                 # trace behind one row
 """
 import argparse
+import json
 import sys
 from collections import Counter
 from pathlib import Path
@@ -27,6 +28,7 @@ def main(argv=None):
     p.add_argument("--report", action="store_true")
     p.add_argument("--intent", choices=("auto", "rules"), default="auto",
                    help="auto: rules decide clear texts, the cached model (live only with OPENAI_API_KEY) decides the rest")
+    p.add_argument("--usage-json", default="", help="also write this run's model usage totals as JSON to this path (for usage_report.md)")
     p.add_argument("--explain", default="", help="print the trace behind one case_id (searches both request files)")
     a = p.parse_args(argv)
     data_dir = Path(a.data)
@@ -67,6 +69,9 @@ def main(argv=None):
         print(clf.summary())
         print(tracker.summary())
         usage.write_run_log(ROOT / "runs" / "usage", tracker)
+    if a.usage_json:
+        Path(a.usage_json).write_text(json.dumps({"requests": len(rows), "totals": tracker.totals(),
+                                                  "intent": clf.counts if clf is not None else None}, sort_keys=True), encoding="utf-8")
     return 0
 
 

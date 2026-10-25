@@ -12,10 +12,12 @@
   python3 code/evaluation/main.py intent                     # rules vs model on every unique request text
   python3 code/evaluation/main.py custom                     # hand-written custom cases over a dataset overlay
   python3 code/evaluation/main.py report                     # regenerates code/evaluation/evaluation_report.md
+  python3 code/evaluation/main.py usage                      # code/evaluation/usage_report.md from a measured full run
   python3 code/evaluation/main.py jev-rank                   # advisory Jev risk scores + docs/JEV_REVIEW_QUEUE.md
   python3 code/evaluation/main.py metamorphic [--only M1,M7]
   python3 code/evaluation/main.py audit
   python3 code/evaluation/main.py selftest
+  python3 code/evaluation/main.py final                      # every gate + clean-room run of code.zip (T14)
 
 Exit codes: 0 ok, 1 contract/audit/determinism failure, 2 diff gate (dev regression).
 Unit tests: python3 -m unittest discover -s code/evaluation/tests -t code
@@ -196,6 +198,16 @@ def cmd_report(_):
     return report.run()
 
 
+def cmd_final(_):
+    from evaluation import final
+    return final.run()
+
+
+def cmd_usage(_):
+    from evaluation import usage_report
+    usage_report.run()
+
+
 def cmd_jev_rank(_):
     from evaluation import jev_ranker
     jev_ranker.run(samples=True)
@@ -293,13 +305,15 @@ def main(argv=None):
     sub.add_parser("custom")
     sub.add_parser("report")
     sub.add_parser("jev-rank")
+    sub.add_parser("usage")
+    sub.add_parser("final")
     mm = sub.add_parser("metamorphic"); mm.add_argument("--only", default="", help="e.g. M1,M7")
     sub.add_parser("audit")
     sub.add_parser("selftest")
     a = p.parse_args(argv)
     os.chdir(ROOT)
     return {"contract": cmd_contract, "score": cmd_score, "determinism": cmd_determinism,
-            "audit": cmd_audit, "selftest": cmd_selftest, "loaders": cmd_loaders, "states": cmd_states, "linking": cmd_linking, "metamorphic": cmd_metamorphic, "invariants": cmd_invariants, "lossledger": cmd_lossledger, "intent": cmd_intent, "custom": cmd_custom, "report": cmd_report, "jev-rank": cmd_jev_rank}[a.command](a)
+            "audit": cmd_audit, "selftest": cmd_selftest, "loaders": cmd_loaders, "states": cmd_states, "linking": cmd_linking, "metamorphic": cmd_metamorphic, "invariants": cmd_invariants, "lossledger": cmd_lossledger, "intent": cmd_intent, "custom": cmd_custom, "report": cmd_report, "jev-rank": cmd_jev_rank, "usage": cmd_usage, "final": cmd_final}[a.command](a)
 
 
 if __name__ == "__main__":
