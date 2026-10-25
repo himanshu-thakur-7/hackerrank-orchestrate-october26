@@ -1,4 +1,5 @@
-"""One data record (a row of a collection) -> Observation. Shared by bundle and collection-list loaders."""
+"""One data record (a row of a collection) -> Observation. Shared by bundle and collection-list
+loaders."""
 
 import json
 

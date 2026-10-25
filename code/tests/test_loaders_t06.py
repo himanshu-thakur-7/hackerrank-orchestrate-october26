@@ -1,6 +1,6 @@
-"""T06 loaders: snapshot bundles, record-list JSON (registers and collection lists), record_lookup logs.
-Fixtures: evidence_51 and evidence_56 verbatim; excerpts re-serialised from real evidence_31 and
-evidence_36 records; notification_delivery log lines 1-3 verbatim.
+"""T06 loaders: snapshot bundles, record-list JSON (registers and collection lists), record_lookup
+logs. Fixtures: evidence_51 and evidence_56 verbatim; excerpts re-serialised from real evidence_31
+and evidence_36 records; notification_delivery log lines 1-3 verbatim.
 """
 
 import unittest

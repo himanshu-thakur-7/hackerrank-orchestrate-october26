@@ -1,6 +1,6 @@
-"""Readback trace logs (logfmt): '<ts> level=.. service=<system> trace_id=.. event=<x>_started resource_id=.. lookup_key=..'
-followed by '<x>_completed' with the state fields. The lookup key (owner) is joined to the
-completed record through trace_id. Not exhaustive: no Coverage.
+"""Readback trace logs (logfmt): '<ts> level=.. service=<system> trace_id=.. event=<x>_started
+resource_id=.. lookup_key=..' followed by '<x>_completed' with the state fields. The lookup key
+(owner) is joined to the completed record through trace_id. Not exhaustive: no Coverage.
 """
 
 import re
@@ -18,7 +18,8 @@ from ghostaudit.loaders.common import (
 from ghostaudit.store import Observation
 
 LINE_RE = re.compile(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) (level=\w+ service=\w+ .*)$")
-# readback grammar: nothing between service= and (trace_id=) event=; observability logfmt has instance=/pod=/region= there
+# readback grammar: nothing between service= and (trace_id=) event=; observability logfmt has
+# instance=/pod=/region= there
 GRAMMAR_RE = re.compile(
     r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ level=\w+ service=\w+ (?:trace_id=\S+ )?event=\w+"
 )

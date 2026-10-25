@@ -24,7 +24,8 @@ class Identity:
     names: set = field(default_factory=set)
 
     def tokens(self):
-        """Every exact identifier of the subject, as Evidence Store index keys (phones as 'tel:<digits>')."""
+        """Every exact identifier of the subject, as Evidence Store index keys (phones as
+        'tel:<digits>')."""
         return sorted(
             {self.user_id} | self.emails | self.email_hashes | {"tel:" + p for p in self.phones}
         )
@@ -86,7 +87,8 @@ class Resolver:
         return self._by_user.get(user_id)
 
     def owner_of(self, token):
-        """user_id whose identifier set contains `token` exactly (email any case, sha256, phone, user_id), else None."""
+        """user_id whose identifier set contains `token` exactly (email any case, sha256, phone,
+        user_id), else None."""
         if not hasattr(self, "_owner"):
             self._owner = {}
             for u in self._by_user.values():

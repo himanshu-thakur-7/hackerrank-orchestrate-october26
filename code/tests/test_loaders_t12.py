@@ -1,5 +1,7 @@
-"""T12 loaders: PDF documents (pdftotext, pypdf fallback) and screenshots (committed transcriptions keyed by
-the PNG's sha256). The real dataset files are used directly: PDFs and PNGs cannot be excerpted line by line."""
+"""T12 loaders: PDF documents (pdftotext, pypdf fallback) and screenshots (committed transcriptions
+keyed by
+the PNG's sha256). The real dataset files are used directly: PDFs and PNGs cannot be excerpted
+line by line."""
 
 import hashlib
 import unittest
@@ -21,7 +23,8 @@ def by_res(r):
 
 class Pdf(unittest.TestCase):
     def test_uploaded_attachment_names_its_resource_and_owner(self):
-        # evidence_58: support_001, Priya Raman, uploader customer -> SUPPORT_ATTACHMENT content (case_07)
+        # evidence_58: support_001, Priya Raman, uploader customer -> SUPPORT_ATTACHMENT content
+        # (case_07)
         r = load(DOCS / "delivery_correction_attachment.pdf", "E58", "2026-09-12T07:30:00Z")
         self.assertEqual(r.signature, "pdf")
         self.assertEqual(
@@ -81,7 +84,8 @@ class Pdf(unittest.TestCase):
         )
 
     def test_no_text_backend_is_a_hard_error_for_a_pdf_outside_the_committed_cache(self):
-        # dataset PDFs come from pdf_text_cache.py (see test_degrade); anything else needs a real backend
+        # dataset PDFs come from pdf_text_cache.py (see test_degrade); anything else needs a real
+        # backend
         with self.assertRaises(pdf.PdfTextUnavailable):
             pdf.extract_text(b"%PDF-1.4 unknown document", backends=())
 

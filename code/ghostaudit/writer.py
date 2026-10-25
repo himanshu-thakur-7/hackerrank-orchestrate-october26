@@ -1,4 +1,5 @@
-"""output.csv writer: exact header, natural numeric case_id order, compact JSON in schema key order, \\n endings."""
+"""output.csv writer: exact header, natural numeric case_id order, compact JSON in schema key
+order, \\n endings."""
 
 import csv
 import json

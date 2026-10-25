@@ -97,24 +97,29 @@ def run(root, split_name="dev", risk=False, limit=5):
             if not good or r.treatment.verification != gop:
                 st = r.state
                 bad.append(
-                    f"  {c} {key[0]}/{key[1]}: gold {gs} ({gop}); ours {m} ({r.treatment.verification}) "
+                    f"  {c} {key[0]}/{key[1]}: gold {gs} ({gop}); ours {m} "
+                    f"({r.treatment.verification}) "
                     f"category={r.category} [{r.category_source}] state={st.state if st else None} "
-                    f"{(st.basis + ' ' + st.file_id + ' ' + st.locator) if st else ''} reason={r.treatment.reason}"
+                    f"{(st.basis + ' ' + st.file_id + ' ' + st.locator) if st else ''} "
+                    f"reason={r.treatment.reason}"
                 )
         for key, r in mine.items():
             if key not in g and r.treatment.kind != "none":
                 extra += 1
                 extras.append(
-                    f"  {c} {key[0]}/{key[1]}: ours {ours(r)} ({r.treatment.verification}) category={r.category} "
+                    f"  {c} {key[0]}/{key[1]}: ours {ours(r)} ({r.treatment.verification}) "
+                    f"category={r.category} "
                     f"[{r.category_source}] via {r.links[0].file_id} {r.links[0].locator}"
                 )
     print(f"STATES ({split_name}, {len(ids)} cases; gold-implied per-resource state vs ours)")
     print(
-        f"  gold resources: {n_gold}; discovered by grounded identifiers: {found}; not discovered (need T10 linking or T12 images/PDFs): {n_gold - found} {dict(misses)}"
+        f"  gold resources: {n_gold}; discovered by grounded identifiers: {found}; not discovered "
+        f"(need T10 linking or T12 images/PDFs): {n_gold - found} {dict(misses)}"
     )
     print(f"  state agreement on discovered: {ok}/{found} = {ok / found if found else 1:.3f}")
     print(
-        f"  end-state operation (verification op) agreement on discovered: {op_ok}/{found} = {op_ok / found if found else 1:.3f}"
+        f"  end-state operation (verification op) agreement on discovered: {op_ok}/{found} = "
+        f"{op_ok / found if found else 1:.3f}"
     )
     print(f"  extra resources we would emit steps for (not in gold): {extra}")
     print("\n".join(bad) or "  no disagreements")
@@ -134,7 +139,8 @@ def _line(d, file_path, locator):
 
 
 def risk_report(eng, d, limit):
-    """ADR 0014 risk on the evaluation requests: PRESENT only because an older sighting survives a later omission."""
+    """ADR 0014 risk on the evaluation requests: PRESENT only because an older sighting survives
+    a later omission."""
     from ghostaudit import data, intent
 
     hits, cases = [], set()
@@ -149,15 +155,18 @@ def risk_report(eng, d, limit):
                 cases.add(q["case_id"])
     flips = [(c, r) for c, r in hits if r.treatment.kind == "violation"]
     print(
-        f"ADR 0014 RISK (eval, {len(cases)} cases): {len(hits)} of {total} non-absent resources stand only because an older "
-        f"sighting survives a later covering file that omits them; {len(flips)} of those are violations "
+        f"ADR 0014 RISK (eval, {len(cases)} cases): {len(hits)} of {total} non-absent resources "
+        f"stand only because an older "
+        f"sighting survives a later covering file that omits them; {len(flips)} of those are "
+        f"violations "
         f"(would flip to compliant under strong coverage) in {len({c for c, _ in flips})} cases"
     )
     for c, r in (flips + [h for h in hits if h not in flips])[:limit]:
         o = r.state.observation
         f = eng.store.files[o.file_id]
         print(
-            f"  {c} {r.system_id}/{r.resource_id} {r.treatment.kind} ({r.category}): sighting {o.file_id} {o.locator} "
+            f"  {c} {r.system_id}/{r.resource_id} {r.treatment.kind} ({r.category}): sighting "
+            f"{o.file_id} {o.locator} "
             f"(observed {o.observed_at}); omitted by later {', '.join(r.later_omissions)}"
         )
         print(f"     {f.file_path} {o.locator}: {_line(d, f.file_path, o.locator)}")

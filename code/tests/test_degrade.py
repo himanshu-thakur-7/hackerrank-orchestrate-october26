@@ -1,5 +1,7 @@
-"""Degradation: a key without the SDK, API errors, bad answers or a missing PDF tool must fall back to
-rules + committed caches, never crash, never cache a failure, and never change output.csv for cached texts."""
+"""Degradation: a key without the SDK, API errors, bad answers or a missing PDF tool must fall back
+to
+rules + committed caches, never crash, never cache a failure, and never change output.csv for
+cached texts."""
 
 import json
 import os
@@ -15,7 +17,8 @@ from ghostaudit import llm_intent, usage
 from ghostaudit.intent import classify_rules
 from ghostaudit.loaders import pdf
 
-MIXED = "Please remove me from marketing lists only, I still want receipts."  # rules remainder -> model decides
+# rules remainder -> model decides
+MIXED = "Please remove me from marketing lists only, I still want receipts."
 
 
 class Raising:
@@ -147,12 +150,15 @@ class WholePipeline(unittest.TestCase):
         self.assertEqual(p.stderr.count("openai"), 1, p.stderr)  # one warning
 
     def test_client_raising_on_every_call(self):
-        # a fresh remainder text forces a cache miss; the raising client must degrade it to the rules label
+        # a fresh remainder text forces a cache miss; the raising client must degrade it to the
+        # rules label
         from evaluation.overlay import Overlay
 
         body = (
-            "class _C:\n    def create(self, **kw):\n        raise ConnectionError('injected failure')\n"
-            "class OpenAI:\n    def __init__(self, **kw):\n        self.chat = type('X', (), {'completions': _C()})()\n"
+            "class _C:\n    def create(self, **kw):\n        raise ConnectionError('injected "
+            "failure')\n"
+            "class OpenAI:\n    def __init__(self, **kw):\n        self.chat = type('X', (), "
+            "{'completions': _C()})()\n"
         )
         d = self.fake_openai(body)
         with Overlay(DATA) as ov:
@@ -160,7 +166,8 @@ class WholePipeline(unittest.TestCase):
             extra = dict(
                 rows[-1],
                 case_id="case_9999",
-                request_text="Please remove my old newsletter preferences only; do not close the account.",
+                request_text="Please remove my old newsletter preferences only; do not close the "
+                "account.",
             )
             ov.write_rows("deletion_requests.csv", rows + [extra])
             ref = run_main(self.tmp / "ov_nokey.csv", {}, data=ov.root)

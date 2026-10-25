@@ -1,5 +1,7 @@
-"""T16 invariants over the real output: invariants.check(output, data_dir) -> {invariant id: [violations]}.
-Each test breaks one property of a copy of the real output.csv and expects exactly that invariant to fire."""
+"""T16 invariants over the real output: invariants.check(output, data_dir) -> {invariant id:
+[violations]}.
+Each test breaks one property of a copy of the real output.csv and expects exactly that invariant
+to fire."""
 
 import csv
 import json

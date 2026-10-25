@@ -1,4 +1,5 @@
-"""Model usage tracker: one record per model lookup (live call or cache hit), with totals for usage_report.md.
+"""Model usage tracker: one record per model lookup (live call or cache hit), with totals for
+usage_report.md.
 
 Prices are USD per 1M tokens (input, output), from the provider's model page
 (https://developers.openai.com/api/docs/models/gpt-5.4-mini, checked 2026-10-25).
@@ -22,7 +23,8 @@ class Call:
 class Tracker:
     def __init__(self):
         self.calls = []
-        self.failures = []  # texts whose live call failed after every retry (decided by rules instead)
+        # texts whose live call failed after every retry (decided by rules instead)
+        self.failures = []
         self.notes = []  # run-level degradations (e.g. a key without the SDK)
 
     def note(self, message):
@@ -91,8 +93,10 @@ class Tracker:
         t = self.totals()
         avg = (t["input_tokens"] + t["output_tokens"]) / t["calls"] if t["calls"] else 0
         return (
-            f"model usage: {t['calls']} live call(s), {t['cache_hits']} cache hit(s); tokens in {t['input_tokens']} / out "
-            f"{t['output_tokens']} (avg {avg:.0f} per call); est. cost ${t['cost_usd']:.4f}; degraded texts {t['degraded']}"
+            f"model usage: {t['calls']} live call(s), {t['cache_hits']} cache hit(s); tokens in "
+            f"{t['input_tokens']} / out "
+            f"{t['output_tokens']} (avg {avg:.0f} per call); est. cost ${t['cost_usd']:.4f}; "
+            f"degraded texts {t['degraded']}"
             + (f"; notes: {' | '.join(t['notes'])}" if t["notes"] else "")
         )
 
@@ -101,7 +105,8 @@ class Tracker:
 
 
 def write_run_log(directory, tracker):
-    """Per-call records of one run as Markdown under runs/ (git-ignored); totals feed usage_report.md."""
+    """Per-call records of one run as Markdown under runs/ (git-ignored); totals feed
+    usage_report.md."""
     import time
     from pathlib import Path
 
@@ -112,8 +117,10 @@ def write_run_log(directory, tracker):
         [
             f"# Model usage, run {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}",
             "",
-            f"- live calls {t['calls']}, cache hits {t['cache_hits']}, input tokens {t['input_tokens']}, "
-            f"output tokens {t['output_tokens']}, est. cost ${t['cost_usd']:.4f}, degraded texts {t['degraded']} "
+            f"- live calls {t['calls']}, cache hits {t['cache_hits']}, input tokens "
+            f"{t['input_tokens']}, "
+            f"output tokens {t['output_tokens']}, est. cost ${t['cost_usd']:.4f}, degraded texts "
+            f"{t['degraded']} "
             f"({t['failed_attempts']} failed attempts)",
             "",
         ]
@@ -126,7 +133,8 @@ def write_run_log(directory, tracker):
         ]
     )
     lines += [
-        f"| {c.provider} | {c.model} | {c.input_tokens} | {c.output_tokens} | {c.latency_ms} | {c.cache_hit} |"
+        f"| {c.provider} | {c.model} | {c.input_tokens} | {c.output_tokens} | {c.latency_ms} | "
+        f"{c.cache_hit} |"
         for c in tracker.calls
     ]
     (d / f"usage_{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}.md").write_text(

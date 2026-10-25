@@ -1,4 +1,5 @@
-"""T13 custom cases: hand-written expectations over a dataset overlay; the real 518 rows must not move."""
+"""T13 custom cases: hand-written expectations over a dataset overlay; the real 518 rows must not
+move."""
 
 import copy
 import unittest

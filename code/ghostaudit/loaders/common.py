@@ -1,4 +1,5 @@
-"""Shared helpers for loaders: value classification, PII fields, identifiers, attrs, logfmt parsing."""
+"""Shared helpers for loaders: value classification, PII fields, identifiers, attrs, logfmt
+parsing."""
 
 import re
 from dataclasses import dataclass, field
@@ -9,7 +10,8 @@ HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 PHONE_RE = re.compile(r"^\+?[\d][\d ()\-]{7,}\d$")
 ISO_RE = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
 
-PREFIX_SYSTEM = {  # resource-id prefix -> owning system, for formats that print ids without a system column
+# resource-id prefix -> owning system, for formats that print ids without a system column
+PREFIX_SYSTEM = {
     "account": "account_service",
     "support": "support_platform",
     "search": "search_service",
@@ -147,7 +149,8 @@ def logfmt(text):
 
 
 def state_from_fields(f):
-    """Generic state for one record from its fields. Absence signals win, then flow/restore flags."""
+    """Generic state for one record from its fields. Absence signals win, then flow/restore
+    flags."""
     g = {
         k: (str(v).lower() if not isinstance(v, str) else v.lower())
         for k, v in f.items()

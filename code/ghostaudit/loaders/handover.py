@@ -1,4 +1,5 @@
-"""Shift-handover text: '- <ts> | <system> | <resource> | <CATEGORY> | <STATUS> | <identifier>' rows.
+"""Shift-handover text: '- <ts> | <system> | <resource> | <CATEGORY> | <STATUS> | <identifier>'
+rows.
 
 Not exhaustive (a checklist of what was checked), so it never emits Coverage.
 """

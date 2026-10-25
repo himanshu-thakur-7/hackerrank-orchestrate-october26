@@ -1,8 +1,10 @@
-"""Custom evaluation cases (T13): synthetic people, evidence and requests, applied to a dataset overlay.
+"""Custom evaluation cases (T13): synthetic people, evidence and requests, applied to a dataset
+overlay.
 
-Every person, identifier and text here is invented. All dates are in 2027, after every real audit_at, so
-the cases cannot change the 518 real rows (the runner checks that). Each case has a HAND-WRITTEN expected
-row (status + ordered steps) and, where the point is an omission, the log line that must explain it.
+Every person, identifier and text here is invented. All dates are in 2027, after every real
+audit_at, so the cases cannot change the 518 real rows (the runner checks that). Each case has a
+HAND-WRITTEN expected row (status + ordered steps) and, where the point is an omission, the log line
+that must explain it.
 """
 
 import hashlib
@@ -12,7 +14,10 @@ _sha = lambda s: hashlib.sha256(s.encode()).hexdigest()
 
 def L(ts, svc, trace, event, extra):
     """One observability log line (logfmt dialect)."""
-    return f"{ts} level=INFO service={svc} instance={svc}-1 pod={svc}-c0 region=eu-west-1 trace_id={trace} event={event} {extra}"
+    return (
+        f"{ts} level=INFO service={svc} instance={svc}-1 pod={svc}-c0 region=eu-west-1 "
+        f"trace_id={trace} event={event} {extra}"
+    )
 
 
 def lookup(ts, email, account, found=False, trace="tr-c"):
@@ -105,7 +110,8 @@ def step(phase, op, sys_, res, state, ev=""):
 
 
 SQL_COLS = (
-    "resource_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, full_name TEXT NOT NULL, email TEXT NOT NULL, "
+    "resource_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, full_name TEXT NOT NULL, email TEXT NOT "
+    "NULL, "
     "phone TEXT NOT NULL, account_status TEXT NOT NULL, updated_at TEXT NOT NULL"
 )
 
@@ -175,7 +181,8 @@ CASES = [
     {
         "id": "case_9001",
         "title": "replica-only account",
-        "why": "The primary table no longer holds the account, but the failover replica still does: the account is PRESENT (docs/02 §5.2).",
+        "why": "The primary table no longer holds the account, but the failover replica still "
+        "does: the account is PRESENT (docs/02 §5.2).",
         "people": [
             person("user_9001", "Ilona Varkas", "ilona.varkas@example.net", "+48 600 100 001")
         ],
@@ -232,7 +239,8 @@ CASES = [
     {
         "id": "case_9002",
         "title": "DELETION_PENDING account",
-        "why": "SUCCESS claim and reported COMPLETE, but the row still exists with the email (ADR 0010).",
+        "why": "SUCCESS claim and reported COMPLETE, but the row still exists with the email (ADR "
+        "0010).",
         "people": [
             person("user_9002", "Tomas Reyes", "tomas.reyes@example.net", "+34 600 100 002")
         ],
@@ -289,7 +297,10 @@ CASES = [
     {
         "id": "case_9003",
         "title": "contradicted catalog link",
-        "why": "A LINK_RESOURCE_IDENTITY claim gives marketing_90003 to the subject, but the artifact captured 7 minutes earlier shows another person: rejected, no step (ADR 0005). (Screens are hash-keyed transcriptions, so the artifact here is a log export.)",
+        "why": "A LINK_RESOURCE_IDENTITY claim gives marketing_90003 to the subject, but the "
+        "artifact captured 7 minutes earlier shows another person: rejected, no step (ADR "
+        "0005). (Screens are hash-keyed transcriptions, so the artifact here is a log "
+        "export.)",
         "people": [
             person("user_9003", "Mira Solberg", "mira.solberg@example.net", "+47 900 100 003")
         ],
@@ -313,7 +324,8 @@ CASES = [
                 "target_system": "marketing_platform",
                 "resource_id": "marketing_90003",
                 "reported_result": "SUCCESS",
-                "details": "Data catalog linked marketing_90003 (marketing_90003) to mira.solberg@example.net and user_9003.",
+                "details": "Data catalog linked marketing_90003 (marketing_90003) to "
+                "mira.solberg@example.net and user_9003.",
             },
         ],
         "files": [
@@ -368,7 +380,8 @@ CASES = [
     {
         "id": "case_9004",
         "title": "legal hold",
-        "why": "A pre-audit legal_hold_N for the subject is retained and verified present, never deleted (ADR 0011).",
+        "why": "A pre-audit legal_hold_N for the subject is retained and verified present, never "
+        "deleted (ADR 0011).",
         "people": [
             person("user_9004", "Arne Lindqvist", "arne.lindqvist@example.net", "+46 700 100 004")
         ],
@@ -408,7 +421,8 @@ CASES = [
                             "legal_service",
                             "tr-c4b",
                             "retained_order_loaded",
-                            'resource_id=legal_hold_90004 reason="payment_dispute" access="allowed"',
+                            'resource_id=legal_hold_90004 reason="payment_dispute" '
+                            'access="allowed"',
                         ),
                     ]
                 )
@@ -442,7 +456,8 @@ CASES = [
     {
         "id": "case_9005",
         "title": "uppercase historical email",
-        "why": "The request uses the subject's OLD email in upper case; evidence uses the old email in lower case. Exact, case-insensitive matching over the audit chain.",
+        "why": "The request uses the subject's OLD email in upper case; evidence uses the old "
+        "email in lower case. Exact, case-insensitive matching over the audit chain.",
         "people": [
             person("user_9005", "Lena Okoro", "lena.okoro.new@example.net", "+234 800 100 005")
         ],
@@ -511,7 +526,8 @@ CASES = [
     {
         "id": "case_9006",
         "title": "post-cutoff resurrection",
-        "why": "A file captured AFTER audit_at shows the account active again; it must not change the answer (ADR 0002).",
+        "why": "A file captured AFTER audit_at shows the account active again; it must not change "
+        "the answer (ADR 0002).",
         "people": [
             person("user_9006", "Pavel Novak", "pavel.novak@example.net", "+420 600 100 006")
         ],
@@ -576,7 +592,9 @@ CASES = [
     {
         "id": "case_9007",
         "title": "redacted tombstone",
-        "why": "The tombstone keeps only the stable user reference: compliant, VERIFY_RECORD_REDACTED (rule_15). The account is absent by omission from the covering snapshot (ADR 0014).",
+        "why": "The tombstone keeps only the stable user reference: compliant, "
+        "VERIFY_RECORD_REDACTED (rule_15). The account is absent by omission from the "
+        "covering snapshot (ADR 0014).",
         "people": [
             person("user_9007", "Ines Duarte", "ines.duarte@example.net", "+351 910 100 007")
         ],
@@ -626,7 +644,8 @@ CASES = [
     {
         "id": "case_9008",
         "title": "exposed tombstone",
-        "why": "The tombstone still holds name, email, phone and hash: REPORT_EXPOSED_PII + REDACT_RECORD, never deleted (rule_15).",
+        "why": "The tombstone still holds name, email, phone and hash: REPORT_EXPOSED_PII + "
+        "REDACT_RECORD, never deleted (rule_15).",
         "people": [
             person("user_9008", "Kwesi Boateng", "kwesi.boateng@example.net", "+233 20 100 0008")
         ],
@@ -688,7 +707,8 @@ CASES = [
     {
         "id": "case_9009",
         "title": "marketing-only trap (non-deletion)",
-        "why": "The text says 'remove' but limits the request to marketing lists and forbids closing the account: NOT_APPLICABLE with [].",
+        "why": "The text says 'remove' but limits the request to marketing lists and forbids "
+        "closing the account: NOT_APPLICABLE with [].",
         "people": [
             person("user_9009", "Yara Haddadin", "yara.haddadin@example.net", "+962 79 100 0009")
         ],
@@ -700,7 +720,8 @@ CASES = [
                 "COMPLETE",
                 "2027-03-26T08:00:00Z",
                 "2027-03-27T08:00:00Z",
-                "Please remove me from your marketing lists only. Do not close or delete my account; I still shop with you.",
+                "Please remove me from your marketing lists only. Do not close or delete my "
+                "account; I still shop with you.",
             )
         ],
         "activity": [],
@@ -710,7 +731,9 @@ CASES = [
     {
         "id": "case_9010",
         "title": "tied account candidates (two requests)",
-        "why": "Two requests share a reported_at; two SUCCESS account deletes fit both windows and no evidence separates them: no account step for either, UNRESOLVED_LINK logged (ADR 0004).",
+        "why": "Two requests share a reported_at; two SUCCESS account deletes fit both windows and "
+        "no evidence separates them: no account step for either, UNRESOLVED_LINK logged "
+        "(ADR 0004).",
         "people": [
             person("user_9010", "Jonas Aalto", "jonas.aalto@example.net", "+358 40 100 0010"),
             person("user_9011", "Maren Holt", "maren.holt@example.net", "+47 900 100 011"),
@@ -784,7 +807,9 @@ CASES = [
     {
         "id": "case_9012",
         "title": "attempted-but-unproven account delete",
-        "why": "The only account signal is a FAILED delete claim and no file shows the account: a future VERIFY_RECORD_ABSENT only, never a finding citing the claim (ADR 0006 amended).",
+        "why": "The only account signal is a FAILED delete claim and no file shows the account: a "
+        "future VERIFY_RECORD_ABSENT only, never a finding citing the claim (ADR 0006 "
+        "amended).",
         "people": [
             person("user_9012", "Odile Marchand", "odile.marchand@example.net", "+33 6 10 00 00 12")
         ],

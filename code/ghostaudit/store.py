@@ -16,7 +16,8 @@ ABSENT = "ABSENT"
 
 
 def token_key(t):
-    """Index key for an identifier: phones by digits ('tel:<digits>'), everything else lowercased."""
+    """Index key for an identifier: phones by digits ('tel:<digits>'), everything else
+    lowercased."""
     t = str(t).strip()
     digits = re.sub(r"\D", "", t)
     if len(digits) >= 9 and not re.search(r"[A-Za-z@]", t):
@@ -49,7 +50,8 @@ class Observation:
 
 @dataclass(frozen=True)
 class Coverage:
-    """The snapshot lists every row of `table`; a resource of `system_id` it does not list is ABSENT."""
+    """The snapshot lists every row of `table`; a resource of `system_id` it does not list is
+    ABSENT."""
 
     file_id: str
     captured_at: str
@@ -138,7 +140,8 @@ class CaseView:
         )
 
     def linking_observations(self, tokens):
-        """Visible observations whose identifiers contain any token exactly -> {(system_id, resource_id): [obs]}."""
+        """Visible observations whose identifiers contain any token exactly -> {(system_id,
+        resource_id): [obs]}."""
         out = defaultdict(set)
         for t in tokens:
             for o in self._s._by_identifier.get(token_key(t), ()):
@@ -151,7 +154,8 @@ class CaseView:
         return set(self.linking_observations(tokens))
 
     def citation(self, system_id, resource_id, result):
-        """File to cite for `result` (docs/02 §4.3): the latest visible file that NAMES the resource with that
+        """File to cite for `result` (docs/02 §4.3): the latest visible file that NAMES the resource
+        with that
         state; a covering file only when absence is known by omission alone."""
         same = [
             o
@@ -161,7 +165,8 @@ class CaseView:
         return same[-1].file_id if same else result.file_id
 
     def later_omissions(self, system_id, resource_id, after):
-        """Visible covering files captured after `after` that do not list the resource (ADR 0014 risk)."""
+        """Visible covering files captured after `after` that do not list the resource (ADR 0014
+        risk)."""
         named = {o.file_id for o in self.observations(resource_id) if o.system_id == system_id}
         return tuple(
             sorted(
@@ -174,7 +179,8 @@ class CaseView:
         )
 
     def state(self, system_id, resource_id):
-        """Latest evidence-backed state of a resource, or None when nothing visible proves anything (UNPROVEN)."""
+        """Latest evidence-backed state of a resource, or None when nothing visible proves
+        anything (UNPROVEN)."""
         per_file = defaultdict(list)
         for o in self.observations(resource_id):
             if o.system_id == system_id:
@@ -195,7 +201,8 @@ class CaseView:
                     ),
                 )
             )
-        # ADR 0014: omission is weak evidence; it only counts when no visible observation shows presence
+        # ADR 0014: omission is weak evidence; it only counts when no visible observation shows
+        # presence
         seen_present = any(o.state != ABSENT for obs in per_file.values() for o in obs)
         if not seen_present:
             covering = {

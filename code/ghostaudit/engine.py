@@ -29,8 +29,10 @@ class ResourceAssessment:
     category: Optional[str]
     category_source: str
     treatment: policy.Treatment
-    later_omissions: tuple = ()  # covering files after the deciding sighting that omit it (ADR 0014 risk)
-    grounding: str = "IDENTIFIER"  # IDENTIFIER (same record / trace join) | SOURCE_REF | CATALOG | ACTIVITY_ACCOUNT
+    # covering files after the deciding sighting that omit it (ADR 0014 risk)
+    later_omissions: tuple = ()
+    # IDENTIFIER (same record / trace join) | SOURCE_REF | CATALOG | ACTIVITY_ACCOUNT
+    grounding: str = "IDENTIFIER"
     evidence: str = ""  # file to cite for the state (CaseView.citation)
 
 
@@ -78,7 +80,8 @@ class Engine:
             )
             if r.signature not in loaders.LOADERS:
                 notes.append(
-                    f"PENDING_LOADER({row['file_id']}, {r.signature}, {loaders.PENDING.get(r.signature, '?')})"
+                    f"PENDING_LOADER({row['file_id']}, {r.signature}, "
+                    f"{loaders.PENDING.get(r.signature, '?')})"
                 )
             files.append(
                 EvidenceFile(row["file_id"], row["file_path"], row["origin"], row["captured_at"])
@@ -92,7 +95,8 @@ class Engine:
             activity=load_activity(d / "system_activity.csv"),
         )
         resolver = resolver or identity.Resolver.from_dataset(d)
-        # global one-to-one account assignment runs over every request file in the dataset (ADR 0003)
+        # global one-to-one account assignment runs over every request file in the dataset (ADR
+        # 0003)
         requests = [
             q
             for f in ("sample_deletion_requests.csv", "deletion_requests.csv")
@@ -131,7 +135,8 @@ class Engine:
         return a
 
     def _plan(self, a):
-        """Verdict (ADR 0006) + steps. INCOMPLETE iff any grounded violation; COMPLETE cites every step."""
+        """Verdict (ADR 0006) + steps. INCOMPLETE iff any grounded violation; COMPLETE cites
+        every step."""
         planned = [r for r in a.resources if r.treatment.kind != "none"]
         violations = [r for r in planned if r.treatment.kind == "violation"]
         steps = []
@@ -157,7 +162,8 @@ class Engine:
         return "COMPLETE", contract.ordered(steps)
 
     def _link(self, a, view, subject, request, found):
-        """Stage 4 (T10): stale links out, source references, catalog claims checked against artifacts, the activity account."""
+        """Stage 4 (T10): stale links out, source references, catalog claims checked against
+        artifacts, the activity account."""
         for key, (links, _) in sorted(found.items()):
             if links and all(
                 o.observed_at < request["requested_at"] and o.state == "ABSENT" for o in links
@@ -167,7 +173,8 @@ class Engine:
                 ]  # ADR 0016: an earlier lifecycle of the id, not this request's data
                 del found[key]
                 a.log.append(
-                    f"STALE_LINK({key[0]}/{key[1]}: every link predates requested_at and shows it absent; "
+                    f"STALE_LINK({key[0]}/{key[1]}: every link predates requested_at and shows it "
+                    f"absent; "
                     f"latest {last.file_id} {last.locator} at {last.observed_at}; ADR 0016)"
                 )
         for (system_id, resource_id), (links, _) in sorted(found.items()):
@@ -189,7 +196,8 @@ class Engine:
                 )
             else:
                 a.log.append(
-                    f"UNRESOLVED_LINK({c.activity_id} {c.resource_id}: catalog claim not confirmed, {c.reason})"
+                    f"UNRESOLVED_LINK({c.activity_id} {c.resource_id}: catalog claim not "
+                    f"confirmed, {c.reason})"
                 )
         acc = self.linker.account(request["case_id"])
         if acc.status == "LINKED":

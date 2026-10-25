@@ -9,8 +9,9 @@ Reasons (from the engine's own assessment and log, never from gold):
   unresolved:catalog     catalog claim with no confirming artifact (ADR 0005)
   contradicted           REJECTED_LINK, the artifact shows someone else (ADR 0005)
   unproven               a linked resource with no provable end state (ADR 0006)
-  no-step:<why>          a linked resource that policy cannot plan (not observable, unresolved category, ...)
-  unlabeled:<rule>       decided by a rule no sample labels: DELETION_PENDING (ADR 0010), legal hold (ADR 0011),
+  no-step:<why>          a linked resource that policy cannot plan (not observable, unresolved
+  category, ...) unlabeled:<rule>       decided by a rule no sample labels: DELETION_PENDING (ADR
+  0010), legal hold (ADR 0011),
                          INCOMPLETE [] (ADR 0015), stale link dropped (ADR 0016)
 """
 
@@ -19,7 +20,8 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-# sample-measured rates for the step-ceiling estimate (docs/03_ID_RECOVERY_PROTOTYPE.md §6, docs/02 §4.5)
+# sample-measured rates for the step-ceiling estimate (docs/03_ID_RECOVERY_PROTOTYPE.md §6, docs/02
+# §4.5)
 STEPS_PER_UNRESOLVED_ACCOUNT = (
     1 + 2 * 0.14
 )  # VERIFY_ABSENT, plus finding+remediation when still present (3/22)
@@ -62,7 +64,8 @@ def reasons(a, linker_status):
 
 
 def ceiling(counts, n_cases, emitted):
-    """Step-recall ceiling estimate from ledger counts (rates measured on the samples, see module constants)."""
+    """Step-recall ceiling estimate from ledger counts (rates measured on the samples, see module
+    constants)."""
     deletion = n_cases - counts.get("resolved:non-deletion", 0)
     unres = counts.get("unresolved:tied", 0) + counts.get("unresolved:window", 0)
     missing = (
@@ -118,9 +121,12 @@ def run(root=ROOT, write=None):
         + 0.09 * (len(ledger) - counts["resolved:non-deletion"])
     )  # unreachable audit records (3/32 samples)
     print(
-        f"STEP CEILING (estimate): {emitted} steps emitted; ~{missing:.0f} gold-style steps expected missing "
-        f"({unres} unresolved accounts x {STEPS_PER_UNRESOLVED_ACCOUNT:.2f}, + unlinked anonymized analytics ~0.22/case, "
-        f"+ unreachable audit records ~0.09/case, + {counts['unresolved:catalog']} catalog) -> step recall ceiling "
+        f"STEP CEILING (estimate): {emitted} steps emitted; ~{missing:.0f} gold-style steps "
+        f"expected missing "
+        f"({unres} unresolved accounts x {STEPS_PER_UNRESOLVED_ACCOUNT:.2f}, + unlinked anonymized "
+        f"analytics ~0.22/case, "
+        f"+ unreachable audit records ~0.09/case, + {counts['unresolved:catalog']} catalog) -> "
+        f"step recall ceiling "
         f"~{emitted / (emitted + missing):.2f}"
     )
     if write:
@@ -135,8 +141,10 @@ def run(root=ROOT, write=None):
             lines.append(f"| {k} | {len(ids)} | {', '.join(ids)} |")
         lines += [
             "",
-            f"Non-deletion (NOT_APPLICABLE, resolved): {counts['resolved:non-deletion']}. Unknown: {counts['unknown']}.",
-            f"Step ceiling estimate: {emitted} emitted, ~{missing:.0f} expected missing, recall ceiling ~{emitted / (emitted + missing):.2f}.",
+            f"Non-deletion (NOT_APPLICABLE, resolved): {counts['resolved:non-deletion']}. Unknown: "
+            f"{counts['unknown']}.",
+            f"Step ceiling estimate: {emitted} emitted, ~{missing:.0f} expected missing, recall "
+            f"ceiling ~{emitted / (emitted + missing):.2f}.",
             "",
         ]
         Path(write).write_text("\n".join(lines), encoding="utf-8")

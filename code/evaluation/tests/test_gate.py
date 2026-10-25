@@ -1,4 +1,5 @@
-"""L0 contract gate: behaviour through gate.check(output, requests, manifest) -> list of violation strings."""
+"""L0 contract gate: behaviour through gate.check(output, requests, manifest) -> list of
+violation strings."""
 
 import unittest
 from evaluation import gate
@@ -99,7 +100,8 @@ class StepRules(unittest.TestCase):
         self.assertIn("case_05", first(check(tmp_copy(rows=rows)), "L0.step_no"))
         rows = mutate_step(gold_rows(), "case_05", 3, step_no="3")
         self.assertIn("case_05", first(check(tmp_copy(rows=rows)), "L0.step_no"))
-        # case_11 steps 2,3 are REPORT_EXPOSED_PII on analytics then support: swap their system/resource
+        # case_11 steps 2,3 are REPORT_EXPOSED_PII on analytics then support: swap their
+        # system/resource
         rows = mutate_step(
             gold_rows(), "case_11", 2, system_id="support_platform", resource_id="support_864"
         )
@@ -120,7 +122,8 @@ class StepRules(unittest.TestCase):
         self.assertIn("case_01", first(check(tmp_copy(rows=rows)), "L0.json"))
 
     def test_empty_steps_complete_is_invalid_incomplete_is_a_counted_warning(self):
-        # ADR 0015 (proposed): INCOMPLETE with [] = deletion authorised but nothing grounded to report
+        # ADR 0015 (proposed): INCOMPLETE with [] = deletion authorised but nothing grounded to
+        # report
         rows = [list(r) for r in gold_rows()]
         rows[1][2] = "[]"  # case_01 COMPLETE []
         self.assertIn("case_01", first(check(tmp_copy(rows=rows)), "L0.status"))

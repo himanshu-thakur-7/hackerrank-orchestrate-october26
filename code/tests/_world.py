@@ -1,4 +1,5 @@
-"""A small synthetic world for engine tests: one subject with a historical email, files, observations.
+"""A small synthetic world for engine tests: one subject with a historical email, files,
+observations.
 Each scenario mirrors a real dataset situation named in the test that uses it."""
 
 import hashlib

@@ -1,7 +1,8 @@
 """Loaders: dispatch evidence files by CONTENT signature (never by file name) to one adapter each.
 
 load_bytes(file_id, captured_at, raw) -> LoadResult; unknown content raises UnknownSignature.
-Signatures whose adapter is not built yet raise LoaderPending (strict) so nothing is skipped silently.
+Signatures whose adapter is not built yet raise LoaderPending (strict) so nothing is skipped
+silently.
 """
 
 import json
@@ -56,7 +57,8 @@ def sniff(raw, file_id="?"):
         text = raw.decode("utf-8")
     except UnicodeDecodeError as e:
         raise UnknownSignature(
-            f"{file_id}: not UTF-8 text and not a known binary format (byte {e.start}); first bytes {raw[:16]!r}"
+            f"{file_id}: not UTF-8 text and not a known binary format (byte {e.start}); first "
+            f"bytes {raw[:16]!r}"
         )
     head = text.lstrip()
     if head.startswith("{"):

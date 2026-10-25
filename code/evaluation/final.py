@@ -3,10 +3,11 @@
   python3 code/evaluation/main.py final
 
 Steps (each runs as its own subprocess, so no state leaks between them): unit tests, contract gate,
-determinism, invariants, metamorphic relations, custom cases, literal audit, selftest, sample scores,
-the usage report (its measured run must equal output.csv), the package build and a key scan, and the
-clean room: unzip code.zip into an empty temp directory and run it there against dataset/ with
-OPENAI_API_KEY and TYPESAFE_API_KEY removed from the environment; output.csv must have the same sha256.
+determinism, invariants, metamorphic relations, custom cases, literal audit, selftest, sample
+scores, the usage report (its measured run must equal output.csv), the package build and a key scan,
+and the clean room: unzip code.zip into an empty temp directory and run it there against dataset/
+with OPENAI_API_KEY and TYPESAFE_API_KEY removed from the environment; output.csv must have the same
+sha256.
 """
 
 import hashlib
@@ -49,8 +50,9 @@ OPTIONAL = (
     "pdftotext",
 )  # the last one is an executable, the rest modules
 SITECUSTOMIZE = """import importlib.machinery, os, sys
-# "Not installed": the copy in site-packages/dist-packages is hidden (None in sys.modules makes `import m` raise
-# ModuleNotFoundError and importlib.util.find_spec(m) return None). A module a test puts on PYTHONPATH still imports.
+# "Not installed": the copy in site-packages/dist-packages is hidden. None in sys.modules makes
+# `import m` raise ModuleNotFoundError and importlib.util.find_spec(m) return None. A module a test
+# puts on PYTHONPATH still imports.
 _local = [p for p in sys.path if "site-packages" not in p and "dist-packages" not in p]
 for _m in filter(None, os.environ.get("GHOSTAUDIT_BLOCK_MODULES", "").split(",")):
     if importlib.machinery.PathFinder.find_spec(_m, _local) is None:
@@ -66,8 +68,10 @@ except ImportError:
 
 
 def blocked_env(block, base=None):
-    """An environment in which the given optional modules fail to import (also in child processes) and the
-    given executables are not on PATH. Keys are removed as well, so the unit tests see a no-key machine."""
+    """An environment in which the given optional modules fail to import (also in child processes)
+    and the
+    given executables are not on PATH. Keys are removed as well, so the unit tests see a no-key
+    machine."""
     env = dict(os.environ if base is None else base)
     for k in KEYS:
         env.pop(k, None)
@@ -98,7 +102,8 @@ def matrix_configs():
 
 
 def matrix(workers=4):
-    """Both unit-test suites once per config (each optional dependency blocked alone, then all), in parallel.
+    """Both unit-test suites once per config (each optional dependency blocked alone, then all), in
+    parallel.
     The suites write only to their own temp dirs, so concurrent configs cannot interfere."""
     from concurrent.futures import ThreadPoolExecutor
 
@@ -131,7 +136,8 @@ def _sha(p):
 
 
 def clean_room(data_dir=DATA):
-    """Build code.zip into a temp dir, unzip it into another empty one and run code/main.py there with no keys."""
+    """Build code.zip into a temp dir, unzip it into another empty one and run code/main.py there
+    with no keys."""
     sys.path.insert(0, str(ROOT / "code"))
     import package
 
@@ -260,6 +266,7 @@ def run(with_matrix=False):
         print(f"  {k:20} {m['dev'][k]:7.3f} {m['holdout'][k]:8.3f} {m['all'][k]:7.3f}")
     ok, rows = summarize(results)
     print(
-        f"\nFINAL VALIDATION: {'GREEN' if ok else 'RED'} ({sum(r[1] == 'PASS' for r in rows)}/{len(rows)} steps pass)"
+        f"\nFINAL VALIDATION: {'GREEN' if ok else 'RED'} "
+        f"({sum(r[1] == 'PASS' for r in rows)}/{len(rows)} steps pass)"
     )
     return 0 if ok else 1

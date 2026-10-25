@@ -1,4 +1,5 @@
-"""T13 report generator: render(data) is pure; every required section appears and numbers come from `data`."""
+"""T13 report generator: render(data) is pure; every required section appears and numbers come
+from `data`."""
 
 import unittest
 

@@ -1,5 +1,7 @@
-"""T14: the README in code.zip quotes only commands that exist, and every number it quotes comes from a real
-artifact: the run itself, the loader check, the generated reports, or the measured design documents."""
+"""T14: the README in code.zip quotes only commands that exist, and every number it quotes comes
+from a real
+artifact: the run itself, the loader check, the generated reports, or the measured design
+documents."""
 
 import csv
 import json
@@ -158,7 +160,8 @@ DOC_FACTS = [
         "is cited by 9 sample cases",
     ),
     (
-        "15 lowest-scored steps were checked by hand against raw evidence: **0 real engine mistakes**",
+        "15 lowest-scored steps were checked by hand against raw evidence: **0 real engine "
+        "mistakes**",
         "docs/JEV_HANDCHECK.md",
         "**Result: 0 real engine mistakes out of 15.**",
     ),
@@ -197,7 +200,8 @@ class EveryNumber(unittest.TestCase):
 
         c = Counter(r["deletion_status"] for r in self.rows)
         self.assertIn(
-            f"COMPLETE {c['COMPLETE']}, INCOMPLETE {c['INCOMPLETE']}, NOT_APPLICABLE {c['NOT_APPLICABLE']}",
+            f"COMPLETE {c['COMPLETE']}, INCOMPLETE {c['INCOMPLETE']}, NOT_APPLICABLE "
+            f"{c['NOT_APPLICABLE']}",
             README,
         )
         m = re.search(
@@ -257,14 +261,16 @@ class EveryNumber(unittest.TestCase):
     def test_metric_and_ledger_tables_equal_the_generated_report(self):
         for line in README.split("\n"):
             m = re.match(
-                r"\| (status_accuracy|finding_f1|policy_accuracy|evidence_accuracy|strict_step_f1|step_f1_unordered|"
+                r"\| "
+                r"(status_accuracy|finding_f1|policy_accuracy|evidence_accuracy|strict_step_f1|step_f1_unordered|"
                 r"field_acc_mean|sequence_exact|sequence_lcs_mean|proxy) \|",
                 line,
             )
             if m:
                 self.assertIn(line.strip(), REPORT, line)
         for reason, n in re.findall(
-            r"^\| ((?:fully|unresolved|resolved|unlabeled|unproven|contradicted|unknown)[^|]*?) \| (\d+) \|",
+            r"^\| ((?:fully|unresolved|resolved|unlabeled|unproven|contradicted|unknown)[^|]*?) \| "
+            r"(\d+) \|",
             README,
             re.M,
         ):
@@ -304,7 +310,8 @@ class EveryNumber(unittest.TestCase):
             ids, sorted(ids, key=lambda c: int(c.split("_")[1]))
         )  # the input is in numeric order
         self.assertIn(
-            f"A lexical sort moves all {moved} ids; the {three} three-digit ids sort ahead of the {two} two-digit ones",
+            f"A lexical sort moves all {moved} ids; the {three} three-digit ids sort ahead of the "
+            f"{two} two-digit ones",
             README,
         )
         self.assertEqual(moved, len(ids))
@@ -330,7 +337,8 @@ class EveryNumber(unittest.TestCase):
         e_n = sum(hours(r) in (24, 48, 72) for r in ev)
         self.assertEqual(s_n, len(generated))
         self.assertIn(
-            f"the {s_n} generated sample cases, case_09 and case_11 to case_32, plus the {e_n} of {len(ev)} eval cases",
+            f"the {s_n} generated sample cases, case_09 and case_11 to case_32, plus the {e_n} of "
+            f"{len(ev)} eval cases",
             README,
         )
         self.assertIn(f"in every one of those {s_n} sample cases", README)
@@ -349,8 +357,10 @@ class EveryNumber(unittest.TestCase):
             re.findall(r"^  activity_\d+ .*?: (CONFIRMED|CONTRADICTED|UNCONFIRMED)", out, re.M)
         )
         self.assertIn(
-            f"Of the {sum(c.values())} `LINK_RESOURCE_IDENTITY` rows, the engine's artifact check finds "
-            f"{c['CONFIRMED']} confirmed, {c['CONTRADICTED']} contradicted, {c['UNCONFIRMED']} unconfirmed",
+            f"Of the {sum(c.values())} `LINK_RESOURCE_IDENTITY` rows, the engine's artifact check "
+            f"finds "
+            f"{c['CONFIRMED']} confirmed, {c['CONTRADICTED']} contradicted, {c['UNCONFIRMED']} "
+            f"unconfirmed",
             README,
         )
         gold = list(
@@ -371,7 +381,8 @@ class EveryNumber(unittest.TestCase):
         from evaluation import final, scorer
 
         self.assertIn(
-            f"the equal-weight mean of {'nine' if len(scorer.PROXY) == 9 else len(scorer.PROXY)} headline metrics",
+            f"the equal-weight mean of {'nine' if len(scorer.PROXY) == 9 else len(scorer.PROXY)} "
+            f"headline metrics",
             README,
         )
         self.assertIn(f"2 suites × {len(final.matrix_configs())} configurations", README)

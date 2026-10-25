@@ -1,4 +1,5 @@
-"""L1 scorer: score(pred, gold, case_ids) -> metrics. Expected values below were worked out by hand."""
+"""L1 scorer: score(pred, gold, case_ids) -> metrics. Expected values below were worked out by
+hand."""
 
 import unittest
 from evaluation import scorer

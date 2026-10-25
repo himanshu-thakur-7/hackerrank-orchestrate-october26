@@ -4,9 +4,10 @@
   categorize(system_id, observations, activity) -> (category, source)
   treat(category, state_result, rules) -> Treatment
 
-Category precedence (ADR 0009) is the ordered table CATEGORY_SIGNALS: explicit tag, then strong record
-content (an uploaded file, a hash-keyed contact), then the deletion_worker event type (a claim about
-category, never about state), then weak message text, then the system default. DATA_FLOW is not a deletion_rules category: connectors get the data-flow operations.
+Category precedence (ADR 0009) is the ordered table CATEGORY_SIGNALS: explicit tag, then strong
+record content (an uploaded file, a hash-keyed contact), then the deletion_worker event type (a
+claim about category, never about state), then weak message text, then the system default. DATA_FLOW
+is not a deletion_rules category: connectors get the data-flow operations.
 """
 
 import csv
@@ -26,7 +27,8 @@ SYSTEM_DEFAULT = {
     "analytics_platform": "ANALYTICS_PROFILE",
     "integration_service": "DATA_FLOW",
 }
-# deletion_worker event type -> category, per system whose category depends on it (ADR 0009, docs/02 §7.2-7.5)
+# deletion_worker event type -> category, per system whose category depends on it (ADR 0009, docs/02
+# §7.2-7.5)
 ACTIVITY_CATEGORY = {
     ("support_platform", "REDACT_RECORD"): "SUPPORT_MESSAGE",
     ("support_platform", "DELETE_RECORD"): "SUPPORT_ATTACHMENT",
@@ -47,7 +49,8 @@ def _content(system_id, o):
     event = a.get("event", "")
     if system_id == "support_platform":
         if event.startswith("attachment_") or "file" in a or "attachment" in o.table:
-            return "SUPPORT_ATTACHMENT"  # an uploaded file (docs/02 §4.6 A9; ADR 0009 "artifact content")
+            # an uploaded file (docs/02 §4.6 A9; ADR 0009 "artifact content")
+            return "SUPPORT_ATTACHMENT"
     if system_id == "analytics_platform" and event == "contact_lookup_completed":
         return (
             "SECONDARY_IDENTIFIER"  # a contact identifier keyed by email hash, not a profile (§7.3)
@@ -56,8 +59,10 @@ def _content(system_id, o):
 
 
 def _message_content(o):
-    """Weak content: message text. Ticket exports carry a templated message_excerpt on every ticket, so it only
-    decides when no deletion_worker claim exists (silver audit, docs/SILVER_AUDIT.md: 12 eval records)."""
+    """Weak content: message text. Ticket exports carry a templated message_excerpt on every ticket,
+    so it only
+    decides when no deletion_worker claim exists (silver audit, docs/SILVER_AUDIT.md: 12 eval
+    records)."""
     a = dict(o.attrs)
     return (
         a.get("event", "").startswith("message_") or "message_text" in a or "message_excerpt" in a
@@ -147,7 +152,8 @@ PLANS = {
 
 
 def treat(category, result, rules):
-    """Treatment for one resource from its category and its StateResult (None = nothing visible proves anything)."""
+    """Treatment for one resource from its category and its StateResult (None = nothing visible
+    proves anything)."""
     if category is None:
         return Treatment("none", reason="UNRESOLVED_CATEGORY")
     if category in UNOBSERVABLE:

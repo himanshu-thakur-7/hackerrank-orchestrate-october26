@@ -229,7 +229,8 @@ class WeakCoverage(unittest.TestCase):
     """ADR 0014: omission never overrides a positive observation; explicit negatives do."""
 
     def test_coverage_does_not_erase_an_earlier_positive_sighting(self):
-        # like case_24: account_5334 PRESENT at 09:41 (evidence_92); evidence_51 at 12:00 lists customer_profiles: []
+        # like case_24: account_5334 PRESENT at 09:41 (evidence_92); evidence_51 at 12:00 lists
+        # customer_profiles: []
         st = EvidenceStore(
             files=[f("A", "2026-09-15T11:44:55Z"), f("B", "2026-09-15T12:00:00Z")],
             observations=[

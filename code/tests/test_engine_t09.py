@@ -1,5 +1,6 @@
-"""T09 verdict + step planner at the engine seam: Engine.audit(request, intent) -> (case_id, status, steps).
-One test per edge case in docs/02_DATA_NOTES.md; expected rows are written out by hand from the
+"""T09 verdict + step planner at the engine seam: Engine.audit(request, intent) -> (case_id, status,
+steps). One test per edge case in docs/02_DATA_NOTES.md; expected rows are written out by hand from
+the
 matching sample_output.csv patterns (case_05, 12, 15, 17, 27, 31, 32), not recomputed."""
 
 import unittest
@@ -28,7 +29,8 @@ class Verdict(unittest.TestCase):
         )
 
     def test_replica_only_row_makes_the_case_incomplete(self):
-        # case_05: REPORT_REMAINING_RECORD cites the snapshot; remediation and verification are uncited
+        # case_05: REPORT_REMAINING_RECORD cites the snapshot; remediation and verification are
+        # uncited
         e = engine(
             [("E54", "2026-09-02T10:00:00Z")],
             [
@@ -84,7 +86,8 @@ class Verdict(unittest.TestCase):
         )
 
     def test_post_cutoff_snapshot_is_ignored_and_complete_cites_the_proving_file(self):
-        # case_27: evidence_92 404 at 09-15; evidence_02 (09-17) shows the account back; audit 09-15T12:00
+        # case_27: evidence_92 404 at 09-15; evidence_02 (09-17) shows the account back; audit
+        # 09-15T12:00
         e = engine(
             [("E92", "2026-09-15T11:44:55Z"), ("E02", "2026-09-17T12:00:00Z")],
             [
@@ -142,8 +145,9 @@ class Verdict(unittest.TestCase):
         )
 
     def test_absence_cites_the_latest_file_naming_the_resource_not_a_later_covering_file(self):
-        # case_21 / case_27: evidence_92 (11:44) shows the account 404; evidence_51 (12:00) only omits it.
-        # docs/02 §4.3: the cited file is the latest one that NAMES the resource; gold cites evidence_92.
+        # case_21 / case_27: evidence_92 (11:44) shows the account 404; evidence_51 (12:00) only
+        # omits it. docs/02 §4.3: the cited file is the latest one that NAMES the resource; gold
+        # cites evidence_92.
         e = engine(
             [("A", "2026-09-01T00:00:00Z"), ("B", "2026-09-10T00:00:00Z")],
             [ob("A", "2026-09-01T00:00:00Z", "account_service", "account_7", "ABSENT", ids=(NEW,))],
@@ -170,7 +174,8 @@ class Verdict(unittest.TestCase):
         )
 
     def test_redacted_tombstone_complete_and_exposed_tombstone_incomplete(self):
-        # case_31 tombstone_440 (all identifiers null) vs case_32 tombstone_9178 (name, email, phone, hash)
+        # case_31 tombstone_440 (all identifiers null) vs case_32 tombstone_9178 (name, email,
+        # phone, hash)
         ok = engine(
             [("E51", "2026-09-15T12:00:00Z")],
             [
@@ -250,7 +255,8 @@ class Verdict(unittest.TestCase):
         )
 
     def test_historical_hash_contact_flow_and_backup_in_one_plan_sorted_by_operation(self):
-        # case_12 analytics_9914 + case_15 data_flow_9846 + case_17 backup_3245 + a 404 account and a retained audit record
+        # case_12 analytics_9914 + case_15 data_flow_9846 + case_17 backup_3245 + a 404 account and
+        # a retained audit record
         e = engine(
             [("E01", "2026-09-15T11:59:39Z")],
             [
@@ -478,7 +484,8 @@ class Verdict(unittest.TestCase):
 
 class UnprovenAndNothing(unittest.TestCase):
     def test_unproven_resource_is_a_future_verify_in_incomplete_and_omitted_in_complete(self):
-        # ADR 0006 amended: a backup with no restore flag is unproven; activity claims never become findings
+        # ADR 0006 amended: a backup with no restore flag is unproven; activity claims never become
+        # findings
         bad = engine(
             [("F", "2026-09-10T00:00:00Z")],
             [

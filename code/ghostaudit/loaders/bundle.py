@@ -1,9 +1,9 @@
 """Snapshot bundles: {"snapshots": [{captured_at, data_store, collection, records: [...]}]}.
 
 Each data snapshot keeps its OWN captured_at as observed_at (ADR 0002; the store cuts by file).
-Data collections, including empty ones, emit Coverage (weak evidence, ADR 0014: a labeled sample proves
-an empty customer_profiles list absent). Register-style collections (operational_record_history)
-are histories of checks and never emit Coverage.
+Data collections, including empty ones, emit Coverage (weak evidence, ADR 0014: a labeled sample
+proves an empty customer_profiles list absent). Register-style collections
+(operational_record_history) are histories of checks and never emit Coverage.
 """
 
 import json

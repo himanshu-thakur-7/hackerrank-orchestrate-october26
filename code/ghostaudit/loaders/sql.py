@@ -10,7 +10,8 @@ Coverage (absence by omission) and why it is sound here:
     of the table's system that is not listed was not in that table. Gold relies on this
     (VERIFY_RECORD_ABSENT cites a failover/primary dump that simply lacks the account).
   * Inventory snapshots declare their scope explicitly: coverage only for systems in snapshot_scope.
-  * Generic tables hold several systems: coverage per (origin_system, table) for systems the dump lists.
+  * Generic tables hold several systems: coverage per (origin_system, table) for systems the dump
+    lists.
 """
 
 import json

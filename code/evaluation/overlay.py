@@ -1,5 +1,6 @@
-"""Dataset overlay for metamorphic testing (T15): a full temporary copy of dataset/ that a relation edits,
-then the real pipeline (`code/main.py`, as a subprocess) runs over it. dataset/ itself is never written.
+"""Dataset overlay for metamorphic testing (T15): a full temporary copy of dataset/ that a relation
+edits, then the real pipeline (`code/main.py`, as a subprocess) runs over it. dataset/ itself is
+never written.
 
   with Overlay(DATA) as ov:
       rows = ov.rows("deletion_requests.csv"); ...; ov.write_rows("deletion_requests.csv", rows)
@@ -42,7 +43,8 @@ def run_pipeline(data_dir, out_path, requests=None, env=None):
 
 
 def changed(a, b):
-    """Case ids whose (status, steps) differ between two outputs (missing on one side counts as changed)."""
+    """Case ids whose (status, steps) differ between two outputs (missing on one side counts as
+    changed)."""
     return sorted((c for c in set(a) | set(b) if a.get(c) != b.get(c)), key=lambda c: (len(c), c))
 
 

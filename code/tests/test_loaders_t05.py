@@ -162,7 +162,10 @@ class GenericBlobs(unittest.TestCase):
         )
 
     def test_unknown_table_is_reported_not_skipped(self):
-        raw = b"CREATE TABLE mystery (resource_id TEXT, x TEXT);\nINSERT INTO mystery VALUES('account_1','y');\n"
+        raw = (
+            b"CREATE TABLE mystery (resource_id TEXT, x TEXT);\nINSERT INTO mystery "
+            b"VALUES('account_1','y');\n"
+        )
         r = loaders.load_bytes("F2", "2026-01-01T00:00:00Z", raw)
         self.assertEqual(r.observations, [])
         self.assertEqual([u.reason for u in r.unparsed], ["unknown table 'mystery' (1 row)"])

@@ -1,6 +1,7 @@
-"""T10 linking (ADR 0003, 0004, 0005): activity account candidates with ONE named window, result<->status
-agreement, the pre-audit identity filter and global one-to-one elimination; unique survivors only, ties
-logged; catalog links checked against their artifact; search source_resource_id references.
+"""T10 linking (ADR 0003, 0004, 0005): activity account candidates with ONE named window,
+result<->status agreement, the pre-audit identity filter and global one-to-one elimination; unique
+survivors only, ties logged; catalog links checked against their artifact; search source_resource_id
+references.
 Scenarios are synthetic copies of the sample situations named in each test."""
 
 import unittest
@@ -135,7 +136,8 @@ class UniqueOnly(unittest.TestCase):
 
 class Catalog(unittest.TestCase):
     def test_contradicted_catalog_link_is_rejected(self):
-        # activity_4008: marketing_001 -> the subject, but the screen 7 minutes earlier shows sj.park@naver.com
+        # activity_4008: marketing_001 -> the subject, but the screen 7 minutes earlier shows
+        # sj.park@naver.com
         store, lk = build(
             [req("case_1", NEW, "2026-09-16T12:00:00Z", audit_at="2026-09-17T09:20:00Z")],
             [
@@ -174,7 +176,8 @@ class Catalog(unittest.TestCase):
                     "2026-02-13T08:07:01Z",
                     "object_storage",
                     "object_19",
-                    f"Attachment catalog confirmed object_19 (x.pdf) belongs only to {NEW} and user_1.",
+                    f"Attachment catalog confirmed object_19 (x.pdf) belongs only to {NEW} and "
+                    f"user_1.",
                 )
             ],
         )
@@ -197,7 +200,8 @@ class EngineIntegration(unittest.TestCase):
         )
 
     def test_activity_account_gets_a_cited_verification_from_identifier_free_evidence(self):
-        # case_21 shape: evidence_92 shows account_6440 404 with no identifier; the activity window links it
+        # case_21 shape: evidence_92 shows account_6440 404 with no identifier; the activity window
+        # links it
         q = req("case_1", NEW, "2026-09-02T12:00:00Z")
         e = self.engine(
             [q],
@@ -223,7 +227,8 @@ class EngineIntegration(unittest.TestCase):
         )
 
     def test_absence_known_only_by_omission_cites_the_covering_file(self):
-        # an activity-linked account that no file names: closed-world absence from the covering snapshot
+        # an activity-linked account that no file names: closed-world absence from the covering
+        # snapshot
         from ghostaudit.store import Coverage
 
         q = req("case_1", NEW, "2026-09-02T12:00:00Z")
@@ -270,9 +275,9 @@ class EngineIntegration(unittest.TestCase):
         )
 
     def test_a_resource_seen_only_absent_before_the_request_is_a_previous_lifecycle(self):
-        # case_17 / evidence_67: a March 404 lookup of the subject's email names account_6523 (the earlier
-        # request's lifecycle); the August request must not verify it (ADR 0016). A pre-request PRESENT
-        # sighting still counts: the data existed and may remain.
+        # case_17 / evidence_67: a March 404 lookup of the subject's email names account_6523 (the
+        # earlier request's lifecycle); the August request must not verify it (ADR 0016). A
+        # pre-request PRESENT sighting still counts: the data existed and may remain.
         q = req("case_1", NEW, "2026-08-22T12:00:00Z")
         q["requested_at"] = "2026-08-19T12:00:00Z"
         e = self.engine(
@@ -304,7 +309,8 @@ class EngineIntegration(unittest.TestCase):
             sorted({s["resource_id"] for s in a.steps}), ["audit_record_1", "search_5"]
         )
         self.assertIn(
-            "STALE_LINK(account_service/account_6523: every link predates requested_at and shows it absent; "
+            "STALE_LINK(account_service/account_6523: every link predates requested_at and shows "
+            "it absent; "
             "latest F line 3 at 2026-03-10T06:18:01Z; ADR 0016)",
             a.log,
         )

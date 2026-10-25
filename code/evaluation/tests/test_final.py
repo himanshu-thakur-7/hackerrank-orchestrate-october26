@@ -1,4 +1,5 @@
-"""T14 final validation: the clean-room check runs the packaged code, alone in an empty directory, with no key."""
+"""T14 final validation: the clean-room check runs the packaged code, alone in an empty
+directory, with no key."""
 
 import hashlib
 import shutil
@@ -34,9 +35,12 @@ class Steps(unittest.TestCase):
 class Matrix(unittest.TestCase):
     PROBE = (
         "import importlib, shutil, subprocess, sys\n"
-        "def ok(m):\n    try:\n        importlib.import_module(m); return True\n    except ImportError:\n        return False\n"
-        "print({m: ok(m) for m in ('pandas', 'openai', 'pypdf', 'typesafe_sdk', 'json')}, shutil.which('pdftotext') is not None)\n"
-        "print(subprocess.run([sys.executable, '-c', 'import importlib.util as u; print(u.find_spec(\"pandas\") is not None)'], "
+        "def ok(m):\n    try:\n        importlib.import_module(m); return True\n    except "
+        "ImportError:\n        return False\n"
+        "print({m: ok(m) for m in ('pandas', 'openai', 'pypdf', 'typesafe_sdk', 'json')}, "
+        "shutil.which('pdftotext') is not None)\n"
+        "print(subprocess.run([sys.executable, '-c', 'import importlib.util as u; "
+        'print(u.find_spec("pandas") is not None)\'], '
         "capture_output=True, text=True).stdout.strip())"
     )
 

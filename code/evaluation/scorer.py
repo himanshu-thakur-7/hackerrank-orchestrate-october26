@@ -1,23 +1,28 @@
 """L1 scorer: compares predicted rows with labeled rows.
 
-score(pred, gold, case_ids) -> dict of metrics, where pred/gold map case_id -> (status, [step dicts]).
-A case missing from pred counts as status None with no steps.
+score(pred, gold, case_ids) -> dict of metrics, where pred/gold map case_id -> (status, [step
+dicts]). A case missing from pred counts as status None with no steps.
 
 Metric definitions (all micro-averaged over the given cases unless stated):
   status_accuracy     share of cases whose deletion_status matches
-  identity_recall     share of gold (case, system_id, resource_id) pairs that appear in any predicted step
-  finding_*           precision / recall / F1 over FINDING steps keyed by (case, system, resource, operation)
-  policy_accuracy     per gold resource, the treatment = remediation ops if any, else verification ops; share matched
-  evidence_accuracy   share of gold steps that cite evidence whose aligned predicted step cites the same id
-                      (aligned = same case, phase, system, resource, operation; unaligned counts as wrong)
+  identity_recall     share of gold (case, system_id, resource_id) pairs that appear in any
+  predicted step finding_*           precision / recall / F1 over FINDING steps keyed by (case,
+  system, resource, operation) policy_accuracy     per gold resource, the treatment = remediation
+  ops if any, else verification ops; share matched evidence_accuracy   share of gold steps that cite
+  evidence whose aligned predicted step cites the same id
+                      (aligned = same case, phase, system, resource, operation; unaligned counts as
+                      wrong)
   strict_step_f1      F1 over full 7-field steps (step_no included)
   step_f1_unordered   F1 over steps without step_no
-  field_acc_*         on steps aligned by (case, phase, system, resource): operation, state, evidence_id, step_no;
-                      0.0 when steps exist but none align (no free credit), 1.0 only when both sides are empty
-  sequence_exact      share of cases whose (phase, system, resource, operation, state) sequence is identical
-  sequence_lcs_mean   mean per case of LCS / max(len gold, len pred); 1.0 when both are empty
-  row_exact           share of cases with identical status and identical step list (pessimistic bound)
-  proxy               equal-weight mean of the nine headline metrics listed in PROXY
+  field_acc_*         on steps aligned by (case, phase, system, resource): operation, state,
+  evidence_id, step_no;
+                      0.0 when steps exist but none align (no free credit), 1.0 only when both sides
+                      are empty
+  sequence_exact      share of cases whose (phase, system, resource, operation, state) sequence is
+  identical sequence_lcs_mean   mean per case of LCS / max(len gold, len pred); 1.0 when both are
+  empty row_exact           share of cases with identical status and identical step list
+  (pessimistic bound) proxy               equal-weight mean of the nine headline metrics listed in
+  PROXY
 """
 
 import csv

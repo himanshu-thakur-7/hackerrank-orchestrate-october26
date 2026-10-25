@@ -53,7 +53,8 @@ class CategoryPrecedence(unittest.TestCase):
         )
 
     def test_content_beats_activity(self):
-        # an attachment scan names a file (evidence_01 line 25 support_9538): attachment, whatever the claim says
+        # an attachment scan names a file (evidence_01 line 25 support_9538): attachment, whatever
+        # the claim says
         o = [
             obs(
                 "support_platform",
@@ -65,16 +66,18 @@ class CategoryPrecedence(unittest.TestCase):
             policy.categorize("support_platform", o, [act("REDACT_RECORD", "support_9538")]),
             ("SUPPORT_ATTACHMENT", "content"),
         )
-        # a message scan is a conversation record (evidence_01 line 15 support_9553); with no claim it decides
+        # a message scan is a conversation record (evidence_01 line 15 support_9553); with no claim
+        # it decides
         o = [obs("support_platform", "support_9553", attrs=(("event", "message_pii_scan"),))]
         self.assertEqual(
             policy.categorize("support_platform", o, []), ("SUPPORT_MESSAGE", "message content")
         )
 
     def test_message_text_does_not_override_a_delete_claim(self):
-        # silver audit regression (case_431 support_3615, case_347 support_9474): a ticket export carries a
-        # templated message_excerpt for every ticket, so it is weaker than the deletion_worker's DELETE_RECORD
-        # (ADR 0009: only an uploaded file is content that outranks the activity type)
+        # silver audit regression (case_431 support_3615, case_347 support_9474): a ticket export
+        # carries a templated message_excerpt for every ticket, so it is weaker than the
+        # deletion_worker's DELETE_RECORD (ADR 0009: only an uploaded file is content that outranks
+        # the activity type)
         o = [
             obs(
                 "support_platform",
@@ -91,7 +94,8 @@ class CategoryPrecedence(unittest.TestCase):
         )
 
     def test_hash_keyed_contact_lookup_is_a_secondary_identifier(self):
-        # evidence_01 line 92 analytics_9914 contact_lookup_completed keyed by an email hash (case_12: DELETE)
+        # evidence_01 line 92 analytics_9914 contact_lookup_completed keyed by an email hash
+        # (case_12: DELETE)
         o = [
             obs(
                 "analytics_platform",

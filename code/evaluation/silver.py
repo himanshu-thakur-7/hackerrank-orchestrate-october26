@@ -1,5 +1,7 @@
-"""T16 silver-label audit sample: 20 eval cases stratified by loss-ledger reason, drawn with a fixed seed.
-Strata sizes are fixed below; inside a stratum, cases are shuffled with random.Random(SEED) after natural sorting."""
+"""T16 silver-label audit sample: 20 eval cases stratified by loss-ledger reason, drawn with a fixed
+seed.
+Strata sizes are fixed below; inside a stratum, cases are shuffled with random.Random(SEED) after
+natural sorting."""
 
 import random
 

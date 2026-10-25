@@ -1,4 +1,5 @@
-"""Register rows: {system, resource_id, record_type, result, subject_reference|lookup_value, recorded_at}.
+"""Register rows: {system, resource_id, record_type, result, subject_reference|lookup_value,
+recorded_at}.
 
 A register is a history of checks, never a listing, so it never yields Coverage (ADR 0014).
 The status vocabulary is the same as the shift handover.

@@ -1,5 +1,6 @@
 """T08 state reconstruction + policy at the engine seam: Engine.assess(request, intent).resources.
-One test per edge case in docs/02_DATA_NOTES.md (scenarios are synthetic copies of the named records)."""
+One test per edge case in docs/02_DATA_NOTES.md (scenarios are synthetic copies of the named
+records)."""
 
 import unittest
 from _world import DELETE, NEW, OLD, OLD_HASH, Coverage, act, engine, ob, request
@@ -99,7 +100,8 @@ class StateAtAuditTime(unittest.TestCase):
         )
 
     def test_replica_only_row_is_present_under_the_logical_system(self):
-        # case_05 / evidence_54: account_005 gone from customer_profiles_primary, still in _failover_replica
+        # case_05 / evidence_54: account_005 gone from customer_profiles_primary, still in
+        # _failover_replica
         e = engine(
             [("E54", "2026-09-02T10:00:00Z")],
             [
@@ -153,7 +155,8 @@ class StateAtAuditTime(unittest.TestCase):
 
 class PolicyEdgeCases(unittest.TestCase):
     def test_redacted_tombstone(self):
-        # evidence_51 line 17 tombstone_440: subject_reference user_541, every direct identifier null
+        # evidence_51 line 17 tombstone_440: subject_reference user_541, every direct identifier
+        # null
         e = engine(
             [("E51", "2026-09-15T12:00:00Z")],
             [
@@ -175,7 +178,8 @@ class PolicyEdgeCases(unittest.TestCase):
         )
 
     def test_historical_hash_analytics_contact_is_a_secondary_identifier_to_delete(self):
-        # case_12 / evidence_01 line 92: analytics_9914 keyed by the sha256 of the subject's OLD email
+        # case_12 / evidence_01 line 92: analytics_9914 keyed by the sha256 of the subject's OLD
+        # email
         e = engine(
             [("E01", "2026-09-15T11:59:39Z")],
             [
@@ -197,7 +201,8 @@ class PolicyEdgeCases(unittest.TestCase):
         )
 
     def test_enabled_flow_and_restorable_backup(self):
-        # case_15 data_flow_9846 enabled=true; case_17 backup_3245 eligible=true deletion_block=false
+        # case_15 data_flow_9846 enabled=true; case_17 backup_3245 eligible=true
+        # deletion_block=false
         e = engine(
             [("E01", "2026-09-15T11:59:39Z")],
             [
@@ -229,7 +234,8 @@ class PolicyEdgeCases(unittest.TestCase):
         )
 
     def test_deletion_pending_account_is_remaining(self):
-        # ADR 0010 / evidence_63 line 19 account_3626 DELETION_PENDING with the email still on the row
+        # ADR 0010 / evidence_63 line 19 account_3626 DELETION_PENDING with the email still on the
+        # row
         e = engine(
             [("E63", "2026-09-15T08:00:00Z")],
             [

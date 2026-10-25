@@ -1,4 +1,5 @@
-"""T14 usage report: render(data) is pure and carries every required figure; final_run() measures the real run."""
+"""T14 usage report: render(data) is pure and carries every required figure; final_run() measures
+the real run."""
 
 import hashlib
 import os

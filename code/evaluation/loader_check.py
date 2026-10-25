@@ -72,7 +72,8 @@ def run(root, files=None, kinds=None, spot=False):
         c = by_sig[sig]
         status = "built" if sig in loaders.LOADERS else f"pending ({loaders.PENDING.get(sig, '?')})"
         print(
-            f"  {sig:22} files={c['files']:3} {status:16} obs={c['observations']:4} coverage={c['coverage']:3} "
+            f"  {sig:22} files={c['files']:3} {status:16} obs={c['observations']:4} "
+            f"coverage={c['coverage']:3} "
             f"unattributed={c['unattributed']:3} unparsed={c['unparsed']:3}"
         )
     print(
@@ -163,14 +164,17 @@ def run(root, files=None, kinds=None, spot=False):
             if not good:
                 fails += 1
                 print(
-                    f"  FAIL {c} {s['operation']} {s['system_id']}/{s['resource_id']} in {fid}: {why}"
+                    f"  FAIL {c} {s['operation']} {s['system_id']}/{s['resource_id']} in {fid}: "
+                    f"{why}"
                 )
     print(
-        f"  gold-cited pairs: {n} checked, {n - fails} ok, {fails} failed; ownership of matched records: {dict(owner)}"
+        f"  gold-cited pairs: {n} checked, {n - fails} ok, {fails} failed; ownership of matched "
+        f"records: {dict(owner)}"
     )
     ok &= fails == 0
 
-    # whole-store check: every gold expectation at audit_at, using all built loaders (validates ADR 0014)
+    # whole-store check: every gold expectation at audit_at, using all built loaders (validates ADR
+    # 0014)
     from ghostaudit.store import EvidenceFile, EvidenceStore
 
     files = [
@@ -198,7 +202,8 @@ def run(root, files=None, kinds=None, spot=False):
         view = store.as_of(reqs[c]["audit_at"])
         for s in steps:
             if s["phase"] == "REMEDIATION" or not s["evidence_id"]:
-                continue  # only cited steps assert an audit-time state; empty evidence = future check
+                # only cited steps assert an audit-time state; empty evidence = future check
+                continue
             exist = s["operation"] in must_exist
             st_n += 1
             got = view.state(s["system_id"], s["resource_id"])
@@ -216,11 +221,13 @@ def run(root, files=None, kinds=None, spot=False):
                     else "CONTRADICTION"
                 )
                 print(
-                    f"  STATE {tag} {c} {s['operation']} {s['system_id']}/{s['resource_id']}: store says {got.state} "
+                    f"  STATE {tag} {c} {s['operation']} {s['system_id']}/{s['resource_id']}: "
+                    f"store says {got.state} "
                     f"({got.basis} {got.file_id} {got.locator})"
                 )
     print(
-        f"STORE STATE CHECK: {st_n} cited gold expectations, {st_bad} contradictions, {st_pending} pending on unbuilt loaders, "
+        f"STORE STATE CHECK: {st_n} cited gold expectations, {st_bad} contradictions, {st_pending} "
+        f"pending on unbuilt loaders, "
         f"{st_unproven} unproven"
     )
     ok &= st_bad == 0
@@ -238,8 +245,10 @@ def run(root, files=None, kinds=None, spot=False):
             print(f"  [{r.signature}] {fid} {manifest[fid]['file_path']} {o.locator}")
             print(f"     raw:    {raw[:200]}")
             print(
-                f"     parsed: system={o.system_id} resource={o.resource_id} state={o.state} observed_at={o.observed_at} "
-                f"category={o.category} pii={list(o.pii_fields)} ids={list(o.identifiers)} attrs={dict(o.attrs)}"
+                f"     parsed: system={o.system_id} resource={o.resource_id} state={o.state} "
+                f"observed_at={o.observed_at} "
+                f"category={o.category} pii={list(o.pii_fields)} ids={list(o.identifiers)} "
+                f"attrs={dict(o.attrs)}"
             )
 
     doc_sel = [
@@ -255,14 +264,16 @@ def run(root, files=None, kinds=None, spot=False):
             for o in r.observations:
                 owners = sorted({resolver.owner_of(t) or "nobody" for t in o.identifiers}) or ["-"]
                 print(
-                    f"    {o.system_id}/{o.resource_id} {o.state} ids={list(o.identifiers)} -> {owners} pii={list(o.pii_fields)} attrs={dict(o.attrs)}"
+                    f"    {o.system_id}/{o.resource_id} {o.state} ids={list(o.identifiers)} -> "
+                    f"{owners} pii={list(o.pii_fields)} attrs={dict(o.attrs)}"
                 )
             for u in r.unattributed:
                 if u.reason == "no resource id":
                     print(f"    (no resource id) {u.locator}: {u.raw[:150]}")
 
     print(
-        "UNATTRIBUTED (smallest 10 per built signature: no identifier, or no identifier that resolves to a known person)"
+        "UNATTRIBUTED (smallest 10 per built signature: no identifier, or no identifier that "
+        "resolves to a known person)"
     )
     for sig in sorted(s for s in by_sig if s in loaders.LOADERS):
         lost = []
@@ -275,7 +286,8 @@ def run(root, files=None, kinds=None, spot=False):
                         (
                             fid,
                             o.locator,
-                            f"{o.system_id}/{o.resource_id} state={o.state} ids={list(o.identifiers)}",
+                            f"{o.system_id}/{o.resource_id} state={o.state} "
+                            f"ids={list(o.identifiers)}",
                         )
                     )
             for u in r.unparsed:
@@ -288,7 +300,8 @@ def run(root, files=None, kinds=None, spot=False):
 
 
 def _raw_unit(path, signature, locator):
-    """The raw text behind a locator: a file line, a PDF text line, or a screen transcription region."""
+    """The raw text behind a locator: a file line, a PDF text line, or a screen transcription
+    region."""
     if signature == "png":
         return f"(screen transcription, {locator})"
     if signature == "pdf":

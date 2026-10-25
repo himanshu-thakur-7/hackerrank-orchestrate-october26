@@ -33,7 +33,8 @@ def main(argv=None):
         "--intent",
         choices=("auto", "rules"),
         default="auto",
-        help="auto: rules decide clear texts, the cached model (live only with OPENAI_API_KEY) decides the rest",
+        help="auto: rules decide clear texts, the cached model (live only with OPENAI_API_KEY) "
+        "decides the rest",
     )
     p.add_argument(
         "--usage-json",

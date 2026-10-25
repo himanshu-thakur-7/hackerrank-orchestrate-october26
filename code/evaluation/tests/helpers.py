@@ -45,7 +45,8 @@ def mutate_step(rows, case_id, at, **changes):
 
 
 def required_warnings(warnings):
-    """Gate warnings minus those that only report an absent optional dependency (machine-dependent)."""
+    """Gate warnings minus those that only report an absent optional dependency
+    (machine-dependent)."""
     from evaluation.gate import OPTIONAL_DEPENDENCY_WARNINGS
 
     return [w for w in warnings if not w.startswith(OPTIONAL_DEPENDENCY_WARNINGS)]

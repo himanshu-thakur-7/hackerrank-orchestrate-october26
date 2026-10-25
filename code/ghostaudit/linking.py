@@ -1,22 +1,28 @@
-"""Linking beyond the subject's own identifiers (docs/03_DESIGN.md §3 Stage 4; ADR 0003, 0004, 0005).
+"""Linking beyond the subject's own identifiers (docs/03_DESIGN.md §3 Stage 4; ADR 0003, 0004,
+0005).
 
   Linker(store, resolver, requests, intents)
     .account(case_id)        -> AccountLink   primary account from activity, unique survivor only
     .distribution()          -> {candidate count: deletion requests}, after all filters
-    .catalog(view, subject)  -> [CatalogLink] LINK_RESOURCE_IDENTITY claims checked against their artifact
+    .catalog(view, subject)  -> [CatalogLink] LINK_RESOURCE_IDENTITY claims checked against their
+    artifact
 
 Account candidates are DELETE_RECORD -> account_service activity rows (claims used only as a linkage
 key, never as state) that pass, in order:
-  1. the window: event_time in [reported_at - 1.5 h, reported_at - 0.5 h] (ACCOUNT_DELETE_WINDOW_HOURS),
+  1. the window: event_time in [reported_at - 1.5 h, reported_at - 0.5 h]
+  (ACCOUNT_DELETE_WINDOW_HOURS),
      and at or before audit_at;
   2. reported_result agrees with reported_status (RESULT_OF);
-  3. the pre-audit identity filter: drop a candidate that visible evidence ties to another person; if
+  3. the pre-audit identity filter: drop a candidate that visible evidence ties to another person;
+  if
      visible evidence ties one to this subject, keep only those;
-  4. global one-to-one elimination over every deletion request (samples + evaluation): a request left
-     with one candidate claims it, and it is removed from every other request, until nothing changes.
-Only a unique survivor is linked. Anything else is logged with its reason and candidate set; there is
-no tie-break (ADR 0004), in particular never by case_id order. The distance to reported_at is reported
-for each candidate, but it is not used to choose.
+  4. global one-to-one elimination over every deletion request (samples + evaluation): a request
+  left
+     with one candidate claims it, and it is removed from every other request, until nothing
+     changes.
+Only a unique survivor is linked. Anything else is logged with its reason and candidate set; there
+is no tie-break (ADR 0004), in particular never by case_id order. The distance to reported_at is
+reported for each candidate, but it is not used to choose.
 """
 
 from collections import Counter
@@ -57,7 +63,10 @@ class AccountLink:
     def describe(self):
         if self.status == "LINKED":
             c = next(c for c in self.survivors if c.resource_id == self.resource_id)
-            return f"LINKED_ACCOUNT({self.resource_id} via {self.activity_id}, {c.hours_before_report:.2f} h before reported_at)"
+            return (
+                f"LINKED_ACCOUNT({self.resource_id} via {self.activity_id}, "
+                f"{c.hours_before_report:.2f} h before reported_at)"
+            )
         cands = ", ".join(f"{c.resource_id}/{c.activity_id}" for c in self.survivors) or "none"
         return f"UNRESOLVED_LINK(primary account: {self.reason}; candidates [{cands}])"
 
@@ -197,7 +206,8 @@ class Linker:
         )
 
     def distribution(self):
-        """{number of surviving candidates: deletion requests}; 1 with status LINKED, >1 or 0 unresolved."""
+        """{number of surviving candidates: deletion requests}; 1 with status LINKED, >1 or 0
+        unresolved."""
         if self._accounts is None:
             self._compute()
         return dict(
@@ -211,7 +221,8 @@ class Linker:
         )
 
     def summary(self, case_ids):
-        """One line for a run: surviving-candidate distribution and link outcomes over these requests."""
+        """One line for a run: surviving-candidate distribution and link outcomes over these
+        requests."""
         if self._accounts is None:
             self._compute()
         ls = [
@@ -222,14 +233,18 @@ class Linker:
         dist = dict(sorted(Counter(len(l.survivors) for l in ls).items()))
         st = Counter(l.status for l in ls)
         return (
-            f"linking: {len(ls)} deletion requests; surviving account candidates per request {dist}; "
-            f"linked {st['LINKED']}, tied {st['TIED']} (UNRESOLVED_LINK), no candidate {st['NO_CANDIDATE']}"
+            f"linking: {len(ls)} deletion requests; surviving account candidates per request "
+            f"{dist}; "
+            f"linked {st['LINKED']}, tied {st['TIED']} (UNRESOLVED_LINK), no candidate "
+            f"{st['NO_CANDIDATE']}"
         )
 
     # ---- catalog links -------------------------------------------------------------------
     def catalog(self, view, subject):
-        """LINK_RESOURCE_IDENTITY claims visible at the cutoff (for `subject`, or all when None), each checked
-        against the artifact naming the resource that was captured at or before the claim (ADR 0005)."""
+        """LINK_RESOURCE_IDENTITY claims visible at the cutoff (for `subject`, or all when None),
+        each checked
+        against the artifact naming the resource that was captured at or before the claim (ADR
+        0005)."""
         out = []
         for a in self._catalog:
             if a.event_time > view.cutoff:

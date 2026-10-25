@@ -1,4 +1,5 @@
-"""T14 packaging: code.zip holds README.md, code/, the report copies and sanitized docs/; no key-like string anywhere."""
+"""T14 packaging: code.zip holds README.md, code/, the report copies and sanitized docs/; no
+key-like string anywhere."""
 
 import hashlib
 import re
@@ -75,7 +76,10 @@ class Zip(unittest.TestCase):
                 self.assertFalse([v for v in values[kind] if v in t], (n, kind))
 
     def test_sanitizer_masks_stably_and_keeps_ids(self):
-        src = "user_7 old a.b@example.org new A.B@example.org tel:+97150482 +34 612 847 593 case_12 account_005 evidence_01"
+        src = (
+            "user_7 old a.b@example.org new A.B@example.org tel:+97150482 +34 612 847 593 "
+            "case_12 account_005 evidence_01"
+        )
         out = package.sanitize(src, {"email": [], "phone": [], "rows": set()})
         self.assertNotIn("@", out)
         self.assertNotIn("612 847", out)
@@ -86,7 +90,10 @@ class Zip(unittest.TestCase):
         self.assertEqual(tok[0], tok[1])  # case-insensitive: the same address gives the same token
 
     def test_verbatim_dataset_rows_are_dropped(self):
-        row = "INSERT INTO customer_profiles VALUES ('account_005', 'user_05', 'Some Name', 'x', 'y', 'z', 'ACTIVE', '2026-01-01');"
+        row = (
+            "INSERT INTO customer_profiles VALUES ('account_005', 'user_05', 'Some Name', 'x', "
+            "'y', 'z', 'ACTIVE', '2026-01-01');"
+        )
         out = package.sanitize(
             f"before\n    {row}\nafter `short fragment`", {"email": [], "phone": [], "rows": {row}}
         )

@@ -1,4 +1,5 @@
-"""Record-lookup logs: '<ts> INFO service=<logger> event=record_lookup seq=N system="..." resource_id="..."
+"""Record-lookup logs: '<ts> INFO service=<logger> event=record_lookup seq=N system="..."
+resource_id="..."
 record_type="..." result="..." subject_reference="..."'. Register semantics, no Coverage."""
 
 import re

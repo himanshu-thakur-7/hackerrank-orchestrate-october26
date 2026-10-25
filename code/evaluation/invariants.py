@@ -3,14 +3,14 @@
   check(output_path, data_dir) -> {invariant id: [violation, ...]}
 
 I1 cited evidence exists in the manifest and is captured at or before the case's audit_at (ADR 0002)
-I2 every finding has its remediation and verification on the same resource; every remediation has a finding
-I3 COMPLETE rows hold only VERIFICATION steps, each with evidence
-I4 no step cites an activity_id or audit_id (claims are never proof, ADR 0006)
-I5 no case or evidence id literal in code/ (literal audit)
-I6 status matches steps: NOT_APPLICABLE <=> []; COMPLETE has no finding; INCOMPLETE has a finding, or is [] (ADR 0015)
-I7 the cited file names the resource (an observation of it), or covers its system (absence by omission)
-I8 a resource id's prefix agrees with its system_id wherever the prefix has an owning system
-I9 in INCOMPLETE rows, remediation and verification steps are uncited (future work)
+I2 every finding has its remediation and verification on the same resource; every remediation has a
+finding I3 COMPLETE rows hold only VERIFICATION steps, each with evidence I4 no step cites an
+activity_id or audit_id (claims are never proof, ADR 0006) I5 no case or evidence id literal in
+code/ (literal audit) I6 status matches steps: NOT_APPLICABLE <=> []; COMPLETE has no finding;
+INCOMPLETE has a finding, or is [] (ADR 0015) I7 the cited file names the resource (an observation
+of it), or covers its system (absence by omission) I8 a resource id's prefix agrees with its
+system_id wherever the prefix has an owning system I9 in INCOMPLETE rows, remediation and
+verification steps are uncited (future work)
 """
 
 import csv
@@ -71,7 +71,8 @@ def check(output_path, data_dir):
                     )
                 elif files[ev].captured_at > audit_at.get(c, ""):
                     v["I1.evidence_exists_pre_audit"].append(
-                        f"{where}: {ev} captured {files[ev].captured_at} > audit_at {audit_at.get(c)}"
+                        f"{where}: {ev} captured {files[ev].captured_at} > audit_at "
+                        f"{audit_at.get(c)}"
                     )
                 elif res not in named.get(ev, set()) and s["system_id"] not in covers.get(
                     ev, set()

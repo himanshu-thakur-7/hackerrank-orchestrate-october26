@@ -1,8 +1,9 @@
 """Literal audit: solver and evaluation code must not name specific cases or evidence files.
 
 scan(root) -> ["relative/path:line: literal", ...]; empty means clean.
-Files under any tests/ or fixtures/ directory are exempt (fixtures hold labeled data by design), and so
-are the generated reports in GENERATED_REPORTS: they document results case by case and no code reads them.
+Files under any tests/ or fixtures/ directory are exempt (fixtures hold labeled data by design), and
+so are the generated reports in GENERATED_REPORTS: they document results case by case and no code
+reads them.
 """
 
 import re

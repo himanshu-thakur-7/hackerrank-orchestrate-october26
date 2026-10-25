@@ -1,15 +1,18 @@
-"""Build code.zip for submission: README.md and code/, plus evaluation/ holding copies of the two generated reports
-and docs/ holding SANITIZED copies of the design documents (ADRs, design, ledgers, audits, board).
+"""Build code.zip for submission: README.md and code/, plus evaluation/ holding copies of the two
+generated reports and docs/ holding SANITIZED copies of the design documents (ADRs, design, ledgers,
+audits, board).
 
-docs/ copies are made at build time and the originals are never edited: every email address and phone number
-is replaced by a stable token (email#xxxxxx / phone#xxxxxx, a short sha256 prefix, so the same value always maps
-to the same token), and any verbatim dataset row longer than a short fragment is replaced by "[dataset row omitted]".
-Case ids, user_N references, resource ids and evidence ids are kept.
+docs/ copies are made at build time and the originals are never edited: every email address and
+phone number is replaced by a stable token (email#xxxxxx / phone#xxxxxx, a short sha256 prefix, so
+the same value always maps to the same token), and any verbatim dataset row longer than a short
+fragment is replaced by "[dataset row omitted]". Case ids, user_N references, resource ids and
+evidence ids are kept.
 
   python3 code/package.py              # writes ./code.zip and prints its listing and size
 
-Excluded: dataset/, runs/, scratch/, .env, nested archives, __pycache__ / *.pyc, virtual environments, .git.
-The build refuses to write a zip in which a key-shaped string (sk-..., apikey_...) appears.
+Excluded: dataset/, runs/, scratch/, .env, nested archives, __pycache__ / *.pyc, virtual
+environments, .git. The build refuses to write a zip in which a key-shaped string (sk-...,
+apikey_...) appears.
 """
 
 import csv
@@ -87,7 +90,8 @@ def files():
 
 
 def identity_values(data_dir=DATA):
-    """Every email and phone in the identity snapshot and the audit history, plus the verbatim dataset rows."""
+    """Every email and phone in the identity snapshot and the audit history, plus the verbatim
+    dataset rows."""
     emails, phones = set(), set()
     with open(data_dir / "user_identities.csv", newline="", encoding="utf-8") as f:
         for r in csv.DictReader(f):
@@ -205,7 +209,8 @@ def main():
     for i in infos:
         print(f"{i.file_size:>9}  {i.filename}")
     print(
-        f"{len(infos)} files, {sum(i.file_size for i in infos):,} bytes uncompressed, {out.stat().st_size:,} bytes zipped -> {out}"
+        f"{len(infos)} files, {sum(i.file_size for i in infos):,} bytes uncompressed, "
+        f"{out.stat().st_size:,} bytes zipped -> {out}"
     )
     return 0
 

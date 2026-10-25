@@ -1,4 +1,5 @@
-"""The README promises Python 3.11+: every module under code/ must compile on the oldest interpreter present."""
+"""The README promises Python 3.11+: every module under code/ must compile on the oldest
+interpreter present."""
 
 import shutil
 import subprocess

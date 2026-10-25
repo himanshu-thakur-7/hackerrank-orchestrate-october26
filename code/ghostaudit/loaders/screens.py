@@ -1,5 +1,6 @@
-"""Screenshots (signature: PNG magic bytes). Facts come from committed transcriptions keyed by the sha256 of
-the image (screens_data.py); a PNG without one is an unknown signature, never skipped. Live cached
+"""Screenshots (signature: PNG magic bytes). Facts come from committed transcriptions keyed by the
+sha256 of the image (screens_data.py); a PNG without one is an unknown signature, never skipped.
+Live cached
 vision extraction is the second adapter (T11). observed_at is the file's captured_at (ADR 0002)."""
 
 import hashlib

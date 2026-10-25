@@ -1,6 +1,7 @@
 """Record-list JSON: {"records": [...]} in two shapes, recognised by record content:
 * registers (record_type/result rows): checks, no Coverage;
-* collection lists {"collection": ..., "captured_at": ..., "records": [data rows]}: weak Coverage (ADR 0014).
+* collection lists {"collection": ..., "captured_at": ..., "records": [data rows]}: weak Coverage
+  (ADR 0014).
 """
 
 import json

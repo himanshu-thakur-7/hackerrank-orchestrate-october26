@@ -160,7 +160,9 @@ class SniffCollision(unittest.TestCase):
         raw = (FIX / "observability_logfmt_excerpt.log").read_bytes()
         self.assertEqual(loaders.sniff(raw), "log:observability")
         evidence_30_style = (
-            b"2026-05-14T11:58:42Z level=DEBUG service=account_service instance=account-6 pod=account-3740 "
-            b'region=ap-south-1 trace_id=tr-9048368 event=profile_lookup_started lookup_key="lars.e5052@outlook.com" attempt=1\n'
+            b"2026-05-14T11:58:42Z level=DEBUG service=account_service instance=account-6 "
+            b"pod=account-3740 "
+            b"region=ap-south-1 trace_id=tr-9048368 event=profile_lookup_started "
+            b'lookup_key="lars.e5052@outlook.com" attempt=1\n'
         )
         self.assertEqual(loaders.sniff(evidence_30_style), "log:observability")

@@ -1,8 +1,8 @@
 """T15 metamorphic relations: transformations of dataset/ with a PREDICTED effect on output.csv.
 
-Each relation edits an Overlay (a temporary copy; dataset/ is never written), runs the real pipeline,
-and compares with the baseline. Targets are chosen from the baseline at run time, never hard-coded.
-A failing relation is a bug in the pipeline, not in the relation.
+Each relation edits an Overlay (a temporary copy; dataset/ is never written), runs the real
+pipeline, and compares with the baseline. Targets are chosen from the baseline at run time, never
+hard-coded. A failing relation is a bug in the pipeline, not in the relation.
 """
 
 import json
@@ -120,7 +120,8 @@ def m2_rename(ctx):
         out,
         "M2",
         "rename every evidence file and upper-case its extension",
-        "identical, evidence_id included: citations are manifest file_ids and loaders dispatch by content",
+        "identical, evidence_id included: citations are manifest file_ids and loaders dispatch by "
+        "content",
     )
 
 
@@ -144,7 +145,10 @@ def _subject_case(ctx, need=lambda a: True):
 
 
 def _log(ts, service, trace, event, extra):
-    return f"{ts} level=INFO service={service} instance={service}-9 pod={service}-meta region=eu-west-1 trace_id={trace} event={event} {extra}\n"
+    return (
+        f"{ts} level=INFO service={service} instance={service}-9 pod={service}-meta "
+        f"region=eu-west-1 trace_id={trace} event={event} {extra}\n"
+    )
 
 
 def m4_decoy(ctx):
@@ -279,15 +283,17 @@ def m7_earlier_audit(ctx):
         holds,
         "that file is no longer cited; every citation <= the new audit_at; other cases unchanged",
         [
-            f"{c}: {ctx.assess[c].status} -> {status}; cites now {sorted({s['evidence_id'] for s in steps if s['evidence_id']})}",
+            f"{c}: {ctx.assess[c].status} -> {status}; cites now "
+            f"{sorted({s['evidence_id'] for s in steps if s['evidence_id']})}",
             f"other changed cases: {others or 'none'}",
         ],
     )
 
 
 def m8_replica_only(ctx):
-    # precondition: the injected replica copy must be the NEWEST sighting at or before audit_at, so pick an
-    # account whose latest observation is strictly earlier than audit_at and capture the copy at audit_at
+    # precondition: the injected replica copy must be the NEWEST sighting at or before audit_at, so
+    # pick an account whose latest observation is strictly earlier than audit_at and capture the
+    # copy at audit_at
     def newest_before_audit(c, s):
         view = ctx.engine.store.as_of(ctx.req[c]["audit_at"])
         obs = [o for o in view.observations(s["resource_id"]) if o.system_id == "account_service"]
@@ -307,14 +313,17 @@ def m8_replica_only(ctx):
     cap = q["audit_at"]  # inclusive cutoff (ADR 0002)
     name = sorted(ident.names)[0] if ident.names else "Test Person"
     cols = (
-        "resource_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, full_name TEXT NOT NULL, email TEXT NOT NULL, "
+        "resource_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, full_name TEXT NOT NULL, email TEXT "
+        "NOT NULL, "
         "phone TEXT NOT NULL, account_status TEXT NOT NULL, updated_at TEXT NOT NULL"
     )
     sql = (
-        f"-- Ghost Data Still Exists: point-in-time database snapshot\n-- Dialect: SQLite-compatible SQL\n"
+        f"-- Ghost Data Still Exists: point-in-time database snapshot\n-- Dialect: "
+        f"SQLite-compatible SQL\n"
         f"-- Captured at: {cap}\n-- Database topology: failover_replica\n\nBEGIN TRANSACTION;\n"
         f"CREATE TABLE customer_profiles_failover_replica ({cols});\n"
-        f"INSERT INTO \"customer_profiles_failover_replica\" VALUES('{s['resource_id']}','{subj.user_id}','{name}','{email}',"
+        f'INSERT INTO "customer_profiles_failover_replica" '
+        f"VALUES('{s['resource_id']}','{subj.user_id}','{name}','{email}',"
         f"'+00 000 000 0000','ACTIVE','{cap}');\n"
         f"CREATE TABLE customer_profiles_primary ({cols});\nCOMMIT;\n"
     )
@@ -335,7 +344,8 @@ def m8_replica_only(ctx):
         "M8",
         f"add a replica-only copy of {c}'s {s['resource_id']} captured at its audit_at",
         holds and not others,
-        "that case becomes INCOMPLETE with REPORT_REMAINING_RECORD citing the new snapshot; others unchanged",
+        "that case becomes INCOMPLETE with REPORT_REMAINING_RECORD citing the new snapshot; others "
+        "unchanged",
         [
             f"{c}: COMPLETE -> {status}; finding {found[0] if found else 'missing'}",
             f"other changed cases: {others or 'none'}",
@@ -344,7 +354,8 @@ def m8_replica_only(ctx):
 
 
 def dependents(ctx, file_id):
-    """Eval cases whose assessment could read `file_id`: any observation, link, coverage or account candidate."""
+    """Eval cases whose assessment could read `file_id`: any observation, link, coverage or
+    account candidate."""
     deps = set()
     lk = ctx.engine.linker
     for c, a in ctx.assess.items():
@@ -420,7 +431,8 @@ def m10_duplicate_text(ctx):
         "identical intent (NOT_APPLICABLE iff the original is)",
         [f"{nid} <- {src}: {out[nid][0]} vs {out[src][0]}" for nid, src in new.items()]
         + [
-            "note: the duplicate deletion request competes for the same account delete, so its account link may tie (ADR 0004)"
+            "note: the duplicate deletion request competes for the same account delete, so its "
+            "account link may tie (ADR 0004)"
         ],
     )
 
@@ -442,9 +454,8 @@ def m11_break_tie(ctx):
                     break
         if pick:
             break
-    if (
-        pick is None
-    ):  # every tie is shared: removing one candidate must leave all sharers unresolved (no tie-break)
+    # every tie is shared: removing one candidate must leave all sharers unresolved (no tie-break)
+    if pick is None:
         c, l = min(tied.items(), key=lambda kv: (len(kv[0]), kv[0]))
         pick = (c, l.survivors[0], l.survivors[1])
     c, drop, keep = pick
@@ -472,7 +483,8 @@ def m11_break_tie(ctx):
         holds,
         "the remaining candidate becomes the unique linked account"
         if expect_linked
-        else "the remaining candidate is shared with another request, so it stays unresolved (no tie-break)",
+        else "the remaining candidate is shared with another request, so it stays unresolved (no "
+        "tie-break)",
         [
             f"{c}: {got.describe()}",
             f"remaining candidate also survives for: {sorted(sharers - {c}) or 'nobody else'}",
@@ -501,7 +513,10 @@ def m12_catalog_contradiction(ctx):
         if victim:
             break
     subj = ctx.assess[victim].subject
-    claim = f"Data catalog linked {link.resource_id} ({link.resource_id}) to {sorted(subj.emails)[0]} and {subj.user_id}."
+    claim = (
+        f"Data catalog linked {link.resource_id} ({link.resource_id}) to "
+        f"{sorted(subj.emails)[0]} and {subj.user_id}."
+    )
     with Overlay(ctx.data) as ov:
         rows = ov.rows("system_activity.csv")
         for r in rows:
@@ -517,13 +532,16 @@ def m12_catalog_contradiction(ctx):
     stepped = [s for s in out[victim][1] if s["resource_id"] == link.resource_id]
     return Result(
         "M12",
-        f"re-point {link.activity_id} ({link.resource_id}, shown on {link.artifact}) to {victim}'s subject",
+        f"re-point {link.activity_id} ({link.resource_id}, shown on {link.artifact}) to {victim}'s "
+        f"subject",
         bool(rejected) and not stepped and not [x for x in changed(ctx.base, out) if x != victim],
-        "the screen shows someone else: the claim is REJECTED, no step on the resource, nothing else changes",
+        "the screen shows someone else: the claim is REJECTED, no step on the resource, nothing "
+        "else changes",
         [
             rejected[0] if rejected else "no REJECTED_LINK logged",
             f"steps on {link.resource_id}: {len(stepped)}",
-            "(screens are committed transcriptions keyed by image hash, so the claim is moved instead of the pixels)",
+            "(screens are committed transcriptions keyed by image hash, so the claim is moved "
+            "instead of the pixels)",
         ],
     )
 

@@ -1,4 +1,5 @@
-"""Run history: runs/<ts>/{metrics.json, output.csv, commit} plus a diff against the previous run."""
+"""Run history: runs/<ts>/{metrics.json, output.csv, commit} plus a diff against the previous
+run."""
 
 import json, tempfile, unittest
 from pathlib import Path

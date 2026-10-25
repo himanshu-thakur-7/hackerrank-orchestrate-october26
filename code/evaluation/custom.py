@@ -1,5 +1,6 @@
-"""T13 custom evaluation cases: apply the synthetic fixtures to a dataset overlay, run the real pipeline, and
-compare each custom row with its hand-written expectation (and required log lines). Also checks that the
+"""T13 custom evaluation cases: apply the synthetic fixtures to a dataset overlay, run the real
+pipeline, and compare each custom row with its hand-written expectation (and required log lines).
+Also checks that the
 518 real rows are unchanged by the additions."""
 
 import sys
@@ -52,7 +53,8 @@ def _compare(cid, got, want):
     strip = lambda steps: [{k: v for k, v in s.items() if k != "step_no"} for s in steps]
     if strip(gsteps) != wsteps:
         problems.append(
-            f"steps: expected {[(s['operation'], s['resource_id'], s['evidence_id']) for s in wsteps]}, "
+            f"steps: expected "
+            f"{[(s['operation'], s['resource_id'], s['evidence_id']) for s in wsteps]}, "
             f"got {[(s['operation'], s['resource_id'], s['evidence_id']) for s in gsteps]}"
         )
     if [s["step_no"] for s in gsteps] != list(range(1, len(gsteps) + 1)):
@@ -100,7 +102,8 @@ def run():
 
     rep = run_cases(CASES)
     print(
-        f"CUSTOM CASES ({len(rep.results)} rows from {len(CASES)} fixtures; synthetic people and evidence, dated 2027)"
+        f"CUSTOM CASES ({len(rep.results)} rows from {len(CASES)} fixtures; synthetic people and "
+        f"evidence, dated 2027)"
     )
     for r in rep.results:
         print(f"  {'PASS' if r.ok else 'FAIL'}  {r.case_id:10} {r.title}")

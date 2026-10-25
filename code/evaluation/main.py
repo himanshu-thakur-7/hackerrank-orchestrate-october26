@@ -1,24 +1,32 @@
 """Evaluation CLI for the Ghost Data deletion audit.
 
-  python3 code/evaluation/main.py contract [--file output.csv] [--requests dataset/deletion_requests.csv]
-  python3 code/evaluation/main.py score [--pred PRED.csv] [--split dev|all] [--reveal-holdout] [--accept-regression REASON]
-      (no --pred: runs code/main.py on the 32 samples first)
-  python3 code/evaluation/main.py determinism [--cmd "python3 code/main.py"] [--file output.csv]
-  python3 code/evaluation/main.py loaders [--files ID,ID] [--kind sql,json,log,...] [--spot]
-  python3 code/evaluation/main.py states [--split dev|holdout|all] [--risk]
-  python3 code/evaluation/main.py linking
-  python3 code/evaluation/main.py invariants [--file output.csv]
-  python3 code/evaluation/main.py lossledger                 # writes docs/LOSS_LEDGER.md
-  python3 code/evaluation/main.py intent                     # rules vs model on every unique request text
-  python3 code/evaluation/main.py custom                     # hand-written custom cases over a dataset overlay
-  python3 code/evaluation/main.py report                     # regenerates code/evaluation/evaluation_report.md
-  python3 code/evaluation/main.py usage                      # code/evaluation/usage_report.md from a measured full run
-  python3 code/evaluation/main.py jev-rank                   # advisory Jev risk scores + docs/JEV_REVIEW_QUEUE.md
-  python3 code/evaluation/main.py metamorphic [--only M1,M7]
-  python3 code/evaluation/main.py audit
-  python3 code/evaluation/main.py selftest
-  python3 code/evaluation/main.py final [--matrix]           # every gate + clean-room run of code.zip (T14);
-                                                             # --matrix: unit tests with each optional dependency blocked
+Run as `python3 code/evaluation/main.py <command>`:
+
+  contract [--file output.csv] [--requests dataset/deletion_requests.csv]
+                          L0 contract gate on a prediction file
+  score [--pred PRED.csv] [--split dev|all] [--reveal-holdout] [--accept-regression REASON]
+                          sample scorer (no --pred: runs code/main.py on the 32 samples first)
+  determinism [--cmd "python3 code/main.py"] [--file output.csv]
+                          two runs must be byte-identical
+  loaders [--files ID,ID] [--kind sql,json,log,...] [--spot]
+                          loader coverage, drift and gold checks
+  states [--split dev|holdout|all] [--risk]
+                          state reconstruction against the cited gold steps
+  linking                 account and catalog links on samples and eval
+  invariants [--file output.csv]
+                          the nine invariants on every row
+  lossledger              writes docs/LOSS_LEDGER.md
+  intent                  rules vs model on every unique request text
+  custom                  hand-written custom cases over a dataset overlay
+  report                  regenerates code/evaluation/evaluation_report.md
+  usage                   code/evaluation/usage_report.md from a measured full run
+  jev-rank                advisory Jev risk scores and docs/JEV_REVIEW_QUEUE.md
+  metamorphic [--only M1,M7]
+                          metamorphic relations over a modified dataset copy
+  audit                   literal audit of code/
+  selftest                gate, scorer, split, audit and history self-check
+  final [--matrix]        every gate and a clean-room run of code.zip (T14); --matrix also
+                          reruns the unit tests with each optional dependency blocked
 
 Exit codes: 0 ok, 1 contract/audit/determinism failure, 2 diff gate (dev regression).
 Unit tests: python3 -m unittest discover -s code/evaluation/tests -t code
@@ -154,7 +162,8 @@ def cmd_score(a):
     print("\n".join("  " + l for l in detail) or "  none")
     if a.split == "dev":
         print(
-            f"HOLDOUT (aggregate only): proxy {m['holdout']['proxy']:.3f}, status_accuracy {m['holdout']['status_accuracy']:.3f}"
+            f"HOLDOUT (aggregate only): proxy {m['holdout']['proxy']:.3f}, status_accuracy "
+            f"{m['holdout']['status_accuracy']:.3f}"
         )
     else:
         _table("HOLDOUT (aggregate only)", m["holdout"])
@@ -313,7 +322,8 @@ def _broken_copies(tmp):
     ro[3], ro[4] = ro[4], ro[3]
     with open(wrong_order, "w", newline="", encoding="utf-8") as f:
         csv.writer(f, lineterminator="\n").writerows(ro)
-    # each broken copy names the ONE check id it targets, so it cannot "fail as expected" for another reason
+    # each broken copy names the ONE check id it targets, so it cannot "fail as expected" for
+    # another reason
     return [
         ("bad quoting", bad_quote, "L0.csv"),
         ("null evidence", null_ev, "L0.evidence"),
@@ -327,7 +337,8 @@ def cmd_selftest(_):
     v = gate.check(GOLD, SAMPLE_REQ, MANIFEST, warnings=w)
     _print_warnings(w)
     print(
-        f"[1] contract gate on gold: {'CONTRACT OK (sample_output.csv, 32 rows)' if not v else 'FAILED'}"
+        f"[1] contract gate on gold: "
+        f"{'CONTRACT OK (sample_output.csv, 32 rows)' if not v else 'FAILED'}"
     )
     for x in v:
         print("    " + x)
@@ -342,7 +353,8 @@ def cmd_selftest(_):
         vals = [x for x in m.values() if isinstance(x, float)]
         worst = min(worst, min(vals))
         print(
-            f"    scorer gold-vs-gold {name:8}: {len(vals)} metrics, min {min(vals):.3f}, proxy {m['proxy']:.3f}"
+            f"    scorer gold-vs-gold {name:8}: {len(vals)} metrics, min {min(vals):.3f}, proxy "
+            f"{m['proxy']:.3f}"
         )
     ok &= worst == 1.0
 
@@ -355,7 +367,8 @@ def cmd_selftest(_):
             print(f"    {label:14} -> FAILS on {code}: {hit}")
         else:
             print(
-                f"    {label:14} -> WRONG: expected a {code} violation, got {bv[:1] or 'no violation'}"
+                f"    {label:14} -> WRONG: expected a {code} violation, got "
+                f"{bv[:1] or 'no violation'}"
             )
         ok &= hit is not None
 
@@ -370,10 +383,14 @@ def cmd_selftest(_):
     }
     d = history.record(RUNS / "selftest", GOLD, m, _commit())
     prev = history.previous(RUNS / "selftest", d)
+    if prev is None:
+        diff_note = "first run"
+    else:
+        diff_note = f"{len(history.diff(prev / 'output.csv', d / 'output.csv'))} change(s)"
     print(
         f"[5] run history: wrote {d.relative_to(ROOT) if d.is_relative_to(ROOT) else d} "
         f"(metrics.json, output.csv, commit); diff vs previous: "
-        f"{'first run' if prev is None else str(len(history.diff(prev / 'output.csv', d / 'output.csv'))) + ' change(s)'}"
+        f"{diff_note}"
     )
     print("SELFTEST OK" if ok else "SELFTEST FAILED")
     return 0 if ok else 1

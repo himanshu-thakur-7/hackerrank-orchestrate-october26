@@ -1,5 +1,5 @@
-"""T07 loader: observability logs, all seven dialects (logfmt, JSON-after-timestamp, syslog, bracketed,
-pipe, cloud-runtime, support replica). Fixtures are verbatim line excerpts:
+"""T07 loader: observability logs, all seven dialects (logfmt, JSON-after-timestamp, syslog,
+bracketed, pipe, cloud-runtime, support replica). Fixtures are verbatim line excerpts:
   observability_logfmt_excerpt.log   evidence_01 lines 1-6
   obs_logfmt_traces_excerpt.log      evidence_01 lines 11, 15, 43, 53, 92
   obs_json_excerpt.log               evidence_06 lines 2, 4, 19, 48, 50

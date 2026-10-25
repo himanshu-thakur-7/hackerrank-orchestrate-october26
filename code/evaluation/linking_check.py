@@ -1,5 +1,7 @@
-"""T10 acceptance: primary-account linking vs the labeled samples, eval tie counts, and every rejected or
-unresolved link with its reason. Gold is used here only to EVALUATE; the solver never imports this."""
+"""T10 acceptance: primary-account linking vs the labeled samples, eval tie counts, and every
+rejected or
+unresolved link with its reason. Gold is used here only to EVALUATE; the solver never imports
+this."""
 
 import csv
 import json
@@ -39,10 +41,12 @@ def run(root):
         res[v] += 1
         if v != "EXACT":
             print(
-                f"  {q['case_id']}: {v:12} gold={g} ours={l.resource_id} survivors={[c.resource_id for c in l.survivors]} {l.reason}"
+                f"  {q['case_id']}: {v:12} gold={g} ours={l.resource_id} "
+                f"survivors={[c.resource_id for c in l.survivors]} {l.reason}"
             )
     print(
-        f"  samples: {res['EXACT']}/32 exact, {res['WRONG']} wrong, {res['TIED']} tied, {res['NO_CANDIDATE']} no candidate"
+        f"  samples: {res['EXACT']}/32 exact, {res['WRONG']} wrong, {res['TIED']} tied, "
+        f"{res['NO_CANDIDATE']} no candidate"
     )
     ids = [q["case_id"] for q in evals]
     print("EVAL " + lk.summary(ids))
@@ -85,6 +89,7 @@ def run(root):
         ]
     print(f"  totals: {dict(sorted(kinds.items()))}")
     print(
-        f"  steps on resources whose catalog link was rejected (ADR 0005): {rejected_steps or 'none'}"
+        f"  steps on resources whose catalog link was rejected (ADR 0005): "
+        f"{rejected_steps or 'none'}"
     )
     return 0 if res["WRONG"] == 0 and not rejected_steps else 1

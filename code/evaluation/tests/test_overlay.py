@@ -1,4 +1,5 @@
-"""T15 overlay helper: the whole pipeline over a modified temporary copy of dataset/ (dataset/ is never edited)."""
+"""T15 overlay helper: the whole pipeline over a modified temporary copy of dataset/ (dataset/ is
+never edited)."""
 
 import hashlib
 import unittest
