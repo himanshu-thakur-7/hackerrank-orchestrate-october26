@@ -85,17 +85,22 @@ def _evidence_times(manifest_path):
     return t
 
 
-def _row(case_id, status, steps_json, audit_at, times):
+def _parse(case_id, status, steps_json):
+    """(steps, []) for a parsable row, or (None, [violation]) for a bad status or JSON."""
     if status not in STATUSES:
-        return [
+        return None, [
             f"L0.status: {case_id}: deletion_status '{status}' is not one of {', '.join(STATUSES)}"
         ]
     try:
         steps = json.loads(steps_json)
     except json.JSONDecodeError as e:
-        return [f"L0.json: {case_id}: steps_json is not valid JSON ({e.msg} at char {e.pos})"]
+        return None, [f"L0.json: {case_id}: steps_json is not valid JSON ({e.msg} at char {e.pos})"]
     if not isinstance(steps, list):
-        return [f"L0.json: {case_id}: steps_json must be a JSON array"]
+        return None, [f"L0.json: {case_id}: steps_json must be a JSON array"]
+    return steps, []
+
+
+def _key_violations(case_id, steps):
     v = []
     for i, s in enumerate(steps, 1):
         if not isinstance(s, dict) or set(s) != KEYS:
@@ -105,15 +110,22 @@ def _row(case_id, status, steps_json, audit_at, times):
                 f"L0.keys: {case_id} step {i}: needs exactly the 7 keys; extra={extra} "
                 f"missing={missing}"
             )
-    if v:
-        return v
+    return v
+
+
+def _step_no_violation(case_id, steps):
     for i, s in enumerate(steps, 1):
         if type(s["step_no"]) is not int or s["step_no"] != i:
-            v.append(
+            return [
                 f"L0.step_no: {case_id}: step at position {i} has step_no {s['step_no']!r}; must "
                 f"be the integer {i}"
-            )
-            break
+            ]
+    return []
+
+
+def _shape_violations(case_id, steps):
+    """step_no 1..n, an allowed (phase, operation, state) triple, non-empty system/resource ids."""
+    v = _step_no_violation(case_id, steps)
     for s in steps:
         if (s["phase"], s["operation"], s["state"]) not in TRIPLE_SET:
             v.append(
@@ -123,19 +135,26 @@ def _row(case_id, status, steps_json, audit_at, times):
         for k in ("system_id", "resource_id"):
             if not isinstance(s[k], str) or not s[k]:
                 v.append(f"L0.keys: {case_id} step {s['step_no']}: {k} must be a non-empty string")
-    if v:
-        return v
+    return v
+
+
+def _sort_violation(case_id, steps):
+    """The first step out of (operation rank, system_id, resource_id) order, if any."""
     keys = [(OP_RANK[s["operation"]], s["system_id"], s["resource_id"]) for s in steps]
     for a in range(1, len(keys)):
         if keys[a] < keys[a - 1]:
-            v.append(
+            return [
                 f"L0.sort: {case_id}: step {a + 1} ({steps[a]['operation']} "
                 f"{steps[a]['system_id']}/{steps[a]['resource_id']}) "
                 f"must not come after step {a} ({steps[a - 1]['operation']} "
                 f"{steps[a - 1]['system_id']}/{steps[a - 1]['resource_id']}); "
                 f"order is phase, operation rank, system_id, resource_id"
-            )
-            break
+            ]
+    return []
+
+
+def _status_violations(case_id, status, steps):
+    v = []
     phases = {s["phase"] for s in steps}
     if status == "NOT_APPLICABLE" and steps:
         v.append(
@@ -151,6 +170,18 @@ def _row(case_id, status, steps_json, audit_at, times):
             f"L0.status: {case_id}: COMPLETE may contain only VERIFICATION steps (found "
             f"{', '.join(sorted(phases - {'VERIFICATION'}))})"
         )
+    return v
+
+
+def _row(case_id, status, steps_json, audit_at, times):
+    """Violations of one row, checked in layers; a layer that fails stops the deeper ones."""
+    steps, v = _parse(case_id, status, steps_json)
+    if steps is None:
+        return v
+    v = _key_violations(case_id, steps) or _shape_violations(case_id, steps)
+    if v:
+        return v
+    v = _sort_violation(case_id, steps) + _status_violations(case_id, status, steps)
     v += _evidence(case_id, status, steps, audit_at, times)
     if status == "INCOMPLETE":
         v += _pairing(case_id, steps)
@@ -230,6 +261,17 @@ def _read_csv(path):
         return list(csv.DictReader(f))
 
 
+def _order_violation(got, want):
+    """The first known case_id row that breaks natural numeric order, if any."""
+    for i in range(1, len(got)):
+        if got[i] in want and got[i - 1] in want and natural_key(got[i]) < natural_key(got[i - 1]):
+            return [
+                f"L0.order: {got[i]} (data row {i + 1}) comes after {got[i - 1]}; rows must be in "
+                f"natural numeric case_id order"
+            ]
+    return []
+
+
 def _cases(rows, requests):
     v = []
     want = [r["case_id"] for r in requests]
@@ -246,17 +288,7 @@ def _cases(rows, requests):
     unknown = sorted(set(got) - set(want), key=natural_key)
     if unknown:
         v.append(f"L0.cases: unknown case_id(s) not in the input: {', '.join(unknown[:10])}")
-    for i in range(1, len(got)):
-        if (
-            got[i] in set(want)
-            and got[i - 1] in set(want)
-            and natural_key(got[i]) < natural_key(got[i - 1])
-        ):
-            v.append(
-                f"L0.order: {got[i]} (data row {i + 1}) comes after {got[i - 1]}; rows must be in "
-                f"natural numeric case_id order"
-            )
-            break
+    v += _order_violation(got, set(want))
     if len(got) != len(want) and not (missing or unknown or dups):
         v.append(f"L0.cases: expected {len(want)} rows, got {len(got)}")
     return v
