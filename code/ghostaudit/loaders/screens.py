@@ -1,0 +1,56 @@
+"""Screenshots (signature: PNG magic bytes). Facts come from committed transcriptions keyed by the
+sha256 of the image (screens_data.py); a PNG without one is an unknown signature, never skipped.
+The run makes no live vision call (ADR 0008). observed_at is the file's captured_at (ADR 0002)."""
+
+from __future__ import annotations
+
+import hashlib
+from typing import Any, cast
+
+from ghostaudit.errors import GhostAuditError
+from ghostaudit.loaders import screens_data
+from ghostaudit.loaders.common import LoadResult, Unit, identifiers
+
+
+class MissingTranscription(GhostAuditError):
+    """Raised for a PNG whose sha256 has no committed transcription."""
+
+
+def load(file_id: str, captured_at: str, raw: bytes) -> LoadResult:
+    """Parse one evidence file of this format into a LoadResult.
+
+    Inputs: the manifest file_id and captured_at, and the raw PNG bytes. Output: Observations
+    (and Coverage where the format is exhaustive); record-like units that cannot be used go to
+    `unattributed` or `unparsed`, so nothing is dropped silently."""
+    from ghostaudit.store import Observation
+
+    sha = hashlib.sha256(raw).hexdigest()
+    screen = cast("dict[str, Any] | None", screens_data.SCREENS.get(sha))
+    if screen is None:
+        raise MissingTranscription(
+            f"{file_id}: PNG sha256 {sha} has no committed transcription (screens_data.py); "
+            f"live vision extraction is T11"
+        )
+    r = LoadResult("png")
+    for rec in screen["records"]:
+        ids = identifiers(*rec["identifiers"])
+        o = Observation(
+            file_id,
+            captured_at,
+            rec["system_id"],
+            rec["resource_id"],
+            "screen",
+            rec["state"],
+            pii_fields=tuple(
+                p for p in ("name", "email", "phone", "email_hash") if p in rec["pii"]
+            ),
+            identifiers=ids,
+            locator=f"screen {rec['region']}",
+            attrs=tuple(sorted(rec["attrs"].items())),
+        )
+        r.observations.append(o)
+        if not ids:
+            r.unattributed.append(Unit(file_id, o.locator, rec["resource_id"], "no identifier"))
+    for u in screen["units"]:
+        r.unattributed.append(Unit(file_id, f"screen {u['region']}", u["text"], "no resource id"))
+    return r

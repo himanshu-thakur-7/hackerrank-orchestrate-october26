@@ -1,0 +1,54 @@
+# Project metadata and developer-tool configuration for the Ghost Data deletion audit.
+# The solver needs nothing beyond the Python standard library: there are no required dependencies.
+# ruff, mypy and coverage are developer tools only; no default code path imports them, and
+# `python3 code/evaluation/main.py final` reports their checks as SKIPPED when they are not installed.
+
+[project]
+name = "ghostaudit"
+version = "1.0.0"
+description = "Evidence-first deletion-audit agent for the Ghost Data Still Exists challenge"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+intent = ["openai"]                 # live intent calls on a cache miss (ADR 0008)
+judge = ["typesafe-sdk"]            # evaluation-only Jev ranker (ADR 0013)
+gate = ["pandas"]                   # extra round-trip check in the contract gate
+pdf = ["pypdf"]                     # fallback for a PDF missing from the committed text cache
+dev = ["ruff", "mypy", "coverage"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# generated data modules: rewritten by code, never formatted or linted by hand
+extend-exclude = [
+    "ghostaudit/llm_cache.py",
+    "ghostaudit/loaders/pdf_text_cache.py",
+    "ghostaudit/loaders/screens_data.py",
+    "evaluation/jev_cache.py",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "SIM", "C90", "UP", "RET", "PIE", "I"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+# code/evaluation/ruff.toml raises the limit to 15 (grade C) for the evaluation harness
+
+[tool.mypy]
+python_version = "3.11"
+files = ["ghostaudit", "main.py", "package.py"]
+exclude = ["ghostaudit/llm_cache\\.py$", "ghostaudit/loaders/pdf_text_cache\\.py$", "ghostaudit/loaders/screens_data\\.py$"]
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+module = ["ghostaudit.*", "main", "package"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = ["openai", "openai.*", "typesafe_sdk", "typesafe_sdk.*", "pandas", "pypdf"]
+ignore_missing_imports = true

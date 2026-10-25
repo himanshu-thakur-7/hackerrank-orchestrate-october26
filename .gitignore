@@ -1,0 +1,9 @@
+scratch/
+__pycache__/
+.venv/
+.env
+runs/
+code.zip
+.ruff_cache/
+.mypy_cache/
+.coverage

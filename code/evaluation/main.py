@@ -1,0 +1,509 @@
+"""Evaluation CLI for the Ghost Data deletion audit.
+
+Run as `python3 code/evaluation/main.py <command>`:
+
+  contract [--file output.csv] [--requests dataset/deletion_requests.csv]
+                          L0 contract gate on a prediction file
+  score [--pred PRED.csv] [--split dev|all] [--reveal-holdout] [--accept-regression REASON]
+                          sample scorer (no --pred: runs code/main.py on the 32 samples first)
+  determinism [--cmd "python3 code/main.py"] [--file output.csv]
+                          two runs must be byte-identical
+  loaders [--files ID,ID] [--kind sql,json,log,...] [--spot]
+                          loader coverage, drift and gold checks
+  states [--split dev|holdout|all] [--risk]
+                          state reconstruction against the cited gold steps
+  linking                 account and catalog links on samples and eval
+  invariants [--file output.csv]
+                          the nine invariants on every row
+  lossledger              writes docs/LOSS_LEDGER.md
+  intent                  rules vs model on every unique request text
+  custom                  hand-written custom cases over a dataset overlay
+  report                  regenerates code/evaluation/evaluation_report.md
+  usage                   code/evaluation/usage_report.md from a measured full run
+  jev-rank                advisory Jev risk scores and docs/JEV_REVIEW_QUEUE.md
+  metamorphic [--only M1,M7]
+                          metamorphic relations over a modified dataset copy
+  audit                   literal audit of code/
+  quality                 complexity, docstrings, annotations, tests; ruff, mypy and coverage
+                          when installed (SKIPPED otherwise)
+  selftest                gate, scorer, split, audit and history self-check
+  final [--matrix]        every gate and a clean-room run of code.zip; --matrix also
+                          reruns the unit tests with each optional dependency blocked
+
+Exit codes: 0 ok, 1 contract/audit/determinism failure, 2 diff gate (dev regression).
+Unit tests: python3 -m unittest discover -s code/evaluation/tests -t code
+
+Decisions: ADR 0013 (Jev is evaluation-only), ADR 0001 and 0015 (enforced by the gate).
+"""
+
+import argparse
+import csv
+import io
+import json
+import os
+import shlex
+import subprocess
+import sys
+import tempfile
+from datetime import UTC, datetime
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parents[1]
+sys.path.insert(0, str(HERE.parent))
+
+from evaluation import audit, gate, history, scorer, split  # noqa: E402
+
+DATA = ROOT / "dataset"
+MANIFEST = DATA / "evidence_files.csv"
+GOLD = DATA / "sample_output.csv"
+SAMPLE_REQ = DATA / "sample_deletion_requests.csv"
+RUNS = Path(os.environ.get("GHOSTAUDIT_RUNS_DIR", ROOT / "runs"))
+REVEAL_LOG = Path(os.environ.get("GHOSTAUDIT_REVEAL_LOG", HERE / "holdout_reveals.md"))
+GATE_TOLERANCE = 0.005  # a dev headline metric may not drop by more than this between runs
+
+
+def _commit():
+    try:
+        return (
+            subprocess.run(
+                ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, cwd=ROOT
+            ).stdout.strip()
+            or "unknown"
+        )
+    except OSError:
+        return "unknown"
+
+
+def _table(title, m):
+    keys = [
+        "status_accuracy",
+        "identity_recall",
+        "finding_precision",
+        "finding_recall",
+        "finding_f1",
+        "policy_accuracy",
+        "evidence_accuracy",
+        "strict_step_f1",
+        "step_f1_unordered",
+        "field_acc_operation",
+        "field_acc_state",
+        "field_acc_evidence_id",
+        "field_acc_step_no",
+        "field_acc_mean",
+        "sequence_exact",
+        "sequence_lcs_mean",
+        "row_exact",
+        "proxy",
+    ]
+    print(f"{title} ({m['cases']} cases)")
+    for k in keys:
+        print(f"  {k:24} {m[k]:.3f}")
+
+
+def _print_warnings(w):
+    for x in w:
+        print("WARNING " + x)
+
+
+def cmd_contract(a):
+    """`contract`: the L0 gate on a prediction file; exit 1 on any violation."""
+    w = []
+    v = gate.check(a.file, a.requests, MANIFEST, warnings=w)
+    _print_warnings(w)
+    n = (
+        sum(
+            1
+            for _ in csv.reader(
+                io.StringIO(Path(a.file).read_text(encoding="utf-8", errors="replace"))
+            )
+        )
+        - 1
+    )
+    if v:
+        print(f"CONTRACT FAILED ({Path(a.file).name}): {len(v)} violation(s)")
+        for x in v[:50]:
+            print("  " + x)
+        return 1
+    print(f"CONTRACT OK ({Path(a.file).name}, {n} rows)")
+    return 0
+
+
+def _sample_prediction():
+    """Run the solver on the 32 labeled samples into a temp file and return its path."""
+    out = Path(tempfile.mkdtemp(prefix="ghostaudit_score_")) / "sample_pred.csv"
+    cmd = [
+        sys.executable,
+        str(ROOT / "code" / "main.py"),
+        "--requests",
+        str(SAMPLE_REQ),
+        "--out",
+        str(out),
+    ]
+    subprocess.run(cmd, check=True, cwd=ROOT, stdout=subprocess.DEVNULL)
+    return str(out)
+
+
+def _print_scores(a, m, pred, gold, dev, hold):
+    """DEV in full with its failures, HOLDOUT aggregate only (failures only on --reveal-holdout,
+    which is logged), then ALL."""
+    _table("DEV", m["dev"])
+    print("DEV failures:")
+    detail = [entry for c in dev for entry in scorer.case_diff(pred, gold, c)]
+    print("\n".join("  " + entry for entry in detail) or "  none")
+    if a.split == "dev":
+        print(
+            f"HOLDOUT (aggregate only): proxy {m['holdout']['proxy']:.3f}, status_accuracy "
+            f"{m['holdout']['status_accuracy']:.3f}"
+        )
+    else:
+        _table("HOLDOUT (aggregate only)", m["holdout"])
+    if a.reveal_holdout:
+        stamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        with open(REVEAL_LOG, "a", encoding="utf-8") as f:
+            f.write(f"- {stamp} commit {_commit()} --reveal-holdout on {Path(a.pred).name}\n")
+        print(f"HOLDOUT failures (revealed; logged to {REVEAL_LOG.name}):")
+        revealed = [entry for c in hold for entry in scorer.case_diff(pred, gold, c)]
+        print("\n".join("  " + entry for entry in revealed) or "  none")
+    _table("ALL", m["all"])
+
+
+def _diff_gate(a, m, dev, prev, run_dir):
+    """Row diff against the previous run (holdout rows hidden) and the dev regression gate."""
+    lines = history.diff(prev / "output.csv", run_dir / "output.csv")
+    dev_set = set(dev)
+    shown = [entry for entry in lines if entry.split(":", 1)[0] in dev_set or a.reveal_holdout]
+    hidden = len(lines) - len(shown)
+    print(
+        f"DIFF vs {prev.name}: {len(lines)} change(s)"
+        + (f" ({hidden} on holdout cases hidden)" if hidden else "")
+    )
+    print("\n".join("  " + entry for entry in shown) or "  none")
+    old = json.loads((prev / "metrics.json").read_text()).get("dev", {})
+    drops = [
+        f"{k} {old[k]:.3f} -> {m['dev'][k]:.3f}"
+        for k in scorer.PROXY
+        if k in old and m["dev"][k] < old[k] - GATE_TOLERANCE
+    ]
+    if drops and not a.accept_regression:
+        print("DIFF GATE: dev regression vs previous run: " + "; ".join(drops))
+        print('  rerun with --accept-regression "<reason>" to accept it deliberately')
+        return 2
+    if drops:
+        print(f"DIFF GATE: regression accepted: {a.accept_regression}")
+    return 0
+
+
+def cmd_score(a):
+    """`score`: gate, then score the sample prediction on dev, holdout and all.
+
+    The run is recorded under runs/score; a dev headline metric that drops by more than
+    GATE_TOLERANCE against the previous run exits 2 unless --accept-regression gives a reason."""
+    if not a.pred:
+        a.pred = _sample_prediction()
+    w = []
+    v = gate.check(a.pred, SAMPLE_REQ, MANIFEST, warnings=w)
+    _print_warnings(w)
+    if v:
+        print(f"CONTRACT FAILED ({Path(a.pred).name}) — not scored")
+        for x in v[:50]:
+            print("  " + x)
+        return 1
+    gold, pred = scorer.load(GOLD), scorer.load(a.pred)
+    dev, hold, _ = split.load_frozen()
+    m = {
+        "dev": scorer.score(pred, gold, dev),
+        "holdout": scorer.score(pred, gold, hold),
+        "all": scorer.score(pred, gold, dev + hold),
+    }
+    _print_scores(a, m, pred, gold, dev, hold)
+    runs = RUNS / "score"  # selftest runs live in RUNS/selftest and never feed this gate
+    run_dir = history.record(runs, a.pred, m, _commit())
+    prev = history.previous(runs, run_dir)
+    print(f"RUN recorded: {run_dir}")
+    if prev is None:
+        print("DIFF vs previous run: (first run)")
+        return 0
+    return _diff_gate(a, m, dev, prev, run_dir)
+
+
+def cmd_determinism(a):
+    """`determinism`: two runs of --cmd must write byte-identical files."""
+    ok, _, msg = gate.determinism(shlex.split(a.cmd), Path(a.file))
+    print(msg)
+    return 0 if ok else 1
+
+
+def cmd_loaders(a):
+    """`loaders`: loader coverage, drift and gold checks (loader_check.run)."""
+    from evaluation import loader_check
+
+    files = [x for x in a.files.split(",") if x] if a.files else None
+    kinds = [x for x in a.kind.split(",") if x] if a.kind else None
+    return loader_check.run(ROOT, files, kinds, a.spot)
+
+
+def cmd_states(a):
+    """`states`: reconstructed state vs the state the gold steps imply (states.run)."""
+    from evaluation import states
+
+    return states.run(ROOT, a.split, a.risk)
+
+
+def cmd_linking(_):
+    """`linking`: account and catalog links (linking_check.run)."""
+    from evaluation import linking_check
+
+    return linking_check.run(ROOT)
+
+
+def cmd_metamorphic(a):
+    """`metamorphic`: the relations, optionally only those named by --only."""
+    from evaluation import metamorphic
+
+    return metamorphic.run([x.strip().upper() for x in a.only.split(",") if x.strip()] or None)
+
+
+def cmd_invariants(a):
+    """`invariants`: the invariants on every row of --file."""
+    from evaluation import invariants
+
+    return invariants.run(a.file, DATA)
+
+
+def cmd_lossledger(_):
+    """`lossledger`: write docs/LOSS_LEDGER.md and return its exit code."""
+    from evaluation import lossledger
+
+    return lossledger.run(ROOT, write=ROOT / "docs" / "LOSS_LEDGER.md")[0]
+
+
+def cmd_intent(_):
+    """`intent`: rules vs model on every unique request text."""
+    from evaluation import intent_review
+
+    return intent_review.run(ROOT)
+
+
+def cmd_custom(_):
+    """`custom`: the hand-written custom cases over a dataset overlay."""
+    from evaluation import custom
+
+    return custom.run()
+
+
+def cmd_report(_):
+    """`report`: regenerate code/evaluation/evaluation_report.md."""
+    from evaluation import report
+
+    return report.run()
+
+
+def cmd_final(a):
+    """`final`: every gate and the clean-room run; --matrix adds the dependency matrix."""
+    from evaluation import final
+
+    return final.run(with_matrix=a.matrix)
+
+
+def cmd_usage(_):
+    """`usage`: regenerate code/evaluation/usage_report.md from a measured full run."""
+    from evaluation import usage_report
+
+    usage_report.run()
+
+
+def cmd_jev_rank(_):
+    """`jev-rank`: advisory Jev scores and docs/JEV_REVIEW_QUEUE.md (ADR 0013)."""
+    from evaluation import jev_ranker
+
+    jev_ranker.run(samples=True)
+    return 0
+
+
+def cmd_quality(_):
+    """`quality`: code-quality metrics; exit 1 when a measured value breaks a limit."""
+    from evaluation import quality
+
+    return quality.run()
+
+
+def cmd_audit(_):
+    """`audit`: the literal audit of code/; exit 1 on any hit."""
+    hits = audit.scan(ROOT / "code")
+    print(f"LITERAL AUDIT: {len(hits)} hit(s)")
+    for h in hits:
+        print("  " + h)
+    return 1 if hits else 0
+
+
+def _broken_copies(tmp):
+    rows = list(csv.reader(io.StringIO(GOLD.read_text(encoding="utf-8"))))
+    raw = GOLD.read_text(encoding="utf-8").split("\n")
+    bad_quote = tmp / "broken_quoting.csv"
+    raw_q = list(raw)
+    raw_q[3] = raw_q[3].replace('""', '"')
+    bad_quote.write_text("\n".join(raw_q), encoding="utf-8")
+
+    import json
+
+    null_ev = tmp / "broken_null_evidence.csv"
+    rn = [list(r) for r in rows]
+    steps = json.loads(rn[5][2])
+    steps[1]["evidence_id"] = None
+    rn[5][2] = json.dumps(steps, separators=(",", ":"))
+    with open(null_ev, "w", newline="", encoding="utf-8") as f:
+        csv.writer(f, lineterminator="\n").writerows(rn)
+
+    wrong_order = tmp / "broken_wrong_order.csv"
+    ro = [list(r) for r in rows]
+    ro[3], ro[4] = ro[4], ro[3]
+    with open(wrong_order, "w", newline="", encoding="utf-8") as f:
+        csv.writer(f, lineterminator="\n").writerows(ro)
+    # each broken copy names the ONE check id it targets, so it cannot "fail as expected" for
+    # another reason
+    return [
+        ("bad quoting", bad_quote, "L0.csv"),
+        ("null evidence", null_ev, "L0.evidence"),
+        ("wrong order", wrong_order, "L0.order"),
+    ]
+
+
+def cmd_selftest(_):
+    """`selftest`: the gate passes gold, the scorer gives gold 1.0 on every metric,
+    three deliberately broken copies fail on their own check, the audit is clean and the run
+    history records a run."""
+    ok = True
+    w = []
+    v = gate.check(GOLD, SAMPLE_REQ, MANIFEST, warnings=w)
+    _print_warnings(w)
+    print(
+        f"[1] contract gate on gold: "
+        f"{'CONTRACT OK (sample_output.csv, 32 rows)' if not v else 'FAILED'}"
+    )
+    for x in v:
+        print("    " + x)
+    ok &= not v
+
+    gold = scorer.load(GOLD)
+    dev, hold, seed = split.load_frozen()
+    print(f"[2] frozen split: {len(dev)} dev / {len(hold)} holdout (seed {seed})")
+    worst = 1.0
+    for name, ids in (("dev", dev), ("holdout", hold), ("all", dev + hold)):
+        m = scorer.score(gold, gold, ids)
+        vals = [x for x in m.values() if isinstance(x, float)]
+        worst = min(worst, min(vals))
+        print(
+            f"    scorer gold-vs-gold {name:8}: {len(vals)} metrics, min {min(vals):.3f}, proxy "
+            f"{m['proxy']:.3f}"
+        )
+    ok &= worst == 1.0
+
+    tmp = Path(tempfile.mkdtemp(prefix="ghostaudit_selftest_"))
+    print("[3] deliberately broken copies must fail the gate:")
+    for label, p, code in _broken_copies(tmp):
+        bv = gate.check(p, SAMPLE_REQ, MANIFEST, warnings=[])
+        hit = next((x for x in bv if x.startswith(code + ":")), None)
+        if hit:
+            print(f"    {label:14} -> FAILS on {code}: {hit}")
+        else:
+            print(
+                f"    {label:14} -> WRONG: expected a {code} violation, got "
+                f"{bv[:1] or 'no violation'}"
+            )
+        ok &= hit is not None
+
+    hits = audit.scan(ROOT / "code")
+    print(f"[4] literal audit on code/: {len(hits)} hit(s)")
+    ok &= not hits
+
+    m = {
+        "dev": scorer.score(gold, gold, dev),
+        "holdout": scorer.score(gold, gold, hold),
+        "all": scorer.score(gold, gold, dev + hold),
+    }
+    d = history.record(RUNS / "selftest", GOLD, m, _commit())
+    prev = history.previous(RUNS / "selftest", d)
+    if prev is None:
+        diff_note = "first run"
+    else:
+        diff_note = f"{len(history.diff(prev / 'output.csv', d / 'output.csv'))} change(s)"
+    print(
+        f"[5] run history: wrote {d.relative_to(ROOT) if d.is_relative_to(ROOT) else d} "
+        f"(metrics.json, output.csv, commit); diff vs previous: "
+        f"{diff_note}"
+    )
+    print("SELFTEST OK" if ok else "SELFTEST FAILED")
+    return 0 if ok else 1
+
+
+def main(argv=None):
+    """Parse the command line and run one command; returns its exit code."""
+    p = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    sub = p.add_subparsers(dest="command", required=True)
+    c = sub.add_parser("contract")
+    c.add_argument("--file", default=str(ROOT / "output.csv"))
+    c.add_argument("--requests", default=str(DATA / "deletion_requests.csv"))
+    s = sub.add_parser("score")
+    s.add_argument("--pred", default="")
+    s.add_argument("--split", default="all", choices=("dev", "all"))
+    s.add_argument("--reveal-holdout", action="store_true")
+    s.add_argument("--accept-regression", default="")
+    d = sub.add_parser("determinism")
+    d.add_argument("--cmd", default=f"{shlex.quote(sys.executable)} code/main.py")
+    d.add_argument("--file", default=str(ROOT / "output.csv"))
+    lo = sub.add_parser("loaders")
+    lo.add_argument("--files", default="")
+    lo.add_argument("--kind", default="")
+    lo.add_argument("--spot", action="store_true")
+    st = sub.add_parser("states")
+    st.add_argument("--split", default="dev", choices=("dev", "holdout", "all"))
+    st.add_argument("--risk", action="store_true")
+    sub.add_parser("linking")
+    iv = sub.add_parser("invariants")
+    iv.add_argument("--file", default=str(ROOT / "output.csv"))
+    sub.add_parser("lossledger")
+    sub.add_parser("intent")
+    sub.add_parser("custom")
+    sub.add_parser("report")
+    sub.add_parser("jev-rank")
+    sub.add_parser("usage")
+    fi = sub.add_parser("final")
+    fi.add_argument(
+        "--matrix",
+        action="store_true",
+        help="also run the unit tests with each optional dependency blocked",
+    )
+    mm = sub.add_parser("metamorphic")
+    mm.add_argument("--only", default="", help="e.g. M1,M7")
+    sub.add_parser("audit")
+    sub.add_parser("quality")
+    sub.add_parser("selftest")
+    a = p.parse_args(argv)
+    os.chdir(ROOT)
+    return {
+        "contract": cmd_contract,
+        "score": cmd_score,
+        "determinism": cmd_determinism,
+        "audit": cmd_audit,
+        "quality": cmd_quality,
+        "selftest": cmd_selftest,
+        "loaders": cmd_loaders,
+        "states": cmd_states,
+        "linking": cmd_linking,
+        "metamorphic": cmd_metamorphic,
+        "invariants": cmd_invariants,
+        "lossledger": cmd_lossledger,
+        "intent": cmd_intent,
+        "custom": cmd_custom,
+        "report": cmd_report,
+        "jev-rank": cmd_jev_rank,
+        "usage": cmd_usage,
+        "final": cmd_final,
+    }[a.command](a)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
