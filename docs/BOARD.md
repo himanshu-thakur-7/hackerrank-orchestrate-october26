@@ -27,7 +27,7 @@
 | T14 | usage_report.md, README, packaging script, final validation | P0 | 10 | T09, T11, T13, T16 | `python3 code/package.py && python3 code/evaluation/main.py final` | code.zip contains README.md + code/ only (no dataset/, .env, *.zip, __pycache__); final gates green; output.csv 518 rows | todo |
 | T15 | Metamorphic suite: dataset overlay helper + relations | P0 | 10 | T02 (helper), T09 (relations) | `python3 code/evaluation/main.py metamorphic` | All relations hold: shuffled rows, renamed case IDs, uppercase emails, injected post-cutoff file, added `.jr` decoy, contradicted screenshot, earlier audit_at | done |
 | T16 | Invariants on all 518 + blind silver-label audit + score band with per-case loss ledger | P1 | 10 | T09, T10 | `python3 code/evaluation/main.py invariants && python3 code/evaluation/main.py lossledger` | Invariants 518/518; every cited evidence_id exists and is ≤ audit_at; the loss ledger lists unresolved, not-observable, unproven and unlabeled cases with counts | done |
-| T17 | TypeSafe Jev judge (typesafe-sdk, pinned jev-1.14.0, disk-cached, advisory only) behind a spike gate | P2 | 9 | T01, T11 | `python3 code/evaluation/main.py judge-spike` | Spike reports AUROC ≥ 0.90 and repeat-stability ≤ 0.05, otherwise the judge stays disabled; output.csv hash unchanged with the judge on or off | todo (single-call gate failed; mean-of-10 ranker gate passed: ranker-only judge allowed, not built) |
+| T17 | TypeSafe Jev judge (typesafe-sdk, pinned jev-1.14.0, disk-cached, advisory only) behind a spike gate | P2 | 9 | T01, T11 | `python3 code/evaluation/main.py judge-spike` | Spike reports AUROC ≥ 0.90 and repeat-stability ≤ 0.05, otherwise the judge stays disabled; output.csv hash unchanged with the judge on or off | done (ranker only, state/time claims; `jev-rank`) |
 
 **Build sequence** (critical path in bold): **T01 → T02 → T03 → T04 → T05 → T08 → T09** → T06 / T07 / T12 → T10 → **T15** → T16 → T13 → T11 → **T14**. T17 can run only after T11, and only if time allows.
 
@@ -151,6 +151,10 @@ A key set without the `openai` package crashed `main.py` (and the custom run). F
 ## T17 follow-up spike (mean of k = 10)
 
 Pre-registered rule committed before running. Mean of 10 calls, two independent rounds: AUROC 0.949/0.949, max round difference 0.030 → **PASS** (with code-computed facts in state: 0.962/0.962, 0.037 → PASS). A ranker-only advisory judge is therefore allowed later; not built. Decoy-owner and wrong-operation propositions stay weak (mean score +0.12…+0.20), and the identifier_match fact did not fix decoy owner, so ownership stays deterministic in code. 2,000 calls, 1.47M input tokens, ≈ $0.062, 24 s.
+
+## T17 ranker result (advisory, evaluation only)
+
+`python3 code/evaluation/main.py jev-rank` (code/evaluation/jev_ranker.py; questions in code/prompts/jev_ranker_questions.md). Jev scores only **state and time** claims of cited steps; ownership and operation type are never asked and stay deterministic (ADR 0004/0005). Live run: 11,450 calls (1,083 eval + 62 sample cited steps × 10), 0 errors, 8,889,300 in / 435,100 out tokens, ≈ $0.373, median 95 ms. Means are cached in `code/evaluation/jev_cache.py` (hashes and numbers, plus ORIGIN totals of the producing run); a no-key rerun makes 0 calls. Sample check: 62 cited sample steps, 0 disagree with gold, so AUROC on real engine errors is undefined (stated in the queue). Hand check of the 15 lowest eval steps (`docs/JEV_HANDCHECK.md`): **0 real mistakes**; 4 redacted support records (Jev false alarm on "contact details" wording, same pattern as gold samples case_26–28), 11 absences by omission (no lines to judge). output.csv sha256 unchanged with the ranker on and off (test), and main.py never imports it (subprocess test). Queue: `docs/JEV_REVIEW_QUEUE.md`.
 
 ## Where this board deviates from the relayed list (and why)
 

@@ -12,6 +12,7 @@
   python3 code/evaluation/main.py intent                     # rules vs model on every unique request text
   python3 code/evaluation/main.py custom                     # hand-written custom cases over a dataset overlay
   python3 code/evaluation/main.py report                     # regenerates code/evaluation/evaluation_report.md
+  python3 code/evaluation/main.py jev-rank                   # advisory Jev risk scores + docs/JEV_REVIEW_QUEUE.md
   python3 code/evaluation/main.py metamorphic [--only M1,M7]
   python3 code/evaluation/main.py audit
   python3 code/evaluation/main.py selftest
@@ -195,6 +196,12 @@ def cmd_report(_):
     return report.run()
 
 
+def cmd_jev_rank(_):
+    from evaluation import jev_ranker
+    jev_ranker.run(samples=True)
+    return 0
+
+
 def cmd_audit(_):
     hits = audit.scan(ROOT / "code")
     print(f"LITERAL AUDIT: {len(hits)} hit(s)")
@@ -285,13 +292,14 @@ def main(argv=None):
     sub.add_parser("intent")
     sub.add_parser("custom")
     sub.add_parser("report")
+    sub.add_parser("jev-rank")
     mm = sub.add_parser("metamorphic"); mm.add_argument("--only", default="", help="e.g. M1,M7")
     sub.add_parser("audit")
     sub.add_parser("selftest")
     a = p.parse_args(argv)
     os.chdir(ROOT)
     return {"contract": cmd_contract, "score": cmd_score, "determinism": cmd_determinism,
-            "audit": cmd_audit, "selftest": cmd_selftest, "loaders": cmd_loaders, "states": cmd_states, "linking": cmd_linking, "metamorphic": cmd_metamorphic, "invariants": cmd_invariants, "lossledger": cmd_lossledger, "intent": cmd_intent, "custom": cmd_custom, "report": cmd_report}[a.command](a)
+            "audit": cmd_audit, "selftest": cmd_selftest, "loaders": cmd_loaders, "states": cmd_states, "linking": cmd_linking, "metamorphic": cmd_metamorphic, "invariants": cmd_invariants, "lossledger": cmd_lossledger, "intent": cmd_intent, "custom": cmd_custom, "report": cmd_report, "jev-rank": cmd_jev_rank}[a.command](a)
 
 
 if __name__ == "__main__":

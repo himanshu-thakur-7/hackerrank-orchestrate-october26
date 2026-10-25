@@ -1024,3 +1024,23 @@ branch=claude/stoic-bell-1t82oq
 repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
+
+## [2026-10-25T03:04:39Z] T17 Jev ranker built (advisory, state/time only); hand check finds 0 engine mistakes
+
+User Prompt (verbatim, secrets redacted):
+(relayed by peer session "Prompt playbook website publishing" for the user) Job 1: build the Jev ranker (T17), test-first with tdd; mark doing then done in docs/BOARD.md. Scope: Jev scores ONLY state and time claims about findings and verification steps; never ownership or operation type (ADR 0004, ADR 0005, exact identifier matching). Mechanics from the spike: direct typesafe-sdk, pinned jev-1.14.0, separate supports/contradicts Noul questions, state = cited lines + identifiers + audit_at/captured_at + code-computed facts, question outside state, prompt-injection guard, mean of k=10 with a bounded worker pool, score = mean(supports) - mean(contradicts); key from the environment only. Cache per-step means in a generated .py keyed by sha256(model + state + question); no key -> skipped with a notice; main pipeline never imports it. Output a per-step risk score and docs/JEV_REVIEW_QUEUE.md (advisory, no ownership coverage). Score our sample output, AUROC vs real engine errors; hand-check the 15 lowest eval steps and fix any real mistake with a regression test. ACCEPTANCE: output.csv sha identical with ranker on/off (test), main pipeline never imports typesafe; selftest, determinism, metamorphic, invariants and custom OK; paste cost and call totals. Job 2: T14 packaging and reports (...). Commit and push after each job, keep logging, then stop and wait.
+
+Agent Response Summary:
+Built code/evaluation/jev_ranker.py test-first (8 tests: scope words, state shape, cache round trip without text, cache origin kept on cache-only reruns, skip without a client, a subprocess isolation test, and sha unchanged with the ranker on and off). Live run: 11,450 calls, 0 errors, 8,889,300 in / 435,100 out tokens, about $0.373. Sample check: 0 of 62 cited sample steps disagree with gold, so AUROC is undefined (stated). Hand check of the 15 lowest eval steps: 0 real mistakes (4 Jev false alarms on redacted support records matching the gold samples' pattern, 11 absences by omission); no fix needed. All acceptance checks are OK and output.csv is unchanged (eb99c26b7974). Job 2 follows next.
+
+Actions:
+* Wrote code/evaluation/jev_ranker.py, tests/test_jev_ranker.py, code/prompts/jev_ranker_questions.md; generated code/evaluation/jev_cache.py, docs/JEV_REVIEW_QUEUE.md; wrote docs/JEV_HANDCHECK.md; edited code/evaluation/main.py (jev-rank), docs/BOARD.md
+* Ran jev-rank live and with TYPESAFE_API_KEY unset (0 calls); ran 137 + 75 tests, selftest, determinism, metamorphic, invariants, custom, audit, contract
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
