@@ -1,7 +1,8 @@
 """Evaluation CLI for the Ghost Data deletion audit.
 
   python3 code/evaluation/main.py contract [--file output.csv] [--requests dataset/deletion_requests.csv]
-  python3 code/evaluation/main.py score --pred PRED.csv [--reveal-holdout] [--accept-regression REASON]
+  python3 code/evaluation/main.py score [--pred PRED.csv] [--split dev|all] [--reveal-holdout] [--accept-regression REASON]
+      (no --pred: runs code/main.py on the 32 samples first)
   python3 code/evaluation/main.py determinism [--cmd "python3 code/main.py"] [--file output.csv]
   python3 code/evaluation/main.py loaders [--files ID,ID] [--kind sql,json,log,...] [--spot]
   python3 code/evaluation/main.py states [--split dev|holdout|all] [--risk]
@@ -74,6 +75,11 @@ def cmd_contract(a):
 
 
 def cmd_score(a):
+    if not a.pred:                    # run the solver on the 32 labeled samples into the run directory
+        out = Path(tempfile.mkdtemp(prefix="ghostaudit_score_")) / "sample_pred.csv"
+        subprocess.run([sys.executable, str(ROOT / "code" / "main.py"), "--requests", str(SAMPLE_REQ), "--out", str(out)],
+                       check=True, cwd=ROOT, stdout=subprocess.DEVNULL)
+        a.pred = str(out)
     w = []
     v = gate.check(a.pred, SAMPLE_REQ, MANIFEST, warnings=w)
     _print_warnings(w)
@@ -91,7 +97,10 @@ def cmd_score(a):
     print("DEV failures:")
     detail = [l for c in dev for l in scorer.case_diff(pred, gold, c)]
     print("\n".join("  " + l for l in detail) or "  none")
-    _table("HOLDOUT (aggregate only)", m["holdout"])
+    if a.split == "dev":
+        print(f"HOLDOUT (aggregate only): proxy {m['holdout']['proxy']:.3f}, status_accuracy {m['holdout']['status_accuracy']:.3f}")
+    else:
+        _table("HOLDOUT (aggregate only)", m["holdout"])
     if a.reveal_holdout:
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         with open(REVEAL_LOG, "a", encoding="utf-8") as f:
@@ -224,7 +233,7 @@ def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="command", required=True)
     c = sub.add_parser("contract"); c.add_argument("--file", default=str(ROOT / "output.csv")); c.add_argument("--requests", default=str(DATA / "deletion_requests.csv"))
-    s = sub.add_parser("score"); s.add_argument("--pred", required=True); s.add_argument("--reveal-holdout", action="store_true"); s.add_argument("--accept-regression", default="")
+    s = sub.add_parser("score"); s.add_argument("--pred", default=""); s.add_argument("--split", default="all", choices=("dev", "all")); s.add_argument("--reveal-holdout", action="store_true"); s.add_argument("--accept-regression", default="")
     d = sub.add_parser("determinism"); d.add_argument("--cmd", default=f"{shlex.quote(sys.executable)} code/main.py"); d.add_argument("--file", default=str(ROOT / "output.csv"))
     lo = sub.add_parser("loaders"); lo.add_argument("--files", default=""); lo.add_argument("--kind", default=""); lo.add_argument("--spot", action="store_true")
     st = sub.add_parser("states"); st.add_argument("--split", default="dev", choices=("dev", "holdout", "all")); st.add_argument("--risk", action="store_true")

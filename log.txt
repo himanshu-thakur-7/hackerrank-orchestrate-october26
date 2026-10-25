@@ -698,3 +698,25 @@ branch=claude/stoic-bell-1t82oq
 repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
+
+## [2026-10-25T01:44:16Z] T09 done: verdict + planner + --explain; dev proxy 0.720; ADR 0015 proposed
+
+User Prompt (verbatim, secrets redacted):
+(same relayed T08/T09 prompt as the previous entry)
+
+Agent Response Summary:
+T09 done test-first: 10 step-level tests over the edge cases, with expected rows written by hand from the sample patterns. Added a contract module (triples, op_rank, ordering); the planner implements ADR 0006 (amended): findings cite the deciding file, INCOMPLETE remediation and verification steps are uncited, unproven resources become future checks or are omitted in COMPLETE; plus --explain <case_id>. Measured 10 eval / 4 sample cases with nothing grounded. The spec does not forbid INCOMPLETE []; the design and ADR 0006 already imply it, but my T01 gate forbade it. Proposed ADR 0015 and turned the gate check into a counted warning (test-first; COMPLETE [] stays invalid). Scores: dev proxy 0.720, status 0.909; holdout aggregate proxy 0.741, status 0.900. All differences are missing links (T10/T12). Determinism, contract, selftest and audit are green; the audit caught a case id in a usage line, now fixed.
+
+Actions:
+* Wrote code/ghostaudit/contract.py, code/ghostaudit/explain.py; extended engine.py (planner); main.py now uses Engine and has --explain
+* Edited code/evaluation/gate.py and tests (L0.empty_incomplete), evaluation/main.py (score --split, default solver run)
+* Wrote docs/adr/0015-incomplete-with-no-grounded-step.md; updated docs/adr/README.md and the ADR 0014 status (accepted by the owner, relayed)
+* Wrote code/tests/test_engine_t09.py; ran all tests (94 + 46), score --split dev, contract, determinism, selftest, audit, explain on the 5 worst dev cases; updated docs/BOARD.md
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none

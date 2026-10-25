@@ -1,6 +1,6 @@
 # ADR 0014 — Absence by omission (Coverage) is weak evidence; it never overrides a positive observation
 
-- **Status:** Proposed, adopted provisionally for T06+ (evidence-backed; owner may overrule)
+- **Status:** Accepted by the owner for now (2026-10-25, relayed); evidence-backed
 - **Amends:** docs/03_DESIGN.md §2 ("Coverage … ABSENT then means covered and not listed") and the design table "Coverage only for formats proven exhaustive"
 
 ## Question

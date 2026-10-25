@@ -55,6 +55,10 @@ def check(output_path, requests_path, manifest_path, warnings=None):
     for case_id, status, steps_json in rows:
         if case_id in audit_at:
             v += _row(case_id, status, steps_json, audit_at[case_id], times)
+    # ADR 0015 (proposed): INCOMPLETE with [] means nothing grounded could be reported; allowed, but counted
+    empty = [c for c, st, sj in rows if st == "INCOMPLETE" and sj.strip() == "[]"]
+    if empty and warnings is not None:
+        warnings.append(f"L0.empty_incomplete: {len(empty)} INCOMPLETE row(s) with no steps (ADR 0015): {', '.join(empty)}")
     return v
 
 
@@ -107,8 +111,8 @@ def _row(case_id, status, steps_json, audit_at, times):
     phases = {s["phase"] for s in steps}
     if status == "NOT_APPLICABLE" and steps:
         v.append(f"L0.status: {case_id}: NOT_APPLICABLE must have steps_json [] (has {len(steps)} steps)")
-    if status != "NOT_APPLICABLE" and not steps:
-        v.append(f"L0.status: {case_id}: {status} with an empty step list; only NOT_APPLICABLE may be []")
+    if status == "COMPLETE" and not steps:
+        v.append(f"L0.status: {case_id}: COMPLETE with an empty step list; COMPLETE needs cited verification steps")
     if status == "COMPLETE" and phases - {"VERIFICATION"}:
         v.append(f"L0.status: {case_id}: COMPLETE may contain only VERIFICATION steps (found {', '.join(sorted(phases - {'VERIFICATION'}))})")
     v += _evidence(case_id, status, steps, audit_at, times)

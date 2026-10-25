@@ -91,6 +91,17 @@ class StepRules(unittest.TestCase):
         rows[1][2] = "not json"
         self.assertIn("case_01", first(check(tmp_copy(rows=rows)), "L0.json"))
 
+    def test_empty_steps_complete_is_invalid_incomplete_is_a_counted_warning(self):
+        # ADR 0015 (proposed): INCOMPLETE with [] = deletion authorised but nothing grounded to report
+        rows = [list(r) for r in gold_rows()]
+        rows[1][2] = "[]"                                  # case_01 COMPLETE []
+        self.assertIn("case_01", first(check(tmp_copy(rows=rows)), "L0.status"))
+        rows = [list(r) for r in gold_rows()]
+        rows[5][2] = "[]"                                  # case_05 INCOMPLETE []
+        w = []
+        self.assertEqual(gate.check(tmp_copy(rows=rows), SAMPLE_REQ, MANIFEST, warnings=w), [])
+        self.assertEqual(w, ["L0.empty_incomplete: 1 INCOMPLETE row(s) with no steps (ADR 0015): case_05"])
+
     def test_evidence_must_exist_and_be_captured_by_audit_at(self):
         rows = mutate_step(gold_rows(), "case_05", 1, evidence_id="evidence_999")
         self.assertIn("does not exist", first(check(tmp_copy(rows=rows)), "L0.evidence"))

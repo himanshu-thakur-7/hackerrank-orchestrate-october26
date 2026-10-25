@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from ghostaudit import identity, loaders, policy
+from ghostaudit import contract, identity, loaders, policy
 from ghostaudit.store import ActivityEvent, EvidenceFile, EvidenceStore, StateResult
 
 
@@ -83,7 +83,30 @@ class Engine:
         for r in a.resources:
             if r.treatment.kind == "none":
                 a.log.append(f"NO_STEP({r.system_id}/{r.resource_id}: {r.treatment.reason})")
+        a.status, a.steps = self._plan(a)
         return a
+
+    def _plan(self, a):
+        """Verdict (ADR 0006) + steps. INCOMPLETE iff any grounded violation; COMPLETE cites every step."""
+        planned = [r for r in a.resources if r.treatment.kind != "none"]
+        violations = [r for r in planned if r.treatment.kind == "violation"]
+        steps = []
+        if violations:
+            for r in violations:
+                steps.append(contract.step(r.treatment.finding, r.system_id, r.resource_id, r.state.file_id))
+                steps.append(contract.step(r.treatment.remediation, r.system_id, r.resource_id))
+            for r in planned:                       # future checks, uncited; unproven ones included (ADR 0006 §1)
+                steps.append(contract.step(r.treatment.verification, r.system_id, r.resource_id))
+            return "INCOMPLETE", contract.ordered(steps)
+        for r in planned:
+            if r.treatment.kind == "unproven":      # cannot be cited, so omitted (ADR 0006 edge case)
+                a.log.append(f"UNPROVEN({r.system_id}/{r.resource_id})")
+                continue
+            steps.append(contract.step(r.treatment.verification, r.system_id, r.resource_id, r.state.file_id))
+        if not steps:
+            a.log.append("NO_GROUNDED_STEP")
+            return "INCOMPLETE", []
+        return "COMPLETE", contract.ordered(steps)
 
     def _resource(self, view, system_id, resource_id, links):
         observations = [o for o in view.observations(resource_id) if o.system_id == system_id]
@@ -98,7 +121,3 @@ class Engine:
         a = self.assess(request, intent)
         return a.case_id, a.status, a.steps
 
-
-def audit(request, resolver, intent_result):
-    """T02 placeholder kept for code/main.py until the T09 planner lands: every case NOT_APPLICABLE."""
-    return request["case_id"], "NOT_APPLICABLE", []
