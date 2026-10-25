@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-Each ADR states the question, my recommendation (with rule text and measured numbers), and the owner's ruling. One ADR records a dissent.
+Each ADR states the question, my recommendation (with rule text and measured numbers), and the owner's ruling. ADR 0006 was amended after the owner accepted the measured evidence against its first version.
 
 | # | Decision | Status |
 | --- | --- | --- |
@@ -9,7 +9,7 @@ Each ADR states the question, my recommendation (with rule text and measured num
 | [0003](0003-account-recovery-from-activity.md) | Recover account IDs from system_activity, unique grounded candidate only; activity is linkage, not state | Accepted |
 | [0004](0004-ties-are-unresolved.md) | Tied candidates are omitted and logged as unresolved links; no case_id-order tie-break | Accepted |
 | [0005](0005-contradicted-screenshot-links.md) | Reject identity links that the referenced screenshot contradicts (case_63) | Accepted |
-| [0006](0006-no-evidence-no-complete.md) | No evidence for a required end state means not COMPLETE; attempted-but-unproven is reported as remaining | Accepted, **with dissent** |
+| [0006](0006-no-evidence-no-complete.md) | Unproven end state with only a FAILED/PARTIAL claim gets a future VERIFY step only (never a finding citing activity); never COMPLETE without per-resource evidence; nothing grounded means nothing emitted | Accepted (owner ruling superseded by evidence) |
 | [0007](0007-one-file-structure-not-a-feature.md) | "One evidence file per case" is an evaluation self-check, never an input feature | Accepted |
 | [0008](0008-llm-scope-and-cache.md) | Models only for intent and vision; pinned, cached as a .py module, rules-only fallback without keys | Accepted |
 | [0009](0009-support-category-from-activity.md) | Untagged support (and analytics) category from the activity event type; state only from evidence | Accepted |

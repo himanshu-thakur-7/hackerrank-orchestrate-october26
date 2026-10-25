@@ -22,7 +22,8 @@ These are the terms used across `docs/` and the ADRs (`docs/adr/`). Each definit
 | **Unique candidate** | The single activity-derived link left after the window, result↔status, pre-audit identity filter and global one-to-one elimination (ADR 0003). |
 | **Unresolved link** | Two or more equally plausible candidates. No step is emitted, and the tie is logged (ADR 0004). |
 | **Contradicted link** | A link the referenced artifact visibly refutes, e.g. case_63's `marketing_001`. It is rejected (ADR 0005). |
-| **Attempted but unproven** | A resource with a FAILED or PARTIAL deletion claim and no evidence of absence. It is reported as remaining per ADR 0006, which records a dissent. |
+| **Attempted but unproven** | A grounded-linked resource with a FAILED or PARTIAL action claim and no pre-audit evidence of its end state. It gets a **future VERIFY step only** (empty evidence_id) and is never a finding citing an activity row. Case status comes from the other grounded findings (ADR 0006, amended). |
+| **Unproven (log)** | An unproven resource in a case with no grounded finding. It is omitted from the steps and logged as `UNPROVEN`, because COMPLETE steps must all cite evidence (ADR 0006 edge case). |
 | **Not observable** | A category or resource never visible in any evidence file (cache, email delivery log, telemetry). It produces no steps (ADR 0012). |
 | **Unlabeled assumption** | A treatment no sample covers: DELETION_PENDING accounts (ADR 0010) and legal holds (ADR 0011). It is listed explicitly in reports. |
 | **Account tombstone** | An `identity_service` record kept after account deletion. Compliant means the stable `subject_reference` stays and name, email, phone and hash are null (data notes §7.4). |

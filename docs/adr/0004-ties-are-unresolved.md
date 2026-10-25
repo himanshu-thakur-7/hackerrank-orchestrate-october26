@@ -24,7 +24,7 @@ Omit the step and record an *unresolved link*. Expected cost: about 136–160 go
 ## Consequences
 
 - Step recall drops by about 5%, while precision stays clean.
-- Case status is not driven by the unresolved step alone (see ADR 0006 and the A24 note in `docs/03` §6).
+- Case status is not driven by the unresolved step alone. ADR 0006 (amended) settles A24: status comes from the other grounded findings.
 
 ## Rejected alternatives
 

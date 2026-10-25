@@ -408,3 +408,29 @@ repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
 
+## [2026-10-25T00:50:23Z] Amend ADR 0006 (ruling superseded by evidence); write docs/03_DESIGN.md
+
+User Prompt (verbatim, secrets redacted):
+[Relayed by peer session "Prompt playbook website publishing" for the user, to be treated as the user's prompt]
+The ADRs are good, and your dissent on ADR 0006 is correct ... Overturn it.
+1. Amend ADR 0006: Status becomes "Accepted (owner ruling superseded by evidence)". New decision: for a grounded-linked resource whose end state is unproven and whose only signal is an attempted (FAILED/PARTIAL) delete claim, emit a future VERIFY step only (empty evidence_id, e.g. VERIFY_RECORD_ABSENT), never REPORT_REMAINING_RECORD citing an activity row. Case status comes from the other grounded findings. Keep "never COMPLETE without per-resource evidence" for resources whose state could be observed, and keep "nothing grounded means emit nothing". Also update the index, CONTEXT.md, and any other ADR that referenced the old wording. Record the lesson in the ADR: a rule that contradicts gold-labelled evidence gets amended, not defended.
+2. Then design the solution (no code yet). Write docs/03_DESIGN.md with mermaid diagrams. Requirements: [codebase-design skill; ADRs as constraints cited by number; observation/coverage store (Observation, Coverage, Link, ActivityEvent); loaders by content signature; per-case engine stages intent, identity, discovery, linking, state reconstruction, policy, verdict, step planner; determinism with byte-identical output, --explain case_X, logs of unresolved links and not-observable categories; LLM module with pinned OpenAI models, .py cache, token/cost logging, rules-only fallback, prompts in .md; evaluation harness (contract validator, scorer with dev/holdout, invariants on 518, metamorphic tests, determinism check); code layout under code/; build order of vertical slices; honest accepted losses with estimated cost.]
+CHECKPOINT: when done, commit and push, keep logging per AGENTS.md, and stop to wait for my next prompt. List the three weakest points of your own design.
+
+Agent Response Summary:
+Rewrote ADR 0006 as amended: status "Accepted (owner ruling superseded by evidence)", a future VERIFY step only for attempted-but-unproven resources, case status from the other grounded findings, the history and the "amended, not defended" lesson, and the explicitly unlabeled no-violation edge case. Updated the ADR index, ADR 0004 (A24 now settled) and CONTEXT.md (two terms). Wrote docs/03_DESIGN.md using the codebase-design skill vocabulary, with 6 mermaid diagrams that all parse in a Chromium check. It covers the deep-module map, data model, 8-stage engine, content-signature loaders, the LLM seam with cache, ledger and fallback, determinism and --explain, the evaluation harness, the code layout, 10 build slices, accepted losses with estimates, and the three weakest points: loaders and coverage, timing-regime linking, and unlabeled verdict rules. Stopped to wait for the next prompt.
+
+Actions:
+* Skill codebase-design
+* Rewrote docs/adr/0006; edited docs/adr/README.md, docs/adr/0004, CONTEXT.md
+* Wrote docs/03_DESIGN.md; parse-checked its mermaid blocks with Playwright + mermaid 10.9.1 (scratchpad, not committed)
+* Committed and pushed to claude/stoic-bell-1t82oq
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+

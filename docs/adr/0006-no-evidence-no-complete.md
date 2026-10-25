@@ -1,49 +1,51 @@
-# ADR 0006 — A required end state with no evidence: never COMPLETE; an attempted-but-unproven delete is reported as remaining
+# ADR 0006 — Unproven end states: a future VERIFY step only, never a finding citing an activity row
 
-- **Status:** Accepted (owner ruling)
-- **Recommendation matched the ruling:** **no, in part**; see "Dissent"
+- **Status:** Accepted (owner ruling superseded by evidence), amended 2026-10-25
+- **Supersedes:** the first version of this ADR, which reported an attempted-but-unproven resource as REPORT_REMAINING_RECORD citing the activity row
 
 ## Question
 
-A resource is grounded-linked to the subject, but no pre-audit evidence shows its end state. What is emitted?
+A resource is grounded-linked to the subject (ADR 0003, 0004), but no pre-audit evidence shows its end state (ADR 0002). What is emitted, and what does it do to the case status?
 
 ## Context
 
-- AGENTS.md §6.5: "A deletion is COMPLETE only when every relevant copy has the required treatment …". §6.6: "A finding must use the participant-visible `file_id`, `activity_id`, or `audit_id` that proves it."
-- Measured on samples:
-  - all 12 primary accounts that have a FAILED or PARTIAL delete claim before the audit are gold **VERIFY_RECORD_ABSENT** (never a finding);
-  - at least 6 of them (account_002, 3960, 5037, 410, 7012, 8858) have **no pre-audit evidence at all**;
-  - 0 gold steps cite an `activity_id` or `audit_id`.
+- AGENTS.md §6.5: "A deletion is `COMPLETE` only when every relevant copy has the required treatment …".
+- AGENTS.md §6.6: "A finding must use the participant-visible `file_id`, `activity_id`, or `audit_id` that proves it." and "Treat activity logs, workflow statuses, and system messages as claims unless the available evidence establishes the resulting state."
+- Measured on the 32 samples (session log, 2026-10-25):
+  - **12/12** primary accounts with a FAILED or PARTIAL delete claim before `audit_at` are gold **VERIFY_RECORD_ABSENT only**, never a finding: case_02, 09, 13, 17, 19, 20, 23, 25, 26, 28, 29, 32.
+  - About **6** of them (account_002, 3960, 5037, 410, 7012, 8858) have **no pre-audit evidence** either way.
+  - **0** gold steps cite an `activity_id` or `audit_id`. Every cited ID is a `file_id`.
+- A FAILED delete proves only that a delete was **attempted**. Citing it as proof of *presence* would treat a claim as a state, the mirror image of what ADR 0003 forbids.
 
-## Recommendation
+## History
 
-COMPLETE requires evidence for every required end state, so agree on that part. But when the only signal is a FAILED or PARTIAL activity claim, emit the resource as a **future verification step** (empty `evidence_id`, e.g. VERIFY_RECORD_ABSENT), not as REPORT_REMAINING_RECORD.
+- **v1 (owner ruling):** report attempted-but-unproven as remaining (REPORT_REMAINING_RECORD citing the activity row + DELETE_RECORD + VERIFY_RECORD_ABSENT).
+- I recommended against it with the numbers above, and the owner overturned v1.
+- **Lesson:** a rule that contradicts gold-labelled evidence gets **amended, not defended**.
 
-## Decision (owner)
+## Decision
 
-- No evidence for a required end state → the case is **not COMPLETE**.
-- If deletion was **attempted but is unproven** (a FAILED or PARTIAL claim, no evidence of absence) → report the resource as **remaining** (REPORT_REMAINING_RECORD citing the activity row, then DELETE_RECORD, then VERIFY_RECORD_ABSENT).
-- If nothing grounded exists → emit nothing for that resource.
+1. **Unproven end state, attempted claim only.** A grounded-linked resource whose end state no evidence shows, and whose only signal is a FAILED or PARTIAL action claim, gets a **future VERIFY step only**. Example: `VERIFY_RECORD_ABSENT`, with `evidence_id = ""` and state per its rule. It is **never** reported as `REPORT_REMAINING_RECORD` (or any finding) citing an activity row.
+2. **Case status comes from the other grounded findings.** The unproven resource neither creates a finding nor, on its own, forces INCOMPLETE.
+3. **Never COMPLETE without per-resource evidence.** Every step in a COMPLETE case must cite evidence that shows the compliant state (AGENTS.md §6.3). Where a resource's state *could be observed*, i.e. a usable file covers it, that evidence decides.
+4. **Nothing grounded means nothing emitted.** No link, or a tied link (ADR 0004), produces no step. It is logged as `UNRESOLVED_LINK` / `NOT_OBSERVABLE` (ADR 0012).
 
-## Dissent
+**Edge case (unlabeled; no sample has it).** If the case has no grounded finding, but some grounded-linked resource is unproven:
 
-The measured gold pattern disagrees with reporting such resources as remaining:
+- The case **cannot** carry an uncited VERIFY step, because COMPLETE requires a citation on every step.
+- The resource is therefore **omitted** and logged as `UNPROVEN(resource)`.
+- The status is COMPLETE when every *emitted* verification is evidence-backed.
 
-- In all 12 sample cases with a FAILED or PARTIAL account-delete claim, gold lists the account only as VERIFY_RECORD_ABSENT.
-- For about 6 of those, no evidence exists either way, so the ruling would add a finding and a remediation step that gold does not contain, costing about 2 extra steps per such case.
-- Citing an activity row as proof of *presence* also treats a claim as a state, the mirror image of ADR 0003. A FAILED delete proves only that a delete was attempted.
-
-I would emit the verification step only, and leave the status to the other grounded findings.
-
-**I adopt the ruling as written**, and I will report its measured impact on samples in the evaluation report so the owner can revisit it.
+This follows "absence of proof is not proof of absence" in both directions, and is listed as an accepted risk in `docs/03_DESIGN.md`.
 
 ## Consequences
 
-- More INCOMPLETE findings that cite `activity_N` IDs.
-- An expected precision cost on samples (to be measured by the evaluator).
-- COMPLETE is never claimed without per-resource evidence.
+- No step anywhere cites an `activity_id` or `audit_id` as proof of state. Findings cite files only, which matches gold (0/all).
+- In INCOMPLETE cases, unproven accounts appear as VERIFY_RECORD_ABSENT with empty evidence, matching the 12/12 sample pattern.
+- Fewer false findings, and the status is driven by observed violations.
 
 ## Rejected alternatives
 
-- **Assume absent when a SUCCESS claim exists:** evidence over claims.
-- **Verification-only for unproven resources:** recommended, but overruled.
+- **v1: report as remaining, citing the activity row.** Contradicts 12/12 gold and treats a claim as state.
+- **Assume absent from a SUCCESS claim:** evidence over claims.
+- **INCOMPLETE whenever anything is unproven:** turns absence of proof into proof of a violation.
