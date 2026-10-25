@@ -81,7 +81,9 @@ def files():
         if (
             p.is_file()
             and not (set(rel.parts) & EXCLUDED_DIRS)
-            and not any(part.startswith(".") for part in rel.parts[:-1])  # tool caches (.ruff_cache)
+            and not any(
+                part.startswith(".") for part in rel.parts[:-1]
+            )  # tool caches (.ruff_cache)
             and p.name not in EXCLUDED_NAMES
             and not p.name.endswith(EXCLUDED_SUFFIXES)
         ):
@@ -89,9 +91,8 @@ def files():
     return out
 
 
-def identity_values(data_dir=DATA):
-    """Every email and phone in the identity snapshot and the audit history, plus the verbatim
-    dataset rows."""
+def _identity_contacts(data_dir):
+    """(emails, phones) from the identity snapshot and every value in the audit history."""
     emails, phones = set(), set()
     with open(data_dir / "user_identities.csv", newline="", encoding="utf-8") as f:
         for r in csv.DictReader(f):
@@ -100,17 +101,32 @@ def identity_values(data_dir=DATA):
     with open(data_dir / "user_audit_log.csv", newline="", encoding="utf-8") as f:
         for r in csv.DictReader(f):
             for v in (r["old_value"], r["new_value"]):
-                (emails if "@" in v else phones if r["field_name"] == "phone" else set()).add(v)
+                if "@" in v:
+                    emails.add(v)
+                elif r["field_name"] == "phone":
+                    phones.add(v)
+    return emails, phones
+
+
+def _dataset_rows(data_dir):
+    """Every line of the text dataset files that is long enough to count as a row."""
     rows = set()
     for p in sorted(data_dir.rglob("*")):
         if p.is_file() and p.suffix in (".csv", ".sql", ".log", ".txt", ".json", ".jsonl"):
             for line in p.read_text(encoding="utf-8", errors="ignore").split("\n"):
                 if len(line.strip()) >= ROW_MIN:
                     rows.add(line.strip())
+    return rows
+
+
+def identity_values(data_dir=DATA):
+    """Every email and phone in the identity snapshot and the audit history, plus the verbatim
+    dataset rows."""
+    emails, phones = _identity_contacts(data_dir)
     return {
         "email": sorted(e for e in emails if e),
         "phone": sorted(p for p in phones if p),
-        "rows": rows,
+        "rows": _dataset_rows(data_dir),
     }
 
 
