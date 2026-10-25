@@ -567,3 +567,24 @@ repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
 
+## [2026-10-25T01:09:22Z] T03 done: Evidence Store; baseline recorded on the board
+
+User Prompt (verbatim, secrets redacted):
+(same relayed prompt as the previous entries: T01 fix, then T02 and T03)
+
+Agent Response Summary:
+Implemented T03 test-first (tdd skill): 10 red tests, then code/ghostaudit/store.py, all green. It provides the EvidenceFile, Observation, Coverage, Link, ActivityEvent and StateResult types; resource and identifier indexes; and as_of(cutoff) -> CaseView, which applies the file-level inclusive cutoff to observations, coverage, links and activity. State logic: latest observation wins inside a file; replica presence beats primary absence in the same snapshot; coverage proves absence; nothing visible means UNPROVEN (None); activity never sets state; contradicted links are never returned. The board's T03 acceptance text was clarified: the real-file facts are modelled synthetically until the T04–T07 loaders exist. Baseline recorded on the board: contract OK (518), determinism identical, intent 508/10, identity 518/518, sample proxy 0.000 on dev, holdout and all. T03 marked done; runs/ not committed.
+
+Actions:
+* Wrote code/tests/test_store.py and code/ghostaudit/store.py
+* Ran store tests, all suites, main.py, contract, determinism, --report, sample prediction + score
+* Updated docs/BOARD.md (T03 done; baseline section); committed and pushed
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+

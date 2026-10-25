@@ -2,7 +2,7 @@
 
 - **Board backend:** this file. The `kanban-init` skill needs the `sqlite3` CLI, which is not installed in this cloud container (checked at session start), so the SQLite board was not created and this Markdown board is the source of truth.
 - **Update this file whenever a task moves.**
-- **Log:** T01 doing → done 2026-10-25 (selftest green, 34 unit tests). T01 fixes: optional pandas + specific check ids (39 tests). T02 doing → done (12 tests; acceptance green).
+- **Log:** T01 doing → done 2026-10-25 (selftest green, 34 unit tests). T01 fixes: optional pandas + specific check ids (39 tests). T02 doing → done (12 tests; acceptance green). Baseline run exposed 3 T01 bugs, fixed test-first (43 evaluation tests). T03 doing → done (10 store tests).
 - **Statuses:** `todo` → `doing` → `review` → `done` (plus `blocked`).
 - **Priorities:** P0 (must ship), P1 (should ship), P2 (only if time and gates allow).
 - **Build slice** refers to `docs/03_DESIGN.md` §9. ADRs are in `docs/adr/`.
@@ -13,7 +13,7 @@
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | T01 | Evaluation core: contract gate, sample scorer (frozen 22/10 split), literal audit, run history + diff gate | P0 | 1 | — | `python3 code/evaluation/main.py selftest` | `CONTRACT OK (sample_output.csv, 32 rows)`; scorer gold-vs-gold = 1.000 on every metric; literal audit `0 hits`; the history line is written | done |
 | T02 | CSV loaders, identity resolver, rules-only intent, output writer; baseline run writes 518 valid rows (trivial engine: every row NOT_APPLICABLE) | P0 | 1 | T01 | `python3 code/main.py && python3 code/evaluation/main.py contract && python3 code/main.py --report` | `CONTRACT OK (output.csv, 518 rows)`; numeric order; report shows intent 508 DELETION / 10 NOT_DELETION (exactly case_533–542) and identity resolved 518/518 (engine placeholder emits NOT_APPLICABLE for all, because an empty INCOMPLETE is invalid under the gate) | done |
-| T03 | Observation/Coverage/Link models + Evidence Store with identifier/resource/time indexes and the `as_of(cutoff)` view | P0 | 2 | T02 | `python3 -m unittest discover -s code/tests -p 'test_store*.py'` | All pass, including: a later file is invisible through `as_of`; inclusive `<=` boundary (evidence_03 at case_11's audit_at); latest-observation ordering (evidence_30 account_2088 404 → 200) | todo |
+| T03 | Observation/Coverage/Link models + Evidence Store with identifier/resource/time indexes and the `as_of(cutoff)` view | P0 | 2 | T02 | `python3 -m unittest discover -s code/tests -p 'test_store*.py'` | All pass, including: a later file is invisible through `as_of`; inclusive `<=` boundary (evidence_03 at case_11's audit_at); latest-observation ordering (evidence_30 account_2088 404 → 200), all modelled as synthetic observations until the loaders land in T04–T07 | done |
 | T04 | Loaders: handover txt + service-export JSON + readback logs (trace_id join) | P0 | 2/4/5 | T03 | `python3 code/evaluation/main.py loaders --files evidence_03,evidence_92,evidence_94` | Every sample-cited (file, resource) pair in those files is found with the correct state, and the identifier is resolved via trace_id; `0 unknown signatures` | todo |
 | T05 | Loaders: inventory SQL (snapshot_scope coverage) + replica SQL (primary vs replica drift) | P0 | 3 | T03 | `python3 code/evaluation/main.py loaders --kind sql` | All 24 SQL files load; replica-only resources = the 11 listed in data notes §5.2 (incl. account_005, account_994); 8 DELETION_PENDING rows found (§7.6) | todo |
 | T06 | Loaders: snapshot bundles, record-list JSON (registers, ledger), notification/record_lookup logs | P1 | 4 | T03 | `python3 code/evaluation/main.py loaders --kind json,register-log` | evidence_51 tombstone_440 is REDACTED and tombstone_9178 EXPOSED; `records: []` produces coverage; all 28 JSON files load; `0 unknown signatures` | todo |
@@ -32,6 +32,32 @@
 **Build sequence** (critical path in bold): **T01 → T02 → T03 → T04 → T05 → T08 → T09** → T06 / T07 / T12 → T10 → **T15** → T16 → T13 → T11 → **T14**. T17 can run only after T11, and only if time allows.
 
 ---
+
+## Baseline (2026-10-25, after T01–T03; trivial engine: every row NOT_APPLICABLE)
+
+```text
+$ python3 code/main.py
+wrote 518 rows -> output.csv
+$ python3 code/evaluation/main.py contract
+CONTRACT OK (output.csv, 518 rows)
+$ python3 code/evaluation/main.py determinism
+L0.determinism: 2 runs identical (sha256 ce56a9432b8d)
+$ python3 code/main.py --report
+intent: 508 DELETION / 10 NOT_DELETION   (NOT_DELETION = case_533 … case_542)
+identity: 518/518 resolved
+$ python3 code/main.py --requests dataset/sample_deletion_requests.csv --out <scratch>/sample_pred.csv
+$ python3 code/evaluation/main.py score --pred <scratch>/sample_pred.csv
+```
+
+| Split | status | identity | finding F1 | policy | evidence | strict step F1 | field mean | seq exact | LCS mean | row exact | **proxy** |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| dev (22) | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | **0.000** |
+| holdout (10) | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | **0.000** |
+| all (32) | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | **0.000** |
+
+- `finding_precision` reads 1.000. That is vacuous (no predictions) and is not part of the proxy.
+- The first baseline attempt reported proxy 0.111 because field accuracy gave free credit when nothing aligned. That was fixed before this baseline.
+- `runs/` (the history) is git-ignored and not committed.
 
 ## Where this board deviates from the relayed list (and why)
 
