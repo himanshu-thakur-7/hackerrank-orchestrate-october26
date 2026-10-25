@@ -6,7 +6,7 @@ Signatures whose adapter is not built yet raise LoaderPending (strict) so nothin
 import json
 from pathlib import Path
 
-from ghostaudit.loaders import bundle, handover, readback, record_lookup, records, service_export, sql
+from ghostaudit.loaders import bundle, handover, observability, readback, record_lookup, records, service_export, sql
 from ghostaudit.loaders.common import LoadResult, Unit  # noqa: F401  (re-exported)
 
 PENDING = {}            # signature -> board task that will implement it
@@ -28,8 +28,9 @@ LOADERS = {
     "json:snapshots": bundle.load,
     "json:records": records.load,
     "log:record_lookup": record_lookup.load,
+    "log:observability": observability.load,
 }
-PENDING.update({"log:observability": "T07", "pdf": "T12", "png": "T12"})
+PENDING.update({"pdf": "T12", "png": "T12"})
 
 
 def sniff(raw, file_id="?"):
@@ -63,9 +64,9 @@ def sniff(raw, file_id="?"):
         return "log:readback"
     if record_lookup.matches(text):
         return "log:record_lookup"
-    first = next((l for l in text.splitlines() if l.strip()), "")
-    if first[:20].count("-") >= 2 and "T" in first[:20] and first[19:20] == "Z":
+    if observability.matches(text):
         return "log:observability"
+    first = next((l for l in text.splitlines() if l.strip()), "")
     raise UnknownSignature(f"{file_id}: unknown content signature; first line {first[:80]!r}")
 
 

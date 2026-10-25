@@ -1,0 +1,5 @@
+2026-07-28T05:51:16Z [DEBUG] [log_router] [collector-9] export_started: instance="collector-9" sources="platform_services" expected_source_events="87"
+2026-07-28T05:51:18Z [DEBUG] [account_service] [tr-6074163] profile_lookup_started: instance="account-5" pod="account-886d" region="eu-west-1" lookup_key="l.nascimento40@gmail.com" attempt="1"
+2026-07-28T05:51:20Z [DEBUG] [account_service] [tr-6074163] cache_lookup: instance="account-5" pod="account-886d" region="eu-west-1" result="miss" cache="account_service_lookup_v2"
+2026-07-28T05:51:21Z [INFO] [account_service] [tr-6074163] profile_lookup_completed: instance="account-5" pod="account-886d" region="eu-west-1" resource_id="account_7947" rows="0" http_status="404" duration_ms="70"
+2026-07-28T05:51:51Z [DEBUG] [account_service] [tr-4069320] profile_lookup_completed: instance="account-7" pod="account-6c4a" region="us-east-2" resource_id="account_4289" rows="1" http_status="200" duration_ms="64" correlation_key="erik.h9688@outlook.com"
