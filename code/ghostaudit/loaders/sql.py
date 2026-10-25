@@ -80,13 +80,113 @@ def load(file_id, captured_at, text):
         db.close()
 
 
-def _load(file_id, captured_at, text, db):
-    r = LoadResult("sql")
+def _insert_lines(text):
+    """(table, resource_id) -> line number of its first INSERT, for locators."""
     lines = {}
     for n, line in enumerate(text.splitlines(), 1):
         m = INSERT_RE.match(line)
         if m:
             lines.setdefault((m.group(1), m.group(2)), n)
+    return lines
+
+
+def _generic_row(row, captured_at):
+    """A row of a generic collection table: (system, category, fields, observed_at), with the
+    scalar fields of its record_json (and of a nested "document") flattened."""
+    system, coll = row["origin_system"], row["collection_name"]
+    blob = json.loads(row["record_json"])
+    fields = {k: v for k, v in blob.items() if not isinstance(v, (dict, list))}
+    if isinstance(blob.get("document"), dict):
+        fields.update(blob["document"])
+    fields["collection"] = coll
+    return system, COLLECTION_CATEGORY.get(coll), fields, row.get("updated_at") or captured_at
+
+
+def _typed_row(row, typed, captured_at):
+    """A row of a known table: (system, category, fields, observed_at); the time is the first ISO
+    timestamp among TIME_COLS, else the file's capture time."""
+    system, cat = typed
+    observed = next(
+        (row[c] for c in TIME_COLS if isinstance(row.get(c), str) and ISO_RE.match(row[c])),
+        captured_at,
+    )
+    return system, cat, dict(row), observed
+
+
+def _observation(file_id, table, row, normalized, loc):
+    """One Observation for a row. An email found in free text counts as an exposed email."""
+    system, cat, fields, observed = normalized
+    free = emails_in_text(fields)
+    pii = pii_fields(fields)
+    if free and "email" not in pii:
+        pii = tuple(p for p in ("name", "email", "phone", "email_hash") if p in pii or p == "email")
+    return Observation(
+        file_id,
+        observed,
+        system,
+        row["resource_id"],
+        table,
+        state_from_fields(fields),
+        category=cat,
+        pii_fields=pii,
+        identifiers=identifiers(*(v for _, v in scalar_items(fields)), *free),
+        locator=loc,
+        attrs=attrs(fields, exclude=TIME_COLS + ("collection",)),
+    )
+
+
+def _coverage(file_id, captured_at, table, typed, scope, systems_listed):
+    """Coverage for one table (weak evidence, ADR 0014): an inventory scopes it per system with the
+    scope's own time; otherwise a typed table covers its system and a generic one every system it
+    lists, at the file's capture time."""
+    if scope:
+        if typed and typed[0] in scope:
+            return [Coverage(file_id, scope[typed[0]], typed[0], table)]
+        return []
+    if typed:
+        return [Coverage(file_id, captured_at, typed[0], table)]
+    return [Coverage(file_id, captured_at, s, table) for s in sorted(systems_listed)]
+
+
+def _unknown_table(file_id, table, cols, rows):
+    plural = "s" if len(rows) != 1 else ""
+    return Unit(
+        file_id,
+        f"table {table}",
+        f"columns {cols}",
+        f"unknown table '{table}' ({len(rows)} row{plural})",
+    )
+
+
+def _load_table(r, file_id, captured_at, db, table, lines, scope):
+    """Append one table's observations, unattributed rows and coverage to `r`."""
+    cols = [c[1] for c in db.execute(f'pragma table_info("{table}")')]
+    rows = [dict(zip(cols, row, strict=True)) for row in db.execute(f'select * from "{table}"')]
+    typed = _typed(table)
+    generic = set(cols) >= GENERIC_COLS
+    if not typed and not generic:
+        r.unparsed.append(_unknown_table(file_id, table, cols, rows))
+        return
+    systems_listed = set()
+    for row in rows:
+        normalized = (
+            _generic_row(row, captured_at) if generic else _typed_row(row, typed, captured_at)
+        )
+        systems_listed.add(normalized[0])
+        loc = f"line {lines.get((table, row['resource_id']), '?')}"
+        o = _observation(file_id, table, row, normalized, loc)
+        r.observations.append(o)
+        if not o.identifiers:
+            fields = normalized[2]
+            r.unattributed.append(
+                Unit(file_id, loc, json.dumps(fields, default=str)[:200], "no identifier")
+            )
+    r.coverage += _coverage(file_id, captured_at, table, typed, scope, systems_listed)
+
+
+def _load(file_id, captured_at, text, db):
+    r = LoadResult("sql")
+    lines = _insert_lines(text)
     tables = [
         t for (t,) in db.execute("select name from sqlite_master where type='table' order by name")
     ]
@@ -94,75 +194,6 @@ def _load(file_id, captured_at, text, db):
     if "snapshot_scope" in tables:
         scope = dict(db.execute("select origin_system, captured_at from snapshot_scope"))
     for table in tables:
-        if table == "snapshot_scope":
-            continue
-        cols = [c[1] for c in db.execute(f'pragma table_info("{table}")')]
-        rows = [dict(zip(cols, row, strict=True)) for row in db.execute(f'select * from "{table}"')]
-        typed = _typed(table)
-        generic = set(cols) >= GENERIC_COLS
-        if not typed and not generic:
-            r.unparsed.append(
-                Unit(
-                    file_id,
-                    f"table {table}",
-                    f"columns {cols}",
-                    f"unknown table '{table}' ({len(rows)} row{'s' if len(rows) != 1 else ''})",
-                )
-            )
-            continue
-        systems_listed = set()
-        for row in rows:
-            if generic:
-                system, coll = row["origin_system"], row["collection_name"]
-                cat = COLLECTION_CATEGORY.get(coll)
-                blob = json.loads(row["record_json"])
-                fields = {k: v for k, v in blob.items() if not isinstance(v, (dict, list))}
-                if isinstance(blob.get("document"), dict):
-                    fields.update(blob["document"])
-                fields["collection"] = coll
-                observed = row.get("updated_at") or captured_at
-            else:
-                system, cat = typed
-                fields = dict(row)
-                observed = next(
-                    (
-                        row[c]
-                        for c in TIME_COLS
-                        if isinstance(row.get(c), str) and ISO_RE.match(row[c])
-                    ),
-                    captured_at,
-                )
-            systems_listed.add(system)
-            loc = f"line {lines.get((table, row['resource_id']), '?')}"
-            free = emails_in_text(fields)
-            pii = pii_fields(fields)
-            if free and "email" not in pii:
-                pii = tuple(
-                    p for p in ("name", "email", "phone", "email_hash") if p in pii or p == "email"
-                )
-            o = Observation(
-                file_id,
-                observed,
-                system,
-                row["resource_id"],
-                table,
-                state_from_fields(fields),
-                category=cat,
-                pii_fields=pii,
-                identifiers=identifiers(*(v for _, v in scalar_items(fields)), *free),
-                locator=loc,
-                attrs=attrs(fields, exclude=TIME_COLS + ("collection",)),
-            )
-            r.observations.append(o)
-            if not o.identifiers:
-                r.unattributed.append(
-                    Unit(file_id, loc, json.dumps(fields, default=str)[:200], "no identifier")
-                )
-        if scope:
-            if typed and typed[0] in scope:
-                r.coverage.append(Coverage(file_id, scope[typed[0]], typed[0], table))
-        elif typed:
-            r.coverage.append(Coverage(file_id, captured_at, typed[0], table))
-        else:
-            r.coverage += [Coverage(file_id, captured_at, s, table) for s in sorted(systems_listed)]
+        if table != "snapshot_scope":
+            _load_table(r, file_id, captured_at, db, table, lines, scope)
     return r

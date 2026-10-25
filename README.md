@@ -582,7 +582,7 @@ The samples over-represent hand-written situations, and 22 + 10 cases are too fe
 4. **Board** (`docs/BOARD.md`): tasks T01–T17, each with an acceptance command, built test-first.
 5. **Independent checks:** blind sub-agent audits, metamorphic relations, the Jev spike with a pre-registered decision rule, and a readiness pass. Every turn is logged in `log.txt` (submitted separately).
 
-The tests: 151 solver tests in `code/tests/` and 108 evaluation tests in `code/evaluation/tests/`.
+The tests: 156 solver tests in `code/tests/` and 108 evaluation tests in `code/evaluation/tests/`.
 
 ---
 
