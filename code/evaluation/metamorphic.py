@@ -255,14 +255,30 @@ def m6_post_audit_contradiction(ctx):
     )
 
 
-def m7_earlier_audit(ctx):
-    files = {f.file_id: f for f in ctx.engine.store.files.values()}
+def _m7_target(ctx, files):
+    """The first COMPLETE case whose latest cited file can move after a new audit_at that still
+    follows the request (or the last case tried): (case, file, new audit_at)."""
     for c in ctx.cases("COMPLETE"):
         cited = {s["evidence_id"] for s in ctx.assess[c].steps}
         target = max(cited, key=lambda f: files[f].captured_at)
         new_audit = _iso(_t(files[target].captured_at) - timedelta(seconds=1))
         if new_audit > ctx.req[c]["requested_at"]:
             break
+    return c, target, new_audit
+
+
+def _cites_nothing_after(steps, target, files, new_audit):
+    """No step cites the moved file, nor any file captured after the new audit_at."""
+    still = [s for s in steps if s["evidence_id"] == target]
+    late = [
+        s for s in steps if s["evidence_id"] and files[s["evidence_id"]].captured_at > new_audit
+    ]
+    return not still and not late
+
+
+def m7_earlier_audit(ctx):
+    files = {f.file_id: f for f in ctx.engine.store.files.values()}
+    c, target, new_audit = _m7_target(ctx, files)
     with Overlay(ctx.data) as ov:
         rows = ov.rows("deletion_requests.csv")
         for r in rows:
@@ -271,12 +287,8 @@ def m7_earlier_audit(ctx):
         ov.write_rows("deletion_requests.csv", rows)
         out = ov.run()
     status, steps = out[c]
-    still = [s for s in steps if s["evidence_id"] == target]
-    late = [
-        s for s in steps if s["evidence_id"] and files[s["evidence_id"]].captured_at > new_audit
-    ]
     others = [x for x in changed(ctx.base, out) if x != c]
-    holds = not still and not late and not others
+    holds = _cites_nothing_after(steps, target, files, new_audit) and not others
     return Result(
         "M7",
         f"move {c}'s audit_at to 1 s before {target} (its latest cited file)",
@@ -290,16 +302,16 @@ def m7_earlier_audit(ctx):
     )
 
 
-def m8_replica_only(ctx):
-    # precondition: the injected replica copy must be the NEWEST sighting at or before audit_at, so
-    # pick an account whose latest observation is strictly earlier than audit_at and capture the
-    # copy at audit_at
+def _m8_target(ctx):
+    """A COMPLETE case's verified-absent account whose latest sighting is strictly before audit_at,
+    so a replica copy captured at audit_at is the newest sighting (the relation's precondition)."""
+
     def newest_before_audit(c, s):
         view = ctx.engine.store.as_of(ctx.req[c]["audit_at"])
         obs = [o for o in view.observations(s["resource_id"]) if o.system_id == "account_service"]
         return obs and obs[-1].observed_at < ctx.req[c]["audit_at"]
 
-    c, s = next(
+    return next(
         (c, s)
         for c in ctx.cases("COMPLETE")
         for s in ctx.assess[c].steps
@@ -307,26 +319,35 @@ def m8_replica_only(ctx):
         and s["system_id"] == "account_service"
         and newest_before_audit(c, s)
     )
-    q, subj = ctx.req[c], ctx.assess[c].subject
-    ident = next(r for r in ctx.engine.resolver._by_user.values() if r.user_id == subj.user_id)
-    email = sorted(subj.emails)[0]
-    cap = q["audit_at"]  # inclusive cutoff (ADR 0002)
-    name = sorted(ident.names)[0] if ident.names else "Test Person"
+
+
+def _replica_snapshot(cap, resource_id, user_id, name, email):
+    """A failover-replica SQL snapshot holding one ACTIVE account, captured at `cap`."""
     cols = (
         "resource_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, full_name TEXT NOT NULL, email TEXT "
         "NOT NULL, "
         "phone TEXT NOT NULL, account_status TEXT NOT NULL, updated_at TEXT NOT NULL"
     )
-    sql = (
+    return (
         f"-- Ghost Data Still Exists: point-in-time database snapshot\n-- Dialect: "
         f"SQLite-compatible SQL\n"
         f"-- Captured at: {cap}\n-- Database topology: failover_replica\n\nBEGIN TRANSACTION;\n"
         f"CREATE TABLE customer_profiles_failover_replica ({cols});\n"
         f'INSERT INTO "customer_profiles_failover_replica" '
-        f"VALUES('{s['resource_id']}','{subj.user_id}','{name}','{email}',"
+        f"VALUES('{resource_id}','{user_id}','{name}','{email}',"
         f"'+00 000 000 0000','ACTIVE','{cap}');\n"
         f"CREATE TABLE customer_profiles_primary ({cols});\nCOMMIT;\n"
     )
+
+
+def m8_replica_only(ctx):
+    c, s = _m8_target(ctx)
+    q, subj = ctx.req[c], ctx.assess[c].subject
+    ident = next(r for r in ctx.engine.resolver._by_user.values() if r.user_id == subj.user_id)
+    email = sorted(subj.emails)[0]
+    cap = q["audit_at"]  # inclusive cutoff (ADR 0002)
+    name = sorted(ident.names)[0] if ident.names else "Test Person"
+    sql = _replica_snapshot(cap, s["resource_id"], subj.user_id, name, email)
     with Overlay(ctx.data) as ov:
         ov.add_evidence(
             "meta_replica", "evidence/databases/meta_replica.sql", "test", cap, sql.encode()
@@ -353,6 +374,15 @@ def m8_replica_only(ctx):
     )
 
 
+def _reads(ctx, view, file_id, system_id, resource_id):
+    """True when `file_id` observes the resource or covers its system."""
+    if any(o.file_id == file_id for o in view.observations(resource_id)):
+        return True
+    return any(
+        cv.file_id == file_id and cv.system_id == system_id for cv in ctx.engine.store.coverage
+    )
+
+
 def dependents(ctx, file_id):
     """Eval cases whose assessment could read `file_id`: any observation, link, coverage or
     account candidate."""
@@ -367,13 +397,8 @@ def dependents(ctx, file_id):
         res = [(r.system_id, r.resource_id) for r in a.resources]
         acc = lk.account(c)
         res += [("account_service", x.resource_id) for x in acc.candidates]
-        for sys_, rid in res:
-            if any(o.file_id == file_id for o in view.observations(rid)):
-                deps.add(c)
-            if any(
-                cv.file_id == file_id and cv.system_id == sys_ for cv in ctx.engine.store.coverage
-            ):
-                deps.add(c)
+        if any(_reads(ctx, view, file_id, sys_, rid) for sys_, rid in res):
+            deps.add(c)
         for x in view.linking_observations(a.subject.tokens()).values():
             if any(o.file_id == file_id for o in x):
                 deps.add(c)
@@ -437,30 +462,36 @@ def m10_duplicate_text(ctx):
     )
 
 
-def m11_break_tie(ctx):
-    lk = ctx.engine.linker
-    lk.account(ctx.cases()[0])
-    tied = {c: acct for c, acct in lk._accounts.items() if acct.status == "TIED" and c in ctx.req}
+def _candidate_holders(lk):
+    """activity_id -> the requests for which that account delete survives as a candidate."""
     holders = {}
     for c, acct in lk._accounts.items():
         for x in acct.survivors:
             holders.setdefault(x.activity_id, set()).add(c)
-    pick = None
+    return holders
+
+
+def _pick_tie(tied, holders):
+    """(case, candidate to drop, candidate to keep): prefer a two-way tie whose kept candidate no
+    other request holds. Otherwise every tie is shared, so removing one candidate must leave all
+    sharers unresolved (no tie-break)."""
     for c, acct in sorted(tied.items(), key=lambda kv: (len(kv[0]), kv[0])):
-        if len(acct.survivors) == 2:
-            for drop, keep in (
-                (acct.survivors[0], acct.survivors[1]),
-                (acct.survivors[1], acct.survivors[0]),
-            ):
-                if holders[keep.activity_id] == {c}:
-                    pick = (c, drop, keep)
-                    break
-        if pick:
-            break
-    # every tie is shared: removing one candidate must leave all sharers unresolved (no tie-break)
-    if pick is None:
-        c, acct = min(tied.items(), key=lambda kv: (len(kv[0]), kv[0]))
-        pick = (c, acct.survivors[0], acct.survivors[1])
+        if len(acct.survivors) != 2:
+            continue
+        first, second = acct.survivors
+        for drop, keep in ((first, second), (second, first)):
+            if holders[keep.activity_id] == {c}:
+                return c, drop, keep
+    c, acct = min(tied.items(), key=lambda kv: (len(kv[0]), kv[0]))
+    return c, acct.survivors[0], acct.survivors[1]
+
+
+def m11_break_tie(ctx):
+    lk = ctx.engine.linker
+    lk.account(ctx.cases()[0])
+    tied = {c: acct for c, acct in lk._accounts.items() if acct.status == "TIED" and c in ctx.req}
+    holders = _candidate_holders(lk)
+    pick = _pick_tie(tied, holders)
     c, drop, keep = pick
     with Overlay(ctx.data) as ov:
         ov.write_rows(
@@ -495,26 +526,33 @@ def m11_break_tie(ctx):
     )
 
 
-def m12_catalog_contradiction(ctx):
+def _m12_target(ctx):
+    """A confirmed catalog link and a deletion case of someone else, audited after the claim:
+    re-pointing the claim to that case's subject must be refuted by the artifact."""
     lk = ctx.engine.linker
     view = ctx.engine.store.as_of("9999-12-31T23:59:59Z")
     confirmed = [x for x in lk.catalog(view, None) if x.status == "CONFIRMED"]
     events = {a.activity_id: a for a in ctx.engine.store.activity_events}
+
+    def eligible(c, ev, link):
+        a = ctx.assess[c]
+        return (
+            a.subject
+            and a.status != "NOT_APPLICABLE"
+            and ctx.req[c]["audit_at"] >= ev.event_time
+            and a.subject.user_id != link.reason.split("=")[1]
+        )
+
     for link in confirmed:
         ev = events[link.activity_id]
-        victim = next(
-            (
-                c
-                for c in ctx.cases()
-                if ctx.assess[c].subject
-                and ctx.assess[c].status != "NOT_APPLICABLE"
-                and ctx.req[c]["audit_at"] >= ev.event_time
-                and ctx.assess[c].subject.user_id != link.reason.split("=")[1]
-            ),
-            None,
-        )
+        victim = next((c for c in ctx.cases() if eligible(c, ev, link)), None)
         if victim:
             break
+    return link, victim
+
+
+def m12_catalog_contradiction(ctx):
+    link, victim = _m12_target(ctx)
     subj = ctx.assess[victim].subject
     claim = (
         f"Data catalog linked {link.resource_id} ({link.resource_id}) to "
@@ -531,7 +569,7 @@ def m12_catalog_contradiction(ctx):
 
         e2 = Engine.from_dataset(ov.root)
         a2 = e2.assess(ctx.req[victim], ctx.intent.classify_rules(ctx.req[victim]["request_text"]))
-    rejected = [acct for acct in a2.log if acct.startswith(f"REJECTED_LINK({link.activity_id} ")]
+    rejected = [line for line in a2.log if line.startswith(f"REJECTED_LINK({link.activity_id} ")]
     stepped = [s for s in out[victim][1] if s["resource_id"] == link.resource_id]
     return Result(
         "M12",
