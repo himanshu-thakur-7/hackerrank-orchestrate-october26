@@ -1,8 +1,8 @@
-"""T14: the README in code.zip quotes only commands that exist, and every number it quotes comes
-from a real
-artifact: the run itself, the loader check, the generated reports, or the measured design
-documents."""
+"""The README in code.zip quotes only commands that exist, and every number it quotes comes from a
+real artifact: the run itself, the loader check, the generated reports, the quality command, or
+the measured design documents."""
 
+import importlib.util
 import json
 import re
 import subprocess
@@ -395,6 +395,45 @@ class EveryNumber(unittest.TestCase):
         ).countTestCases()
         self.assertIn(f"{solver} solver tests", README)
         self.assertIn(f"{evaluation} evaluation tests", README)
+
+    def test_code_quality_table_matches_the_quality_command(self):
+        from evaluation import quality
+
+        section = README.split("### 12.1 Code quality", 1)[1].split("\n## ", 1)[0]
+        after = {
+            label.strip(): value.strip()
+            for label, _, value in re.findall(r"^\| (.+?) \| (.+?) \| (.+?) \|$", section, re.M)
+        }
+        cov = importlib.util.find_spec("coverage") is not None
+        m = quality.collect(with_coverage=cov)
+
+        def frac(pair):
+            return f"{pair[0]}/{pair[1]}"
+
+        t = m["tests"]
+        expected = {
+            "ruff findings (rules in `code/pyproject.toml`)": m["ruff_findings"],
+            "Max cyclomatic complexity, solver (limit 10)": m["complexity_max"],
+            "Max cyclomatic complexity, evaluation (limit 15)": m["complexity_max_evaluation"],
+            "Functions over their complexity limit": len(m["complexity_over"]),
+            "Docstrings, solver (each module names its ADR; public classes and functions)": frac(
+                m["docstrings"]
+            ),
+            "Docstrings, evaluation": frac(m["docstrings_evaluation"]),
+            "Annotated solver functions (arguments and return)": frac(m["annotations"]),
+            "mypy errors, strict (`ghostaudit`, `main.py`, `package.py`)": m["mypy_errors"],
+            "mypy errors, evaluation (default profile)": m["mypy_relaxed_errors"],
+            "Unit tests (solver / evaluation)": f"{t['solver']} / {t['evaluation']}",
+        }
+        if cov:
+            under = [k for k, v in m["coverage"].items() if k != "TOTAL" and v < 85]
+            expected["Branch coverage of `ghostaudit` from the solver tests"] = (
+                f"{m['coverage_total']}% total, lowest module {m['coverage_min']}%"
+            )
+            expected["`ghostaudit` modules under 85% coverage"] = len(under)
+        for label, value in expected.items():
+            if value is not None:  # a dev tool that is not installed here
+                self.assertEqual(after[label], str(value), label)
 
     def test_structure_toc_and_diagrams(self):
         headings = re.findall(r"^## (\d+)\. ", README, re.M)

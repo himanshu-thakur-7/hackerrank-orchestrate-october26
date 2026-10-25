@@ -588,7 +588,35 @@ Each change has to keep finding precision at 1.000 on the samples and the loss l
 4. **Board** (`docs/BOARD.md`): tasks T01–T17, each with an acceptance command, built test-first.
 5. **Independent checks:** blind sub-agent audits, metamorphic relations, the Jev spike with a pre-registered decision rule, and a readiness pass. Every turn is logged in `log.txt` (submitted separately).
 
-The tests: 180 solver tests in `code/tests/` and 110 evaluation tests in `code/evaluation/tests/`.
+The tests: 180 solver tests in `code/tests/` and 119 evaluation tests in `code/evaluation/tests/`.
+
+### 12.1 Code quality
+
+`python3 code/evaluation/main.py quality` measures the code, and `final` runs it as one of its steps. Complexity, docstrings, annotations and test counts need only the standard library; complexity comes from an `ast` counter that applies radon's rules. ruff, mypy and coverage.py are optional developer tools (`pip install ruff mypy coverage`), and each prints SKIPPED when it is not installed. The command fails when a measured value breaks a limit.
+
+| Metric | Before | After |
+| --- | --- | --- |
+| ruff findings (rules in `code/pyproject.toml`) | 1618 | 0 |
+| Max cyclomatic complexity, solver (limit 10) | 33 | 10 |
+| Max cyclomatic complexity, evaluation (limit 15) | 99 | 15 |
+| Functions over their complexity limit | 39 | 0 |
+| Docstrings, solver (each module names its ADR; public classes and functions) | 54/166 | 174/174 |
+| Docstrings, evaluation | 22/124 | 138/138 |
+| Annotated solver functions (arguments and return) | 0/146 | 214/214 |
+| mypy errors, strict (`ghostaudit`, `main.py`, `package.py`) | 148 | 0 |
+| mypy errors, evaluation (default profile) | 0 | 0 |
+| Branch coverage of `ghostaudit` from the solver tests | 86% total, lowest module 0% | 95% total, lowest module 89% |
+| `ghostaudit` modules under 85% coverage | 9 | 0 |
+| Unit tests (solver / evaluation) | 139 / 106 | 180 / 119 |
+
+"Before" is the same measurement on commit `09a7be4`, the tree before the quality pass, with today's configuration. The pass changed no behaviour: after every commit, `output.csv` and the engine log of all 550 cases (samples and evaluation) were byte-identical to the baseline.
+
+Structure is tested as well. `code/tests/test_layering.py` checks three things:
+- `ghostaudit` never imports the evaluation harness;
+- importing every solver module loads no optional dependency;
+- module-level imports form no cycle.
+
+`code/tests/test_errors.py` checks the error contract: every deliberate solver error derives from `GhostAuditError` (`code/ghostaudit/errors.py`), and library code reports problems through the `ghostaudit` logger. It never prints and never uses a bare `except`.
 
 ---
 
@@ -619,6 +647,7 @@ python3 code/package.py                               # builds ./code.zip and li
 python3 code/evaluation/main.py report                # regenerates code/evaluation/evaluation_report.md
 python3 code/evaluation/main.py usage                 # regenerates code/evaluation/usage_report.md
 python3 code/evaluation/main.py score                 # scores the 32 labeled samples (dev / holdout split)
+python3 code/evaluation/main.py quality               # complexity, docstrings, annotations, ruff, mypy, coverage
 ```
 
 `final` runs these steps:
@@ -629,6 +658,7 @@ python3 code/evaluation/main.py score                 # scores the 32 labeled sa
 - metamorphic relations;
 - custom cases;
 - the literal audit;
+- the code-quality check (`quality`);
 - the selftest;
 - the usage report, whose measured run must equal `output.csv`;
 - a key-pattern scan;

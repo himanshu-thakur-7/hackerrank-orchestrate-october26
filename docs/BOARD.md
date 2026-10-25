@@ -182,8 +182,31 @@ A new test checks that every command, path and count the README quotes exists or
 
 ## Submission README and docs in code.zip
 
-- `README.md` was rewritten as a self-contained guide: 15 sections, 5 mermaid diagrams, all 16 ADRs in one table. `test_readme.py` checks every command, path and quoted number against the real run, the loader check, the generated reports or the measured design documents.
+- `README.md` was rewritten as a self-contained guide: 14 sections, 5 mermaid diagrams, all 16 ADRs in one table. `test_readme.py` checks every command, path and quoted number against the real run, the loader check, the generated reports or the measured design documents.
 - `code/package.py` now also ships `docs/`: sanitized copies of the design record, generated at build time with the originals untouched. `test_package.py` asserts the docs are present and Markdown-only, contain no email or phone (by pattern and by value against the identity files), and build byte-identically twice.
+
+## Code-quality pass
+
+A behaviour-neutral pass, one commit per stage. The baseline is `output.csv` sha256 `eb99c26b…`. After every commit, the fast subset ran:
+- both test suites;
+- the contract gate;
+- `code/main.py` compared byte for byte with the baseline `output.csv`;
+- the custom cases;
+- the selftest;
+- an engine-log comparison of all 550 cases against the pre-quality tree.
+
+Evaluation command outputs were also compared against that tree. All of them stayed identical.
+
+| Stage | What changed |
+| --- | --- |
+| 1 | `code/pyproject.toml` (project metadata, optional extras, ruff and mypy settings) and `code/evaluation/ruff.toml` |
+| 2 | ruff to zero: formatting, long lines, lint fixes (1618 findings before) |
+| 3 | complexity: nothing above 10 in the solver, nothing above 15 in evaluation; focused tests for the extracted parts |
+| 4 | complete annotations and named shapes (`Step`, `IdentityValues` and aliases); mypy strict for ghostaudit, main and package (148 errors before, 0 after); imports sorted |
+| 5 | a docstring on every module (naming its ADRs) and on every public class and function; magic numbers named as documented constants |
+| 6 | layering test, `GhostAuditError` error family, warnings through logging, dead code removed |
+| 7 | branch coverage of every ghostaudit module at 89% or more (total 86% → 95%) |
+| 8 | `python3 code/evaluation/main.py quality`, run by `final`; README §12.1 holds the before/after table, and `test_readme.py` checks the after column |
 
 ## Where this board deviates from the relayed list (and why)
 

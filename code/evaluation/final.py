@@ -3,11 +3,11 @@
   python3 code/evaluation/main.py final
 
 Steps (each runs as its own subprocess, so no state leaks between them): unit tests, contract gate,
-determinism, invariants, metamorphic relations, custom cases, literal audit, selftest, sample
-scores, the usage report (its measured run must equal output.csv), the package build and a key scan,
-and the clean room: unzip code.zip into an empty temp directory and run it there against dataset/
-with OPENAI_API_KEY and TYPESAFE_API_KEY removed from the environment; output.csv must have the same
-sha256.
+determinism, invariants, metamorphic relations, custom cases, literal audit, code quality, selftest,
+sample scores, the usage report (its measured run must equal output.csv), the package build and a
+key scan, and the clean room: unzip code.zip into an empty temp directory and run it there against
+dataset/ with OPENAI_API_KEY and TYPESAFE_API_KEY removed from the environment; output.csv must have
+the same sha256.
 
 Decisions: ADR 0008 and 0013 (every optional dependency is blocked in turn and the run
 must still pass).
@@ -42,6 +42,7 @@ STEPS = [
     ("metamorphic", EVAL + ["metamorphic"]),
     ("custom cases", EVAL + ["custom"]),
     ("literal audit", EVAL + ["audit"]),
+    ("code quality", EVAL + ["quality"]),
     ("selftest", EVAL + ["selftest"]),
     ("usage report", EVAL + ["usage"]),
 ]

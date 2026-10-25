@@ -24,6 +24,8 @@ Run as `python3 code/evaluation/main.py <command>`:
   metamorphic [--only M1,M7]
                           metamorphic relations over a modified dataset copy
   audit                   literal audit of code/
+  quality                 complexity, docstrings, annotations, tests; ruff, mypy and coverage
+                          when installed (SKIPPED otherwise)
   selftest                gate, scorer, split, audit and history self-check
   final [--matrix]        every gate and a clean-room run of code.zip; --matrix also
                           reruns the unit tests with each optional dependency blocked
@@ -319,6 +321,13 @@ def cmd_jev_rank(_):
     return 0
 
 
+def cmd_quality(_):
+    """`quality`: code-quality metrics; exit 1 when a measured value breaks a limit."""
+    from evaluation import quality
+
+    return quality.run()
+
+
 def cmd_audit(_):
     """`audit`: the literal audit of code/; exit 1 on any hit."""
     hits = audit.scan(ROOT / "code")
@@ -470,6 +479,7 @@ def main(argv=None):
     mm = sub.add_parser("metamorphic")
     mm.add_argument("--only", default="", help="e.g. M1,M7")
     sub.add_parser("audit")
+    sub.add_parser("quality")
     sub.add_parser("selftest")
     a = p.parse_args(argv)
     os.chdir(ROOT)
@@ -478,6 +488,7 @@ def main(argv=None):
         "score": cmd_score,
         "determinism": cmd_determinism,
         "audit": cmd_audit,
+        "quality": cmd_quality,
         "selftest": cmd_selftest,
         "loaders": cmd_loaders,
         "states": cmd_states,
