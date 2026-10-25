@@ -27,7 +27,7 @@ Metric definitions (all micro-averaged over the given cases unless stated):
 
 import csv
 import json
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 FIELDS = ("operation", "state", "evidence_id", "step_no")
 PROXY = (
@@ -96,105 +96,125 @@ def _treatment(steps):
     return rem or frozenset(s["operation"] for s in steps if s["phase"] == "VERIFICATION")
 
 
-def score(pred, gold, case_ids):
-    case_ids = list(case_ids)
-    n = len(case_ids)
-    status_ok = row_ok = seq_ok = 0
-    lcs_sum = 0.0
-    id_hit = id_tot = 0
-    f_tp = f_pred = f_gold = 0
-    pol_ok = pol_tot = 0
-    ev_ok = ev_tot = 0
-    s_tp = s_pred = s_gold = 0
-    u_tp = u_pred = u_gold = 0
-    field_ok = defaultdict(int)
-    aligned = 0
-    any_steps = False
+def _resources(steps):
+    return {(s["system_id"], s["resource_id"]) for s in steps}
 
-    for c in case_ids:
-        gs, gsteps = gold[c]
-        ps, psteps = pred.get(c, (None, []))
-        any_steps |= bool(gsteps or psteps)
-        status_ok += ps == gs
-        row_ok += ps == gs and psteps == gsteps
 
-        gq, pq = _sequence(gsteps), _sequence(psteps)
-        seq_ok += gq == pq
-        lcs_sum += 1.0 if not gq and not pq else _lcs(gq, pq) / max(len(gq), len(pq))
+def _count_sequence(t, gsteps, psteps):
+    gq, pq = _sequence(gsteps), _sequence(psteps)
+    t["seq_ok"] += gq == pq
+    t["lcs_sum"] += 1.0 if not gq and not pq else _lcs(gq, pq) / max(len(gq), len(pq))
 
-        gres = {(s["system_id"], s["resource_id"]) for s in gsteps}
-        pres = {(s["system_id"], s["resource_id"]) for s in psteps}
-        id_tot += len(gres)
-        id_hit += len(gres & pres)
 
-        gf, pf = _findings(gsteps), _findings(psteps)
-        f_tp += len(gf & pf)
-        f_pred += len(pf)
-        f_gold += len(gf)
+def _count_identity_and_findings(t, gsteps, psteps):
+    gres, pres = _resources(gsteps), _resources(psteps)
+    t["id_tot"] += len(gres)
+    t["id_hit"] += len(gres & pres)
+    gf, pf = _findings(gsteps), _findings(psteps)
+    t["f_tp"] += len(gf & pf)
+    t["f_pred"] += len(pf)
+    t["f_gold"] += len(gf)
 
-        for r in sorted(gres):
-            pol_tot += 1
-            g_t = _treatment([s for s in gsteps if (s["system_id"], s["resource_id"]) == r])
-            p_t = _treatment([s for s in psteps if (s["system_id"], s["resource_id"]) == r])
-            pol_ok += g_t == p_t
 
-        pev = {
-            (s["phase"], s["system_id"], s["resource_id"], s["operation"]): s["evidence_id"]
-            for s in psteps
-        }
-        for s in gsteps:
-            if s["evidence_id"]:
-                ev_tot += 1
-                ev_ok += (
-                    pev.get((s["phase"], s["system_id"], s["resource_id"], s["operation"]))
-                    == s["evidence_id"]
-                )
+def _count_policy(t, gsteps, psteps):
+    """Per gold resource: does the predicted treatment (remediation, else verification) match?"""
+    for r in sorted(_resources(gsteps)):
+        t["pol_tot"] += 1
+        g_t = _treatment([s for s in gsteps if (s["system_id"], s["resource_id"]) == r])
+        p_t = _treatment([s for s in psteps if (s["system_id"], s["resource_id"]) == r])
+        t["pol_ok"] += g_t == p_t
 
-        for get, acc in ((_full_steps, "s"), (_unordered_steps, "u")):
-            gl, pl = get(gsteps), get(psteps)
-            pool = list(pl)
-            tp = 0
-            for t in gl:
-                if t in pool:
-                    pool.remove(t)
-                    tp += 1
-            if acc == "s":
-                s_tp += tp
-                s_pred += len(pl)
-                s_gold += len(gl)
-            else:
-                u_tp += tp
-                u_pred += len(pl)
-                u_gold += len(gl)
 
-        buckets = defaultdict(list)
-        for s in psteps:
-            buckets[(s["phase"], s["system_id"], s["resource_id"])].append(s)
-        for s in gsteps:
-            b = buckets.get((s["phase"], s["system_id"], s["resource_id"]))
-            if b:
-                p = b.pop(0)
-                aligned += 1
-                for fld in FIELDS:
-                    field_ok[fld] += p[fld] == s[fld]
+def _count_evidence(t, gsteps, psteps):
+    """Per cited gold step: does the predicted step at the same place cite the same evidence?"""
+    pev = {
+        (s["phase"], s["system_id"], s["resource_id"], s["operation"]): s["evidence_id"]
+        for s in psteps
+    }
+    for s in gsteps:
+        if s["evidence_id"]:
+            t["ev_tot"] += 1
+            key = (s["phase"], s["system_id"], s["resource_id"], s["operation"])
+            t["ev_ok"] += pev.get(key) == s["evidence_id"]
 
+
+def _matched(gold_items, pred_items):
+    """Multiset intersection size of two lists."""
+    pool, tp = list(pred_items), 0
+    for x in gold_items:
+        if x in pool:
+            pool.remove(x)
+            tp += 1
+    return tp
+
+
+def _count_steps(t, gsteps, psteps):
+    for get, acc in ((_full_steps, "s"), (_unordered_steps, "u")):
+        gl, pl = get(gsteps), get(psteps)
+        t[f"{acc}_tp"] += _matched(gl, pl)
+        t[f"{acc}_pred"] += len(pl)
+        t[f"{acc}_gold"] += len(gl)
+
+
+def _count_fields(t, field_ok, gsteps, psteps):
+    """Align gold and predicted steps by (phase, system, resource), in order, and compare fields."""
+    buckets = defaultdict(list)
+    for s in psteps:
+        buckets[(s["phase"], s["system_id"], s["resource_id"])].append(s)
+    for s in gsteps:
+        b = buckets.get((s["phase"], s["system_id"], s["resource_id"]))
+        if b:
+            p = b.pop(0)
+            t["aligned"] += 1
+            for fld in FIELDS:
+                field_ok[fld] += p[fld] == s[fld]
+
+
+def _ratio(num, den):
+    return num / den if den else 1.0
+
+
+def _metrics(t, field_ok, n, any_steps):
     m = {"cases": n}
-    m["status_accuracy"] = status_ok / n if n else 1.0
-    m["identity_recall"] = id_hit / id_tot if id_tot else 1.0
-    m["finding_precision"], m["finding_recall"], m["finding_f1"] = _prf(f_tp, f_pred, f_gold)
-    m["policy_accuracy"] = pol_ok / pol_tot if pol_tot else 1.0
-    m["evidence_accuracy"] = ev_ok / ev_tot if ev_tot else 1.0
-    m["strict_step_f1"] = _prf(s_tp, s_pred, s_gold)[2]
-    m["step_f1_unordered"] = _prf(u_tp, u_pred, u_gold)[2]
+    m["status_accuracy"] = _ratio(t["status_ok"], n)
+    m["identity_recall"] = _ratio(t["id_hit"], t["id_tot"])
+    m["finding_precision"], m["finding_recall"], m["finding_f1"] = _prf(
+        t["f_tp"], t["f_pred"], t["f_gold"]
+    )
+    m["policy_accuracy"] = _ratio(t["pol_ok"], t["pol_tot"])
+    m["evidence_accuracy"] = _ratio(t["ev_ok"], t["ev_tot"])
+    m["strict_step_f1"] = _prf(t["s_tp"], t["s_pred"], t["s_gold"])[2]
+    m["step_f1_unordered"] = _prf(t["u_tp"], t["u_pred"], t["u_gold"])[2]
+    aligned = t["aligned"]
     for fld in FIELDS:
         # nothing aligned: perfect only if neither side has any step, otherwise 0 (no free credit)
         m[f"field_acc_{fld}"] = field_ok[fld] / aligned if aligned else (0.0 if any_steps else 1.0)
     m["field_acc_mean"] = sum(m[f"field_acc_{f}"] for f in FIELDS) / len(FIELDS)
-    m["sequence_exact"] = seq_ok / n if n else 1.0
-    m["sequence_lcs_mean"] = lcs_sum / n if n else 1.0
-    m["row_exact"] = row_ok / n if n else 1.0
+    m["sequence_exact"] = _ratio(t["seq_ok"], n)
+    m["sequence_lcs_mean"] = _ratio(t["lcs_sum"], n)
+    m["row_exact"] = _ratio(t["row_ok"], n)
     m["proxy"] = sum(m[k] for k in PROXY) / len(PROXY)
     return m
+
+
+def score(pred, gold, case_ids):
+    """Every metric over the given cases (gold and pred: {case_id: (status, steps)})."""
+    case_ids = list(case_ids)
+    t, field_ok, any_steps = Counter(), defaultdict(int), False
+    t["lcs_sum"] = 0.0
+    for c in case_ids:
+        gs, gsteps = gold[c]
+        ps, psteps = pred.get(c, (None, []))
+        any_steps |= bool(gsteps or psteps)
+        t["status_ok"] += ps == gs
+        t["row_ok"] += ps == gs and psteps == gsteps
+        _count_sequence(t, gsteps, psteps)
+        _count_identity_and_findings(t, gsteps, psteps)
+        _count_policy(t, gsteps, psteps)
+        _count_evidence(t, gsteps, psteps)
+        _count_steps(t, gsteps, psteps)
+        _count_fields(t, field_ok, gsteps, psteps)
+    return _metrics(t, field_ok, len(case_ids), any_steps)
 
 
 def case_diff(pred, gold, case_id):
