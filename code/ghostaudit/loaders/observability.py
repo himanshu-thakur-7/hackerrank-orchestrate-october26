@@ -50,34 +50,64 @@ SERVICE_SYSTEM = {
 NOISE = {"instance", "pod", "region", "severity", "logger", "attempt"}
 
 
+def _logfmt_fields(g):
+    return logfmt(g[1])
+
+
+def _json_fields(g):
+    """Scalar JSON fields as lower-cased booleans and strings; None when the JSON is broken."""
+    try:
+        data = json.loads(g[1])
+    except json.JSONDecodeError:
+        return None
+    scalars = {k: v for k, v in data.items() if not isinstance(v, (dict, list))}
+    return {
+        k: (str(v).lower() if isinstance(v, bool) else str(v))
+        for k, v in scalars.items()
+        if v is not None
+    }
+
+
+def _syslog_fields(g):
+    f = logfmt(g[3])
+    f.update(service=g[1], trace_id=g[2])
+    return f
+
+
+def _columns_fields(g):
+    """bracket and pipe: level, service, trace and event are columns; the rest is logfmt."""
+    f = logfmt(g[5])
+    f.update(level=g[1], service=g[2], trace_id=g[3], event=g[4])
+    return f
+
+
+def _cloud_fields(g):
+    f = logfmt(g[4].replace('\\"', '"'))
+    f.update(trace_id=g[1], level=g[2], service=g[3])
+    return f
+
+
+FIELDS = {
+    "logfmt": _logfmt_fields,
+    "json": _json_fields,
+    "syslog": _syslog_fields,
+    "bracket": _columns_fields,
+    "pipe": _columns_fields,
+    "cloud": _cloud_fields,
+}
+
+
 def parse_line(line):
-    """-> (ts, fields) with fields['service'] / ['trace_id'] / ['event'] filled in, or None."""
+    """-> (ts, fields) with fields['service'] / ['trace_id'] / ['event'] filled in, or None. The
+    first dialect whose pattern matches decides; a broken JSON payload rejects the line."""
     for name, rx in DIALECTS:
         m = rx.match(line)
         if not m:
             continue
         g = m.groups()
-        if name == "logfmt":
-            f = logfmt(g[1])
-        elif name == "json":
-            try:
-                f = {k: v for k, v in json.loads(g[1]).items() if not isinstance(v, (dict, list))}
-            except json.JSONDecodeError:
-                return None
-            f = {
-                k: (str(v).lower() if isinstance(v, bool) else str(v))
-                for k, v in f.items()
-                if v is not None
-            }
-        elif name == "syslog":
-            f = logfmt(g[3])
-            f.update(service=g[1], trace_id=g[2])
-        elif name in ("bracket", "pipe"):
-            f = logfmt(g[5])
-            f.update(level=g[1], service=g[2], trace_id=g[3], event=g[4])
-        else:
-            f = logfmt(g[4].replace('\\"', '"'))
-            f.update(trace_id=g[1], level=g[2], service=g[3])
+        f = FIELDS[name](g)
+        if f is None:
+            return None
         if f.get("trace_id") == "-":
             del f["trace_id"]
         return (g[0], f) if f.get("service") and f.get("event") else None
@@ -113,8 +143,14 @@ def matches(text):
     )
 
 
-def load(file_id, captured_at, text):
-    r = LoadResult("log:observability")
+def _owner_keys(f):
+    """The owner-key values a *_started line names (lookup_key, match_key, ..., subject_ref)."""
+    return [v for k, v in f.items() if k.endswith("_key") or k == "subject_ref"]
+
+
+def _scan(file_id, text, r):
+    """One pass over the lines: owner keys of each (service, trace) from its *_started lines, and
+    the lines that carry a resource_id. Lines in no dialect are recorded as unparsed."""
     keys, records = OrderedDict(), []
     for n, line in enumerate(text.splitlines(), 1):
         if not line.strip():
@@ -128,36 +164,43 @@ def load(file_id, captured_at, text):
         ts, f = p
         trace = (f["service"], f["trace_id"]) if "trace_id" in f else None
         if f["event"].endswith("_started") and trace:
-            keys.setdefault(trace, []).extend(
-                v for k, v in f.items() if k.endswith("_key") or k == "subject_ref"
-            )
+            keys.setdefault(trace, []).extend(_owner_keys(f))
         if "resource_id" in f:
             records.append((n, ts, f, line, trace))
+    return keys, records
+
+
+def _exposed(f):
+    """Direct identifiers the record shows: its PII fields plus the kind of a matched_value."""
+    matched = (
+        {kind(f["matched_value"])} & {"email", "phone", "email_hash"}
+        if "matched_value" in f
+        else set()
+    )
+    shown = set(pii_fields(f)) | matched
+    return tuple(p for p in ("name", "email", "phone", "email_hash") if p in shown)
+
+
+def load(file_id, captured_at, text):
+    r = LoadResult("log:observability")
+    keys, records = _scan(file_id, text, r)
     for n, ts, f, raw, trace in records:
         ids = identifiers(*keys.get(trace, ()), *f.values())
-        exposed = (
-            {kind(f["matched_value"])} & {"email", "phone", "email_hash"}
-            if "matched_value" in f
-            else set()
-        )
-        pii = tuple(
-            p for p in ("name", "email", "phone", "email_hash") if p in set(pii_fields(f)) | exposed
-        )
         service = f["service"]
-        a = tuple(sorted(attrs(f, exclude=NOISE) + (("event", f["event"]),)))
-        o = Observation(
-            file_id,
-            ts,
-            SERVICE_SYSTEM.get(service, service),
-            f["resource_id"],
-            f"{service}.log",
-            state(f),
-            pii_fields=pii,
-            identifiers=ids,
-            locator=f"line {n}",
-            attrs=a,
+        r.observations.append(
+            Observation(
+                file_id,
+                ts,
+                SERVICE_SYSTEM.get(service, service),
+                f["resource_id"],
+                f"{service}.log",
+                state(f),
+                pii_fields=_exposed(f),
+                identifiers=ids,
+                locator=f"line {n}",
+                attrs=tuple(sorted(attrs(f, exclude=NOISE) + (("event", f["event"]),))),
+            )
         )
-        r.observations.append(o)
         if not ids:
             r.unattributed.append(Unit(file_id, f"line {n}", raw, "no identifier"))
     return r

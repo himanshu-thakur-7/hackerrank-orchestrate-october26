@@ -20,6 +20,29 @@ class Call:
     cache_hit: bool
 
 
+def _cost(call):
+    """Estimated USD for one live call; a model without a listed price costs 0."""
+    price_in, price_out = PRICE_PER_MTOK.get(call.model, (0, 0))
+    return (call.input_tokens * price_in + call.output_tokens * price_out) / 1e6
+
+
+def _per_model(live):
+    per_model = {}
+    for c in live:
+        m = per_model.setdefault(
+            c.model, {"provider": c.provider, "calls": 0, "input_tokens": 0, "output_tokens": 0}
+        )
+        m["calls"] += 1
+        m["input_tokens"] += c.input_tokens
+        m["output_tokens"] += c.output_tokens
+    return per_model
+
+
+def _cache_hits_per_model(calls):
+    hits = [c.model for c in calls if c.cache_hit]
+    return {m: hits.count(m) for m in sorted(set(hits))}
+
+
 class Tracker:
     def __init__(self):
         self.calls = []
@@ -55,23 +78,8 @@ class Tracker:
         )
 
     def totals(self):
+        """Run totals: live calls with their tokens and cost, cache hits, degradations and notes."""
         live = [c for c in self.calls if not c.cache_hit]
-        cost = sum(
-            (
-                c.input_tokens * PRICE_PER_MTOK.get(c.model, (0, 0))[0]
-                + c.output_tokens * PRICE_PER_MTOK.get(c.model, (0, 0))[1]
-            )
-            / 1e6
-            for c in live
-        )
-        per_model = {}
-        for c in live:
-            m = per_model.setdefault(
-                c.model, {"provider": c.provider, "calls": 0, "input_tokens": 0, "output_tokens": 0}
-            )
-            m["calls"] += 1
-            m["input_tokens"] += c.input_tokens
-            m["output_tokens"] += c.output_tokens
         return {
             "calls": len(live),
             "cache_hits": len(self.calls) - len(live),
@@ -81,12 +89,9 @@ class Tracker:
             "input_tokens": sum(c.input_tokens for c in live),
             "output_tokens": sum(c.output_tokens for c in live),
             "latency_ms_total": round(sum(c.latency_ms for c in live), 1),
-            "cost_usd": cost,
-            "per_model": per_model,
-            "cache_hits_per_model": {
-                m: sum(1 for c in self.calls if c.cache_hit and c.model == m)
-                for m in sorted({c.model for c in self.calls if c.cache_hit})
-            },
+            "cost_usd": sum(_cost(c) for c in live),
+            "per_model": _per_model(live),
+            "cache_hits_per_model": _cache_hits_per_model(self.calls),
         }
 
     def summary(self):

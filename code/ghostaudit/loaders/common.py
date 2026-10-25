@@ -148,6 +148,19 @@ def logfmt(text):
     return out
 
 
+# Explicit absence signals (ADR 0014: these are strong evidence), checked before any flag.
+ABSENCE_SIGNALS = (
+    ("http_status", {"404"}),
+    ("status_code", {"404"}),
+    ("rows", {"0"}),
+    ("result", {"miss", "not_found"}),
+    ("total_hits", {"0"}),
+    ("archive_present", {"false"}),
+)
+# (flag field, state when true, state when false), checked in this order
+FLAG_STATES = (("restore_allowed", "RESTORABLE", "BLOCKED"), ("enabled", "ACTIVE", "DISABLED"))
+
+
 def state_from_fields(f):
     """Generic state for one record from its fields. Absence signals win, then flow/restore
     flags."""
@@ -156,19 +169,11 @@ def state_from_fields(f):
         for k, v in f.items()
         if not isinstance(v, (dict, list))
     }
-    if (
-        g.get("http_status") == "404"
-        or g.get("status_code") == "404"
-        or g.get("rows") == "0"
-        or g.get("result") in ("miss", "not_found")
-        or g.get("total_hits") == "0"
-        or g.get("archive_present") == "false"
-    ):
+    if any(g.get(name) in values for name, values in ABSENCE_SIGNALS):
         return "ABSENT"
-    if "restore_allowed" in g:
-        return "RESTORABLE" if g["restore_allowed"] in ("true", "1") else "BLOCKED"
-    if "enabled" in g:
-        return "ACTIVE" if g["enabled"] in ("true", "1") else "DISABLED"
+    for name, if_true, if_false in FLAG_STATES:
+        if name in g:
+            return if_true if g[name] in ("true", "1") else if_false
     return "PRESENT"
 
 
