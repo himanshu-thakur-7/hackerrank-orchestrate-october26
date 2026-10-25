@@ -56,3 +56,10 @@ Keep the **blind sub-agent audit** (`docs/SILVER_AUDIT.md`) as the independent c
 If a judge is wanted later, these could be re-spiked:
 - averaging k repeats per proposition (it costs k× calls and must itself be shown stable);
 - or reporting Jev only as an aggregate ranking signal (AUROC) over many propositions, never as a per-row verdict.
+
+## Follow-up spike: does the mean of k = 10 calls give a stable ranking signal?
+
+**Decision rule (written 2026-10-25T02:47:54Z, before any follow-up call):**
+- If the mean-of-10 score passes **both** gates (AUROC ≥ 0.90, and max per-proposition |round 1 − round 2| ≤ 0.05) in **both** independent rounds, a judge may later be built as a **ranker only**: advisory, never editing output.csv, writing a per-step risk score and a review queue to a report.
+- Otherwise stop: the blind sub-agent audit stays the independent check, and the Jev result is recorded as a measured negative result in the evaluation report.
+- The same rule applies separately to the variant with precomputed facts in `state` (part 2).
