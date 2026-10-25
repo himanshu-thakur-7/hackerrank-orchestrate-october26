@@ -2,6 +2,7 @@
 
 - **Board backend:** this file. The `kanban-init` skill needs the `sqlite3` CLI, which is not installed in this cloud container (checked at session start), so the SQLite board was not created and this Markdown board is the source of truth.
 - **Update this file whenever a task moves.**
+- **Log:** T01 doing → done 2026-10-25 (selftest green, 34 unit tests).
 - **Statuses:** `todo` → `doing` → `review` → `done` (plus `blocked`).
 - **Priorities:** P0 (must ship), P1 (should ship), P2 (only if time and gates allow).
 - **Build slice** refers to `docs/03_DESIGN.md` §9. ADRs are in `docs/adr/`.
@@ -10,7 +11,7 @@
 
 | ID | Title | Pri | Slice | Depends on | Acceptance command | Expected result | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| T01 | Evaluation core: contract gate, sample scorer (frozen 22/10 split), literal audit, run history + diff gate | P0 | 1 | — | `python3 code/evaluation/main.py selftest` | `CONTRACT OK (sample_output.csv, 32 rows)`; scorer gold-vs-gold = 1.000 on every metric; literal audit `0 hits`; the history line is written | todo |
+| T01 | Evaluation core: contract gate, sample scorer (frozen 22/10 split), literal audit, run history + diff gate | P0 | 1 | — | `python3 code/evaluation/main.py selftest` | `CONTRACT OK (sample_output.csv, 32 rows)`; scorer gold-vs-gold = 1.000 on every metric; literal audit `0 hits`; the history line is written | done |
 | T02 | CSV loaders, identity resolver, rules-only intent, output writer; baseline run writes 518 valid rows | P0 | 1 | T01 | `python3 code/main.py && python3 code/evaluation/main.py contract` | `CONTRACT OK (output.csv, 518 rows)`; rows in numeric order; exactly case_533–542 are NOT_APPLICABLE `[]`; identity resolves 518/518 | todo |
 | T03 | Observation/Coverage/Link models + Evidence Store with identifier/resource/time indexes and the `as_of(cutoff)` view | P0 | 2 | T02 | `python3 -m unittest discover -s code/tests -p 'test_store*.py'` | All pass, including: a later file is invisible through `as_of`; inclusive `<=` boundary (evidence_03 at case_11's audit_at); latest-observation ordering (evidence_30 account_2088 404 → 200) | todo |
 | T04 | Loaders: handover txt + service-export JSON + readback logs (trace_id join) | P0 | 2/4/5 | T03 | `python3 code/evaluation/main.py loaders --files evidence_03,evidence_92,evidence_94` | Every sample-cited (file, resource) pair in those files is found with the correct state, and the identifier is resolved via trace_id; `0 unknown signatures` | todo |

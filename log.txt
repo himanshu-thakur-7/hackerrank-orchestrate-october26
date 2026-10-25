@@ -456,3 +456,28 @@ repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
 
+## [2026-10-25T01:00:35Z] T01 evaluation core implemented test-first (tdd)
+
+User Prompt (verbatim, secrets redacted):
+[Relayed by peer session "Prompt playbook website publishing" for the user, to be treated as the user's prompt]
+Implement T01 test-first with the tdd skill (invoke via the Skill tool, or follow its red-green-refactor behaviour). Mark T01 as doing in docs/BOARD.md, and done when its acceptance command passes. ... 1. L0 contract gate (hard fail, non-zero exit): UTF-8 no BOM, \n endings, exact header; round-trip identically through csv and pandas; case_id set == input set (518, natural numeric order); per-row and per-step rules (7 keys exactly, step_no int and consecutive, allowed triples, phase order, sort key, NOT_APPLICABLE <=> [], COMPLETE = verification-only with existing evidence captured <= audit_at, INCOMPLETE findings cite existing evidence <= audit_at, remediation/verification evidence == "" not null, every remediation has a finding and a matching verification); determinism (two runs give an identical sha256). 2. L1 scorer: status accuracy, identity recall, finding P/R/F1, policy accuracy, evidence accuracy, strict step F1, per-field accuracy on aligned steps, sequence accuracy (exact + mean LCS), and row-exact match as the pessimistic bound; plus an equal-weight proxy score. Report dev / holdout / all. 3. Frozen holdout: split the 32 samples ONCE with a fixed seed, stratified by status and evidence format (22 dev / 10 holdout). Default output shows dev failures in detail and holdout as aggregates only; a --reveal-holdout flag exists and every use is logged. Commit the split file. 4. Literal audit: fail if code/ (outside tests/fixtures) contains case_N or evidence_N literals. 5. Run history: each run writes runs/<ts>/{metrics.json, output.csv, commit}; print a diff vs the previous run (status changes, steps added/removed). ACCEPTANCE: gold vs itself = 100% everywhere; three deliberately broken copies (bad quoting, null evidence, wrong order) each fail the gate with a precise message. Run the acceptance command from the board, paste all outputs in your reply, commit and push, keep logging per AGENTS.md, then stop and wait for my next prompt.
+
+Agent Response Summary:
+Used the tdd skill. The seams were taken from the spec because the channel is one-way. Built T01 in 9 red-to-green slices: gate format, case set/order, step rules, determinism, scorer (with a hand-worked expected example), frozen split, literal audit, run history, CLI. 34 unittest tests pass. The selftest is green: the gold contract is OK; gold-vs-gold is 1.000 on all 18 metrics for dev, holdout and all; bad quoting, null evidence and wrong order each fail with a precise message; the literal audit has 0 hits; the run history is written. Two red runs were test-fixture bugs (a helper keyword clash, and a contract-invalid regression fixture), fixed in the tests. Split frozen once with seed 20261025 (holdout 7 INCOMPLETE / 3 COMPLETE). runs/ is gitignored; holdout reveals append to code/evaluation/holdout_reveals.md. T01 marked done on the board.
+
+Actions:
+* Skill tdd
+* Wrote code/evaluation/{gate,scorer,split,audit,history,main}.py, tests/*, fixtures/sample_split.txt, holdout_reveals.md
+* Ran python3 code/evaluation/split.py --freeze (once)
+* Ran unittest, selftest, contract, score, audit
+* Updated docs/BOARD.md (T01 doing -> done) and .gitignore (runs/)
+* Committed and pushed to claude/stoic-bell-1t82oq
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+
