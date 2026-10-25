@@ -1163,3 +1163,23 @@ branch=claude/stoic-bell-1t82oq
 repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
+
+## [2026-10-25T05:52:37Z] Comprehensive submission README; sanitized docs/ shipped in code.zip
+
+User Prompt (verbatim, secrets redacted):
+(relayed by peer session "Prompt playbook website publishing" for the user) The user's instruction: "make sure our code.zip has a very good readme file attached to it, because based on it our interview will be held and code.zip will also be judged. It should include the architecture and the design decisions we made and how we evaluated. Everything should be there. A very comprehensive and very presentable readme." Scope: documentation and packaging only; output.csv sha256 must stay eb99c26b7974. A) package.py also ships docs/ (ADRs + index, contract, design, data notes, docs and screens, ID recovery prototype, loss ledger, silver audit + auditor notes, Jev spike/handcheck/queue, readiness, board, CONTEXT.md) as sanitized copies made at build time (mask emails and phones, keep case/user/resource/evidence ids, drop verbatim dataset rows); extend test_package.py. B) Rewrite README.md: self-contained, table of contents, at least three mermaid diagrams, tables, every number checked by test_readme; outline of 15 sections (TL;DR, problem, principles P1-P6, architecture, evidence handling, identity and linking, policy/verdict/planner, all ADRs plus decisions evidence overturned, use of models incl. Jev, how we evaluated, results and honesty, how it was built, known risks with reverts incl. the screenshot-hash stop, interview guide with 12 questions, reproduce and layout). C) final --matrix, rebuild code.zip, report, commit, push, log, stop.
+
+Agent Response Summary:
+Test-first: test_package.py now asserts docs/ is present and Markdown-only, holds no email or phone (by pattern and by value against all 957 emails and 942 phones in the identity files), drops verbatim dataset rows, keeps ids, and builds byte-identically twice. package.py generates the sanitized copies at build time (stable email#/phone# tokens; 191 emails, 29 phones, 2 rows masked); the originals are untouched. README rewritten: 751 lines, 15 numbered sections, 5 mermaid diagrams (all render with mermaid 10.9.1), all 16 ADRs, 12 interview answers. test_readme.py checks every command, path, decimal, dollar amount and count against the run, the loader check, the generated reports or the measured docs. final --matrix 24/24 green; output.csv sha256 unchanged (eb99c26b7974); code.zip 156 files, 459,883 bytes.
+
+Actions:
+* Edited code/package.py, code/evaluation/tests/test_package.py, code/evaluation/tests/test_readme.py, README.md, docs/READINESS.md, docs/BOARD.md; regenerated code/evaluation/usage_report.md (header only)
+* Rendered the mermaid blocks in headless Chromium; ran final --matrix and package.py
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none

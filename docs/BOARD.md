@@ -180,6 +180,11 @@ Pre-registered rule committed before running. Mean of 10 calls, two independent 
 
 A new test checks that every command, path and count the README quotes exists or is reproduced by the real run.
 
+## Submission README and docs in code.zip
+
+- `README.md` was rewritten as a self-contained guide: 15 sections, 5 mermaid diagrams, all 16 ADRs in one table, and an interview guide. `test_readme.py` checks every command, path and quoted number against the real run, the loader check, the generated reports or the measured design documents.
+- `code/package.py` now also ships `docs/`: sanitized copies of the design record, generated at build time with the originals untouched. `test_package.py` asserts the docs are present and Markdown-only, contain no email or phone (by pattern and by value against the identity files), and build byte-identically twice.
+
 ## Where this board deviates from the relayed list (and why)
 
 1. **T02 includes rules-only intent.** In the design, slice 1 is "skeleton end-to-end". A baseline run cannot write 518 *valid* rows without NOT_APPLICABLE detection, and ADR 0008 requires a rules-only path anyway. T11 keeps the cached OpenAI layer and the usage tracker.
