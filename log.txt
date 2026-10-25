@@ -481,3 +481,26 @@ repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
 
+## [2026-10-25T01:03:59Z] Fix 1/2 for T01: pandas round-trip optional (SKIPPED warning)
+
+User Prompt (verbatim, secrets redacted):
+[Relayed by peer session "Prompt playbook website publishing" for the user, to be treated as the user's prompt]
+I re-ran `python3 code/evaluation/main.py selftest` on your pushed branch in a clean Python 3.14 environment without pandas, and found one real weakness. 1. Fix T01 first (small). Without pandas installed, the gate reports "L0.pandas: pandas is not installed" as a failure, and then two of the three broken-copy checks (null evidence, wrong order) "fail as expected" for that irrelevant reason instead of their own check. With pandas installed everything is correct. So: (a) the pandas round-trip must be an optional check that is reported as SKIPPED with a warning when pandas is absent (stdlib csv remains mandatory) and must not fail the gate; (b) each broken-copy test must assert the SPECIFIC check id it targets (L0.csv, L0.evidence, L0.order), so it cannot pass for the wrong reason; (c) add a test that runs the selftest with pandas import blocked. Make code/ stdlib-only wherever possible and note in the README what is optional. Re-run selftest in both situations and paste the output.
+2. Then implement T02 and T03, one after the other (mark each doing, then done in docs/BOARD.md; if you use the tdd skill, say so). Keep the engine trivial for now: every case NOT_APPLICABLE, so the pipeline is valid end to end. T02 acceptance and T03 acceptance are the commands on the board. ACCEPTANCE overall: `python3 code/main.py` writes output.csv at the repo root, the contract gate passes, and the scorer runs on the sample subset (expect low scores). Paste them as our baseline in docs/BOARD.md, with the git-ignored runs/ folder left out of the commit. Commit and push after each of the two fixes and each of T02, T03; keep logging per AGENTS.md; then stop and wait for my next prompt.
+
+Agent Response Summary:
+Fix 1 of 2, test-first with the tdd skill. Reproduced the bug by blocking the pandas import: the null-evidence and wrong-order copies "failed" with L0.pandas. Added red tests (gold passes with pandas blocked and a SKIPPED warning is reported; real violations still come from their own check), then made the pandas round-trip optional. gate.check now takes a warnings collector, and the CLI prints WARNING lines. 37 tests pass. Added code/README.md noting that pandas is optional and the code is stdlib-only.
+
+Actions:
+* Reproduced via runpy with sys.modules['pandas']=None
+* Added code/evaluation/tests/test_optional_pandas.py; edited gate.py and main.py; wrote code/README.md
+* Committed and pushed
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+

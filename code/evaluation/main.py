@@ -52,8 +52,15 @@ def _table(title, m):
         print(f"  {k:24} {m[k]:.3f}")
 
 
+def _print_warnings(w):
+    for x in w:
+        print("WARNING " + x)
+
+
 def cmd_contract(a):
-    v = gate.check(a.file, a.requests, MANIFEST)
+    w = []
+    v = gate.check(a.file, a.requests, MANIFEST, warnings=w)
+    _print_warnings(w)
     n = sum(1 for _ in csv.reader(io.StringIO(Path(a.file).read_text(encoding="utf-8", errors="replace")))) - 1
     if v:
         print(f"CONTRACT FAILED ({Path(a.file).name}): {len(v)} violation(s)")
@@ -65,7 +72,9 @@ def cmd_contract(a):
 
 
 def cmd_score(a):
-    v = gate.check(a.pred, SAMPLE_REQ, MANIFEST)
+    w = []
+    v = gate.check(a.pred, SAMPLE_REQ, MANIFEST, warnings=w)
+    _print_warnings(w)
     if v:
         print(f"CONTRACT FAILED ({Path(a.pred).name}) — not scored")
         for x in v[:50]:
@@ -151,7 +160,9 @@ def _broken_copies(tmp):
 
 def cmd_selftest(_):
     ok = True
-    v = gate.check(GOLD, SAMPLE_REQ, MANIFEST)
+    w = []
+    v = gate.check(GOLD, SAMPLE_REQ, MANIFEST, warnings=w)
+    _print_warnings(w)
     print(f"[1] contract gate on gold: {'CONTRACT OK (sample_output.csv, 32 rows)' if not v else 'FAILED'}")
     for x in v:
         print("    " + x)

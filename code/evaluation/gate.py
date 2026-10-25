@@ -41,9 +41,10 @@ REMEDIATION_PAIRS = {
 }
 
 
-def check(output_path, requests_path, manifest_path):
+def check(output_path, requests_path, manifest_path, warnings=None):
+    """Return the list of violations. Non-fatal notes (e.g. a skipped optional check) go to `warnings`."""
     raw = Path(output_path).read_bytes()
-    v = _format(raw)
+    v = _format(raw, warnings if warnings is not None else [])
     if v:
         return v
     rows = list(csv.reader(io.StringIO(raw.decode("utf-8"))))[1:]
@@ -192,7 +193,7 @@ def _cases(rows, requests):
     return v
 
 
-def _format(raw):
+def _format(raw, warnings):
     if raw.startswith(b"\xef\xbb\xbf"):
         return ["L0.encoding: file starts with a UTF-8 BOM; write plain UTF-8"]
     try:
@@ -218,12 +219,13 @@ def _format(raw):
         n = next((k for k, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))
         return [f"L0.csv: line {n + 1} does not round-trip through the csv module (quoting differs)"]
     try:
-        import pandas as pd
-        df = pd.read_csv(io.StringIO(text), dtype=str, keep_default_na=False)
-        if df.to_csv(index=False, lineterminator="\n") != text:
-            return ["L0.pandas: file does not round-trip identically through pandas (dtype=str, keep_default_na=False)"]
+        import pandas as pd   # optional: the stdlib csv round-trip above is the mandatory check
     except ImportError:
-        return ["L0.pandas: pandas is not installed; the pandas round-trip check could not run"]
+        warnings.append("L0.pandas SKIPPED: pandas is not installed; optional pandas round-trip not run (stdlib csv round-trip passed)")
+        return []
+    df = pd.read_csv(io.StringIO(text), dtype=str, keep_default_na=False)
+    if df.to_csv(index=False, lineterminator="\n") != text:
+        return ["L0.pandas: file does not round-trip identically through pandas (dtype=str, keep_default_na=False)"]
     return []
 
 
