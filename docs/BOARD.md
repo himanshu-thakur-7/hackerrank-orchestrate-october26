@@ -2,7 +2,7 @@
 
 - **Board backend:** this file. The `kanban-init` skill needs the `sqlite3` CLI, which is not installed in this cloud container (checked at session start), so the SQLite board was not created and this Markdown board is the source of truth.
 - **Update this file whenever a task moves.**
-- **Log:** T01 doing → done 2026-10-25 (selftest green, 34 unit tests). T01 fixes: optional pandas + specific check ids (39 tests). T02 doing → done (12 tests; acceptance green). Baseline run exposed 3 T01 bugs, fixed test-first (43 evaluation tests). T03 doing → done (10 store tests). T04 doing → done (loaders, 52/52 gold pairs). T05 doing → done (SQL, 10/10 gold pairs). T06 doing → done (bundles/registers/record_lookup, 42/42; ADR 0014 proposed). T07 doing → done (observability logs, 7 dialects, 15/15; store state check 0 contradictions, 1 pending on T12). T08 doing → done (states --split dev 51/51 on discovered resources; ADR 0014 risk 2 resources / 1 violation in eval). T09 doing → done (dev proxy 0.720, status 0.909; ADR 0015 proposed, then ratified). T12 doing → done (4 PDFs + 11 PNGs, store check 0 pending; empty INCOMPLETE 10 → 3). T10 doing → done (accounts 19/32 exact, 0 wrong; 136 eval ties logged; activity_4008 rejected; dev proxy 0.798). T15 doing → done (13/13 metamorphic relations hold). T16 doing → done (invariants 9/9 on 518/518; ledger unknown 0; silver 6 checked, 0 disagreements). Silver 7–20 blind (1 bug fixed). T11 doing → done (intent rules + cached model, 0 disagreements, 0 calls on rerun). T13 doing → done (12/12 custom cases; evaluation_report.md generated from real runs).
+- **Log:** T01 doing → done 2026-10-25 (selftest green, 34 unit tests). T01 fixes: optional pandas + specific check ids (39 tests). T02 doing → done (12 tests; acceptance green). Baseline run exposed 3 T01 bugs, fixed test-first (43 evaluation tests). T03 doing → done (10 store tests). T04 doing → done (loaders, 52/52 gold pairs). T05 doing → done (SQL, 10/10 gold pairs). T06 doing → done (bundles/registers/record_lookup, 42/42; ADR 0014 proposed). T07 doing → done (observability logs, 7 dialects, 15/15; store state check 0 contradictions, 1 pending on T12). T08 doing → done (states --split dev 51/51 on discovered resources; ADR 0014 risk 2 resources / 1 violation in eval). T09 doing → done (dev proxy 0.720, status 0.909; ADR 0015 proposed, then ratified). T12 doing → done (4 PDFs + 11 PNGs, store check 0 pending; empty INCOMPLETE 10 → 3). T10 doing → done (accounts 19/32 exact, 0 wrong; 136 eval ties logged; activity_4008 rejected; dev proxy 0.798). T15 doing → done (13/13 metamorphic relations hold). T16 doing → done (invariants 9/9 on 518/518; ledger unknown 0; silver 6 checked, 0 disagreements). Silver 7–20 blind (1 bug fixed). T11 doing → done (intent rules + cached model, 0 disagreements, 0 calls on rerun). T13 doing → done (12/12 custom cases; evaluation_report.md generated from real runs). T17 doing → done (advisory Jev ranker; hand check 0 engine mistakes). T14 doing → done (usage report, README, code.zip, final 12/12), then final --matrix 24/24 and the readiness pass (`docs/READINESS.md`). **All 17 tasks are done; nothing is open on this board.**
 - **Statuses:** `todo` → `doing` → `review` → `done` (plus `blocked`).
 - **Priorities:** P0 (must ship), P1 (should ship), P2 (only if time and gates allow).
 - **Build slice** refers to `docs/03_DESIGN.md` §9. ADRs are in `docs/adr/`.
@@ -171,6 +171,14 @@ Pre-registered rule committed before running. Mean of 10 calls, two independent 
   - an isolation test counted the blocker's placeholder module as an import (the test now checks for real modules);
   - an over-strict first blocker hid a test's own fake `openai` (the blocker now hides only the site-packages copy).
 - **Result:** final --matrix is 24/24 green.
+
+## Readiness pass
+
+`docs/READINESS.md` holds the deliverables checklist, the AGENTS.md rule-by-rule check, the security pass and the items that need the owner (agent-trace zip, upload, report path wording, derived fictional data in the zip). Two gaps it found were fixed test-first:
+- `explain.py` did not parse on Python 3.11, although the README claimed 3.10+. It is fixed; a test compiles code/ on 3.11, the README now says 3.11+, and the output is identical on 3.11, 3.12 and 3.13.
+- `code/README.md` called typesafe-sdk "spike only".
+
+A new test checks that every command, path and count the README quotes exists or is reproduced by the real run.
 
 ## Where this board deviates from the relayed list (and why)
 

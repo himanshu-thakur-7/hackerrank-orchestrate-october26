@@ -31,7 +31,8 @@ def render(engine, request, intent):
         out.append(f"    policy category={r.category} [{r.category_source}] rule={t.rule_id} action={t.action} -> {t.kind}: {t.reason}")
         for s in a.steps:
             if (s["system_id"], s["resource_id"]) == (r.system_id, r.resource_id):
-                out.append(f"    step   {s['step_no']:2} {s['phase']:12} {s['operation']:26} {s['state']:10} evidence={s['evidence_id'] or '\"\"'}")
+                ev = s["evidence_id"] or '""'
+                out.append(f"    step   {s['step_no']:2} {s['phase']:12} {s['operation']:26} {s['state']:10} evidence={ev}")
     for line in a.log:
         out.append(f"  log: {line}")
     out.append(f"  ROW {a.case_id},{a.status},{json.dumps(a.steps, separators=(',', ':'))[:300]}")

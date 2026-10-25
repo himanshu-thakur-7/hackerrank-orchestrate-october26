@@ -17,14 +17,14 @@ python3 code/main.py --explain case_12                # the evidence trace behin
 python3 code/main.py --data /path/to/dataset --out /tmp/output.csv
 ```
 
-- **Requirements:** Python 3.10+ and the standard library only.
+- **Requirements:** Python 3.11+ and the standard library only (tested on 3.11, 3.12 and 3.13; all three produce the same `output.csv`).
 - **No key or network needed:** the default run needs no API key, no network and no PDF or OCR tool. This holds because these committed modules supply everything:
   - `code/ghostaudit/llm_cache.py`: the cached intent verdicts;
   - `code/ghostaudit/loaders/pdf_text_cache.py`: the PDF text;
   - `code/ghostaudit/loaders/screens_data.py`: hand-verified transcriptions of the screenshots.
 
   Each module is keyed by sha256 and holds no request text.
-- **Runtime:** about 3 s for all 518 cases.
+- **Runtime:** a few seconds for all 518 cases.
 
 ## Reproduce and validate
 
@@ -99,8 +99,8 @@ code/package.py              builds code.zip
 
 ## Known risks
 
-- **ADR 0015: INCOMPLETE with `[]`.** A deletion request with nothing grounded to report is written as `INCOMPLETE,[]`. Three eval rows are affected. The contract gate reports them as the warning `L0.empty_incomplete`.
+- **ADR 0015: INCOMPLETE with `[]`.** A deletion request with nothing grounded to report is written as `INCOMPLETE,[]`. 3 eval rows are affected. The contract gate reports them as the warning `L0.empty_incomplete`.
   - **One-line revert,** if the grader rejects such rows: in `code/evaluation/gate.py`, change `if status == "COMPLETE" and not steps:` back to `if status != "NOT_APPLICABLE" and not steps:`. The gate then fails on those rows, and a fallback is needed for them.
-- **Unresolved account links (ADR 0004).** About 136 eval cases have tied account candidates. These links are never guessed, so the account steps for those cases are omitted and logged. This is the largest accepted loss (`docs/LOSS_LEDGER.md`).
+- **Unresolved account links (ADR 0004).** 136 eval cases have tied account candidates. These links are never guessed, so the account steps for those cases are omitted and logged. This is the largest accepted loss (`docs/LOSS_LEDGER.md`).
 - **Absence by omission (ADR 0014).** A record missing from a covering snapshot, captured at or before `audit_at`, counts as absent. It is weaker evidence than an explicit 404 or a deletion row.
 - **Screenshots** are read from committed transcriptions keyed by the PNG's sha256. A new or changed PNG stops the run instead of guessing.

@@ -194,7 +194,11 @@ def render(d):
           "- A March 404 from another lifecycle of a reused id produced an extra step → ADR 0016 stale links (T10).",
           "- Metamorphic M8 target violated its own precondition (not a pipeline bug) → target selection fixed (T15).",
           "- Blind audit: templated message text outranked a DELETE claim → support category precedence fixed (silver audit).",
-          "- The literal audit caught case ids in docstrings/comments three times → removed.", ""]
+          "- The literal audit caught case ids in docstrings/comments three times → removed.",
+          "- A key set without the `openai` package crashed the run → guarded import, bounded retries, failures never cached (robustness fix).",
+          "- `final` was red on a machine without pandas (a test compared the whole warning list) → optional-dependency warnings "
+          "filtered; `final --matrix` reruns the tests with each optional dependency blocked and found 2 more such tests (T14).",
+          "- `explain.py` did not parse on Python 3.11 (backslash in an f-string) → fixed, plus a test that compiles code/ on 3.11 (T14).", ""]
     L += ["## 11. Known limitations and their estimated cost", "",
           f"- **Tied account candidates** ({d['linking']['eval_tied']} eval cases): the account step is omitted rather than guessed; ~1.28 steps each.",
           f"- **No account delete in the window** ({d['linking']['eval_none']} cases, the 42-hour family): no account step.",
