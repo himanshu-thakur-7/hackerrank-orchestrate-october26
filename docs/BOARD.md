@@ -163,6 +163,15 @@ Pre-registered rule committed before running. Mean of 10 calls, two independent 
 - `python3 code/package.py` builds `code.zip` (README.md + code/ only; fixed timestamps). Tests open the zip and assert no dataset/, runs/, scratch/, .env, archives or `__pycache__`. A key-pattern scan (`sk-…`, `apikey_…`) covers the zip and every tracked file.
 - `python3 code/evaluation/main.py final`: 12/12 green. Steps: unit tests ×2, contract, determinism, invariants, metamorphic, custom, literal audit, selftest, usage report, repo key scan, and a clean room (code.zip unzipped into an empty temp dir, keys unset, same output.csv sha256 eb99c26b7974). code.zip: 118 files, 277,218 bytes.
 
+## T14 follow-up: environment-independent tests (`final --matrix`)
+
+- **Peer-reported bug:** `final` was red on a machine without pandas. `test_gate` compared the full warning list, so the `L0.pandas SKIPPED` warning broke it.
+- **Fix:** gate warnings that only report an absent optional dependency are named in `gate.OPTIONAL_DEPENDENCY_WARNINGS`. Tests now assert that the expected warning is present and that no unexpected warning appears (`helpers.required_warnings`).
+- **`final --matrix`:** it reruns both suites with each optional dependency blocked (pandas, openai, pypdf, typesafe_sdk, pdftotext), then with all blocked and keys unset. It reproduced the pandas failure and found two more:
+  - an isolation test counted the blocker's placeholder module as an import (the test now checks for real modules);
+  - an over-strict first blocker hid a test's own fake `openai` (the blocker now hides only the site-packages copy).
+- **Result:** final --matrix is 24/24 green.
+
 ## Where this board deviates from the relayed list (and why)
 
 1. **T02 includes rules-only intent.** In the design, slice 1 is "skeleton end-to-end". A baseline run cannot write 518 *valid* rows without NOT_APPLICABLE detection, and ADR 0008 requires a rules-only path anyway. T11 keeps the cached OpenAI layer and the usage tracker.

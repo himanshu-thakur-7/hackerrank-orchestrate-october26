@@ -17,7 +17,8 @@
   python3 code/evaluation/main.py metamorphic [--only M1,M7]
   python3 code/evaluation/main.py audit
   python3 code/evaluation/main.py selftest
-  python3 code/evaluation/main.py final                      # every gate + clean-room run of code.zip (T14)
+  python3 code/evaluation/main.py final [--matrix]           # every gate + clean-room run of code.zip (T14);
+                                                             # --matrix: unit tests with each optional dependency blocked
 
 Exit codes: 0 ok, 1 contract/audit/determinism failure, 2 diff gate (dev regression).
 Unit tests: python3 -m unittest discover -s code/evaluation/tests -t code
@@ -198,9 +199,9 @@ def cmd_report(_):
     return report.run()
 
 
-def cmd_final(_):
+def cmd_final(a):
     from evaluation import final
-    return final.run()
+    return final.run(with_matrix=a.matrix)
 
 
 def cmd_usage(_):
@@ -306,7 +307,7 @@ def main(argv=None):
     sub.add_parser("report")
     sub.add_parser("jev-rank")
     sub.add_parser("usage")
-    sub.add_parser("final")
+    fi = sub.add_parser("final"); fi.add_argument("--matrix", action="store_true", help="also run the unit tests with each optional dependency blocked")
     mm = sub.add_parser("metamorphic"); mm.add_argument("--only", default="", help="e.g. M1,M7")
     sub.add_parser("audit")
     sub.add_parser("selftest")

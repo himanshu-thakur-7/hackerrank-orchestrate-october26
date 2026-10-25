@@ -29,7 +29,8 @@ python3 code/main.py --data /path/to/dataset --out /tmp/output.csv
 ## Reproduce and validate
 
 ```text
-python3 code/evaluation/main.py final                 # every gate + a clean-room run of code.zip (below)
+python3 code/evaluation/main.py final --matrix        # the final gate: every check + dependency matrix + clean room (below)
+python3 code/evaluation/main.py final                 # the same without the dependency matrix (about 3 min instead of 6)
 python3 code/package.py                               # builds ./code.zip (README.md + code/ only) and lists it
 python3 code/evaluation/main.py report                # regenerates code/evaluation/evaluation_report.md
 python3 code/evaluation/main.py usage                 # regenerates code/evaluation/usage_report.md
@@ -47,6 +48,7 @@ python3 code/evaluation/main.py score                 # scores the 32 labeled sa
 - the selftest;
 - the usage report, whose measured run must equal `output.csv`;
 - a key-pattern scan of the repository;
+- with `--matrix`: both unit-test suites rerun in subprocesses with each optional dependency blocked in turn (`pandas`, `openai`, `pypdf`, `typesafe_sdk`, the `pdftotext` executable), then with all of them blocked and both keys unset. Blocking hides the installed copy (in child processes too), so the tests must pass on a machine without it;
 - a **clean room**: it unzips `code.zip` into an empty temp directory and runs it there against `dataset/` with no API keys in the environment. The resulting `output.csv` must have the same sha256 as the committed one.
 
 ## Optional pieces (nothing on the default path imports them)

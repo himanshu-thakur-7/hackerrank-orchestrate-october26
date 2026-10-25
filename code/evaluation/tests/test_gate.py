@@ -1,7 +1,7 @@
 """L0 contract gate: behaviour through gate.check(output, requests, manifest) -> list of violation strings."""
 import unittest
 from evaluation import gate
-from evaluation.tests.helpers import GOLD, SAMPLE_REQ, MANIFEST, gold_rows, tmp_copy, mutate_step
+from evaluation.tests.helpers import GOLD, SAMPLE_REQ, MANIFEST, gold_rows, tmp_copy, mutate_step, required_warnings
 
 
 def check(path):
@@ -100,7 +100,8 @@ class StepRules(unittest.TestCase):
         rows[5][2] = "[]"                                  # case_05 INCOMPLETE []
         w = []
         self.assertEqual(gate.check(tmp_copy(rows=rows), SAMPLE_REQ, MANIFEST, warnings=w), [])
-        self.assertEqual(w, ["L0.empty_incomplete: 1 INCOMPLETE row(s) with no steps (ADR 0015): case_05"])
+        self.assertIn("L0.empty_incomplete: 1 INCOMPLETE row(s) with no steps (ADR 0015): case_05", w)
+        self.assertEqual(required_warnings(w), ["L0.empty_incomplete: 1 INCOMPLETE row(s) with no steps (ADR 0015): case_05"])
 
     def test_evidence_must_exist_and_be_captured_by_audit_at(self):
         rows = mutate_step(gold_rows(), "case_05", 1, evidence_id="evidence_999")

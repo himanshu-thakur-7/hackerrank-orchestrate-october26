@@ -1064,3 +1064,23 @@ branch=claude/stoic-bell-1t82oq
 repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
+
+## [2026-10-25T03:44:29Z] Final gate made environment-independent: final --matrix (24/24 green)
+
+User Prompt (verbatim, secrets redacted):
+(relayed by peer session "Prompt playbook website publishing" for the user) T14 verified except: `python3 code/evaluation/main.py final` is RED (11/12) on a machine WITHOUT pandas; test_gate.py::test_empty_steps_complete_is_invalid_incomplete_is_a_counted_warning asserts list equality and the "L0.pandas SKIPPED ..." warning breaks it. Job 1: make that test assert the expected warning is present and unexpected warnings absent; scan ALL tests for assertions that depend on optional packages (pandas, openai, pypdf, typesafe-sdk, pdftotext); add `final --matrix` running the unit tests in a subprocess with each optional dependency blocked in turn and all blocked, part of the final gate; show results. Job 2: final readiness checks (deliverables checklist with status and path incl. the agent trace requirement, quoting the instruction; AGENTS.md rule-by-rule confirmation; security pass; BOARD final statuses; README accuracy with regenerated numbers). Commit and push after each job, keep logging, paste the checklist and all results, then stop and wait.
+
+Agent Response Summary:
+I first built the matrix (a generated sitecustomize that hides the site-packages copy of each blocked module, inherited by child processes, plus a shadow PATH without pdftotext; keys unset), test-first. It reproduced the pandas failure and found two more environment-dependent failures: the Jev isolation test counted the blocker's None placeholder as an import, and the first blocker version hid the degrade test's own fake openai package. Fixes: gate.OPTIONAL_DEPENDENCY_WARNINGS plus helpers.required_warnings (assert presence, no unexpected warnings); the isolation test checks real modules only; the blocker hides only installed copies. The static scan found no other assertion on optional packages. final --matrix: 24/24 green in about 6 minutes (configs run in parallel).
+
+Actions:
+* Edited code/evaluation/final.py (blocked_env, matrix, run(with_matrix)), main.py (final --matrix), gate.py, tests/helpers.py, tests/test_gate.py, tests/test_jev_ranker.py, tests/test_final.py (Matrix tests); README.md; docs/BOARD.md
+* Ran the matrix alone (red: 3 failures in 5 configs, then green) and python3 code/evaluation/main.py final --matrix (24/24)
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none

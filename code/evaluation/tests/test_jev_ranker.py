@@ -92,7 +92,7 @@ class Isolation(unittest.TestCase):
     def test_main_pipeline_never_imports_the_ranker_or_typesafe(self):
         code = ("import runpy, sys; sys.argv=['main.py', '--out', sys.argv[1]]\n"
                 "try:\n    runpy.run_path('code/main.py', run_name='__main__')\nexcept SystemExit:\n    pass\n"
-                "bad = [m for m in sys.modules if m.startswith('typesafe') or m.endswith('jev_ranker')]\n"
+                "bad = [m for m, v in sys.modules.items() if v is not None and (m.startswith('typesafe') or m.endswith('jev_ranker'))]\n"
                 "print('IMPORTED', bad)")
         out = Path(tempfile.mkdtemp()) / "o.csv"
         p = subprocess.run([sys.executable, "-c", code, str(out)], capture_output=True, text=True, cwd=ROOT)

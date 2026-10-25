@@ -34,6 +34,74 @@ STEPS = [
 ]
 
 
+OPTIONAL = ("pandas", "openai", "pypdf", "typesafe_sdk", "pdftotext")     # the last one is an executable, the rest modules
+SITECUSTOMIZE = """import importlib.machinery, os, sys
+# "Not installed": the copy in site-packages/dist-packages is hidden (None in sys.modules makes `import m` raise
+# ModuleNotFoundError and importlib.util.find_spec(m) return None). A module a test puts on PYTHONPATH still imports.
+_local = [p for p in sys.path if "site-packages" not in p and "dist-packages" not in p]
+for _m in filter(None, os.environ.get("GHOSTAUDIT_BLOCK_MODULES", "").split(",")):
+    if importlib.machinery.PathFinder.find_spec(_m, _local) is None:
+        sys.modules[_m] = None
+_here = os.path.dirname(os.path.abspath(__file__))
+sys.path[:] = [p for p in sys.path if os.path.abspath(p or ".") != _here]
+del sys.modules["sitecustomize"]
+try:                                   # chain to the interpreter's own sitecustomize, if any
+    import sitecustomize  # noqa: F401
+except ImportError:
+    pass
+"""
+
+
+def blocked_env(block, base=None):
+    """An environment in which the given optional modules fail to import (also in child processes) and the
+    given executables are not on PATH. Keys are removed as well, so the unit tests see a no-key machine."""
+    env = dict(os.environ if base is None else base)
+    for k in KEYS:
+        env.pop(k, None)
+    d = Path(tempfile.mkdtemp(prefix="ghostaudit_block_"))
+    (d / "sitecustomize.py").write_text(SITECUSTOMIZE, encoding="utf-8")
+    env["GHOSTAUDIT_BLOCK_MODULES"] = ",".join(m for m in block if m != "pdftotext")
+    env["PYTHONPATH"] = os.pathsep.join([str(d)] + [p for p in env.get("PYTHONPATH", "").split(os.pathsep) if p])
+    if "pdftotext" in block:            # a shadow PATH: every executable except pdftotext
+        shadow = d / "bin"
+        shadow.mkdir()
+        for folder in env.get("PATH", "").split(os.pathsep):
+            if not folder or not Path(folder).is_dir():
+                continue
+            for exe in Path(folder).iterdir():
+                if exe.name != "pdftotext" and not (shadow / exe.name).exists():
+                    try:
+                        (shadow / exe.name).symlink_to(exe)
+                    except OSError:
+                        pass
+        env["PATH"] = str(shadow)
+    return env
+
+
+def matrix_configs():
+    return [(m,) for m in OPTIONAL] + [OPTIONAL]
+
+
+def matrix(workers=4):
+    """Both unit-test suites once per config (each optional dependency blocked alone, then all), in parallel.
+    The suites write only to their own temp dirs, so concurrent configs cannot interfere."""
+    from concurrent.futures import ThreadPoolExecutor
+    jobs = [(block, name, cmd) for block in matrix_configs() for name, cmd in STEPS[:2]]
+
+    def one(job):
+        block, name, cmd = job
+        p = subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT, env=blocked_env(block))
+        label = f"matrix [{'all blocked' if len(block) > 1 else block[0] + ' blocked'}] {name}"
+        fails = [l for l in p.stderr.split("\n") if l.startswith(("FAIL:", "ERROR:"))]
+        return label, p.returncode, _last(p.stderr) + (" | " + "; ".join(fails[:4]) if fails else "")
+
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        results = list(ex.map(one, jobs))
+    for label, code, last in results:
+        print(f"  {'PASS' if code == 0 else 'FAIL'}  {label}: {last}")
+    return results
+
+
 def _env_without_keys():
     return {k: v for k, v in os.environ.items() if k not in KEYS}
 
@@ -83,7 +151,7 @@ def scores():
     return {name: scorer.score(pred, gold, ids) for name, ids in (("dev", dev), ("holdout", hold), ("all", dev + hold))}
 
 
-def run():
+def run(with_matrix=False):
     results = []
     for name, cmd in STEPS:
         p = subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT)
@@ -94,6 +162,8 @@ def run():
     hits = package.scan_repo()
     results.append(("key scan (repo)", 1 if hits else 0, f"{len(hits)} key-shaped string(s) in tracked files"))
     print(f"  {'PASS' if not hits else 'FAIL'}  key scan (repo): {results[-1][2]}")
+    if with_matrix:
+        results += matrix()
     cr = clean_room()
     results.append(("clean room", 0 if cr["ok"] else 1, f"{cr['files']} files unzipped into an empty dir, keys unset; "
                                                          f"output.csv sha256 {cr['sha256'][:12]} (committed {_sha(ROOT / 'output.csv')[:12]})"))

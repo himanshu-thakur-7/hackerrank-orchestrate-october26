@@ -8,6 +8,9 @@ import io
 import json
 from pathlib import Path
 
+# warnings that only say an optional dependency is absent on this machine (never a property of the file)
+OPTIONAL_DEPENDENCY_WARNINGS = ("L0.pandas SKIPPED",)
+
 HEADER = ["case_id", "deletion_status", "steps_json"]
 STATUSES = ("COMPLETE", "INCOMPLETE", "NOT_APPLICABLE")
 KEYS = {"step_no", "phase", "system_id", "resource_id", "operation", "state", "evidence_id"}
@@ -225,7 +228,7 @@ def _format(raw, warnings):
     try:
         import pandas as pd   # optional: the stdlib csv round-trip above is the mandatory check
     except ImportError:
-        warnings.append("L0.pandas SKIPPED: pandas is not installed; optional pandas round-trip not run (stdlib csv round-trip passed)")
+        warnings.append(f"{OPTIONAL_DEPENDENCY_WARNINGS[0]}: pandas is not installed; optional pandas round-trip not run (stdlib csv round-trip passed)")
         return []
     df = pd.read_csv(io.StringIO(text), dtype=str, keep_default_na=False)
     if df.to_csv(index=False, lineterminator="\n") != text:
