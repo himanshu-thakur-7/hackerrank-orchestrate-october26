@@ -4,9 +4,9 @@
   categorize(system_id, observations, activity) -> (category, source)
   treat(category, state_result, rules) -> Treatment
 
-Category precedence (ADR 0009) is the ordered table CATEGORY_SIGNALS: explicit tag, then record
-content, then the deletion_worker event type (a claim about category, never about state), then the
-system default. DATA_FLOW is not a deletion_rules category: connectors get the data-flow operations.
+Category precedence (ADR 0009) is the ordered table CATEGORY_SIGNALS: explicit tag, then strong record
+content (an uploaded file, a hash-keyed contact), then the deletion_worker event type (a claim about
+category, never about state), then weak message text, then the system default. DATA_FLOW is not a deletion_rules category: connectors get the data-flow operations.
 """
 import csv
 from dataclasses import dataclass
@@ -30,17 +30,22 @@ UNOBSERVABLE = {"CACHE_ENTRY", "EMAIL_DELIVERY_LOG", "PRODUCT_TELEMETRY", "MARKE
 
 
 def _content(system_id, o):
-    """Category shown by the record's own content, or None."""
+    """Category shown by the record's own content (strong: outranks the activity claim), or None."""
     a = dict(o.attrs)
     event = a.get("event", "")
     if system_id == "support_platform":
         if event.startswith("attachment_") or "file" in a or "attachment" in o.table:
-            return "SUPPORT_ATTACHMENT"                # an uploaded file (docs/02 §4.6 A9)
-        if event.startswith("message_") or "message_text" in a or "message_excerpt" in a:
-            return "SUPPORT_MESSAGE"                   # a conversation record
+            return "SUPPORT_ATTACHMENT"                # an uploaded file (docs/02 §4.6 A9; ADR 0009 "artifact content")
     if system_id == "analytics_platform" and event == "contact_lookup_completed":
         return "SECONDARY_IDENTIFIER"                  # a contact identifier keyed by email hash, not a profile (§7.3)
     return None
+
+
+def _message_content(o):
+    """Weak content: message text. Ticket exports carry a templated message_excerpt on every ticket, so it only
+    decides when no deletion_worker claim exists (silver audit, docs/SILVER_AUDIT.md: 12 eval records)."""
+    a = dict(o.attrs)
+    return a.get("event", "").startswith("message_") or "message_text" in a or "message_excerpt" in a
 
 
 def _by_tag(system_id, observations, activity):
@@ -58,11 +63,18 @@ def _by_activity(system_id, observations, activity):
     return claims[-1] if claims else None
 
 
+def _by_message_content(system_id, observations, activity):
+    if system_id == "support_platform" and any(_message_content(o) for o in observations):
+        return "SUPPORT_MESSAGE"
+    return None
+
+
 def _by_system(system_id, observations, activity):
     return SYSTEM_DEFAULT.get(system_id)
 
 
-CATEGORY_SIGNALS = (("tag", _by_tag), ("content", _by_content), ("activity", _by_activity), ("system default", _by_system))
+CATEGORY_SIGNALS = (("tag", _by_tag), ("content", _by_content), ("activity", _by_activity),
+                    ("message content", _by_message_content), ("system default", _by_system))
 
 
 def categorize(system_id, observations, activity):

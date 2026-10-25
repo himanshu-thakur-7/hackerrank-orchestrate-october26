@@ -124,6 +124,10 @@ The first run had M8 failing. The cause was the **relation's target**, not the p
 - `python3 code/evaluation/main.py lossledger` → `docs/LOSS_LEDGER.md` (every eval case with its reasons and case ids): fully grounded 344, unresolved:tied 136, unresolved:window 12, non-deletion 10, DELETION_PENDING 8, legal hold 6, unproven 4, INCOMPLETE [] 3, unresolved:catalog 3, contradicted 1; **unknown 0**. Step-recall ceiling estimate **~0.89** (2,884 steps emitted, ~350 expected missing).
 - Silver audit (`docs/SILVER_AUDIT.md`): 20 cases stratified by reason (seed 20261025); the first 6 were checked by hand from raw file lines: **0 disagreements**; 2 probable misses (anonymized analytics reachable only through activity bursts, the known loss class).
 
+## Silver audit, cases 7–20 (blind)
+
+Four sub-agents audited 14 eval cases from `dataset/` only (no engine output, code or docs); `docs/SILVER_AUDIT.md` compares each with the engine. 9 agree; **1 engine bug** (case_431, case_347: a templated `message_excerpt` outranked the DELETE_RECORD claim, against ADR 0009), fixed with a regression test, which changes 12 eval rows; 5 documented assumptions (unconfirmed catalog claims, backup without a restore flag, COMPLETE vs INCOMPLETE `[]`, timing-only analytics). Samples unchanged (dev proxy 0.798, 59/59 states).
+
 ## Where this board deviates from the relayed list (and why)
 
 1. **T02 includes rules-only intent.** In the design, slice 1 is "skeleton end-to-end". A baseline run cannot write 518 *valid* rows without NOT_APPLICABLE detection, and ADR 0008 requires a rules-only path anyway. T11 keeps the cached OpenAI layer and the usage tracker.

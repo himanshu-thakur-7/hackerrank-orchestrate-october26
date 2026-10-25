@@ -1,5 +1,7 @@
 # Silver-label audit (T16)
 
+> **This is an evidence-based review, not gold.** Neither the auditors nor I have labels for evaluation cases; a disagreement is resolved against the raw evidence and our ADRs, and an agreement is only as good as the shared reading of that evidence.
+
 These are blind hand checks of evaluation cases against the **raw evidence**, with no gold labels involved. The sample comes from `code/evaluation/silver.py`: 20 cases, stratified by loss-ledger reason, drawn with `random.Random(20261025)`. The first 6 were checked by hand on 2026-10-25.
 
 ## The 20 cases
@@ -53,4 +55,38 @@ These are blind hand checks of evaluation cases against the **raw evidence**, wi
 
 **Disagreements with the engine: 0 of 6.** The independent raw grep found exactly the engine's identifier-linked resources in all 6 cases.
 
-**Probable misses: 2 cases** (case_374, case_362), each one `VERIFY_RECORD_ANONYMIZED` on an analytics record linkable only through activity bursts. That is the loss class the ledger's step ceiling already accounts for (~0.22 per case). Cases 7–20 are left for the next session, using the same checklist.
+**Probable misses: 2 cases** (case_374, case_362), each one `VERIFY_RECORD_ANONYMIZED` on an analytics record linkable only through activity bursts. That is the loss class the ledger's step ceiling already accounts for (~0.22 per case). Cases 7–20 were audited blind; see below.
+
+## Cases 7–20: blind audit by four independent sub-agents
+
+Each auditor got **only** this checklist, its case ids and `dataset/` (plus the contract in AGENTS.md §6). They were not given output.csv, the engine code, `--explain`, the loss ledger, docs or gold. Each wrote its own expected resources, status and steps with file:line proof:
+
+- [auditor_A.md](silver_audit/auditor_A.md): case_431, 247, 499, 460
+- [auditor_B.md](silver_audit/auditor_B.md): case_505, 205, 347, 191
+- [auditor_C.md](silver_audit/auditor_C.md): case_33, 55, 531
+- [auditor_D.md](silver_audit/auditor_D.md): case_63, 61, 540
+
+I then compared each result with the engine row.
+
+| # | Case | Auditor expectation | Engine (before → after this audit) | Verdict |
+| --- | --- | --- | --- | --- |
+| 7 | case_431 | INCOMPLETE; search_7427 remaining; support_3615 still holds the email, **DELETE** (the worker ran DELETE_RECORD on it); account_6101 via the FAILED delete | INCOMPLETE; support_3615 was **REDACT** (category from a `message_excerpt` field) → now **DELETE** | **Engine bug, fixed.** My T08 "content" rule let a templated `message_excerpt` outrank the deletion_worker claim. ADR 0009 ranks only an *uploaded file* above the claim, and the activity type agrees with tags 31/31. Message text now ranks below the claim (regression test `test_message_text_does_not_override_a_delete_claim`). That changes 12 eval rows: case_71, 95, 131, 143, 179, 227, 251, 275, 347, 431, 443, 527. Samples are unchanged (0 diffs). |
+| 8 | case_247 | INCOMPLETE; account_2981 and search_9473 remain (evidence_78 lines 19, 32), under the historical email | same | Agree |
+| 9 | case_499 | INCOMPLETE; account_3626 DELETION_PENDING with the email (evidence_63 line 19) | same | Agree (ADR 0010) |
+| 10 | case_460 | INCOMPLETE; support_4146 exposes the email (evidence_43 lines 39, 72) → REDACT; audit_record_1369 and legal_hold_5622 retained; account_5167 via the FAILED delete | same | Agree. The auditor asks whether account_5167 should become a tombstone (rule_15) because held records reference it. **Documented assumption:** a tombstone step needs a visible `identity_service` record; none is visible, so no tombstone step is emitted. |
+| 11 | case_505 | INCOMPLETE; data_flow_5281 enabled, search_2591 present (evidence_47); legal_hold_2227 and audit_record_3441 retained; account tied (account_8136 / account_7244, shared with case_504) | same; account logged UNRESOLVED_LINK | Agree, tie included (ADR 0004). The auditor was unsure about uncited VERIFY_RECORD_PRESENT for retained records in INCOMPLETE rows. **Documented assumption**, backed by the samples: gold emits them (e.g. sample case_09, case_11). |
+| 12 | case_205 | INCOMPLETE; data_flow_3530 enabled, search_540 present (evidence_20); audit_record_5023 retained; account tied (account_2399 / account_6726, shared with case_203) | same; tie logged | Agree |
+| 13 | case_347 | INCOMPLETE; search_8185 present; support_9474 present, "very likely an attachment → DELETE" | support_9474 was REDACT → now **DELETE** | Same engine bug as #7, fixed by the same change |
+| 14 | case_191 | COMPLETE; support_5049 redacted, data_flow_1611 disabled, backup_3010 blocked, audit_record_7493 present (evidence_83); analytics_5614 anonymized, linked **by worker timing only**; account tied (account_6608 / account_9317, shared with case_192) | COMPLETE with the 4 evidence-linked verifications; no analytics_5614; tie logged | Agree on status and the 4 resources. analytics_5614 is the known "anonymized analytics via bursts" loss. **Documented assumption** (ADR 0004): timing alone is not a grounded link. |
+| 15 | case_33 | INCOMPLETE; export_1260 present (evidence_23 screen, "Ready"); **also export_1842** via the PDF statement NST-2026-0718-1842 (evidence_18) + catalog claim activity_4009; no account delete in the window | INCOMPLETE; export_1260 only; activity_4009 logged UNRESOLVED_LINK (unconfirmed) | **Documented assumption** (ADR 0005). The PDF is a customer statement and never prints `export_1842`; only the catalog claim maps it, by the shared "1842". The auditor also asks whether export_1260 belongs to the earlier request case_52 (same email). It is visible and still present at case_33's audit, so it stays in scope. |
+| 16 | case_55 | INCOMPLETE; backup_9287 on the screen with the subject's email, "nothing shows restore access is blocked" → REPORT_RESTORE_RISK | INCOMPLETE `[]` (backup unproven: no restore flag shown) | **Documented assumption, flagged as a risk.** The engine requires positive evidence of restore access (restore_allowed / eligible / ACTIVE, as in every sample citation) before reporting a restore risk (ADR 0006: absence of proof is not proof). The auditor reads "no block shown" as a risk. If the owner prefers that reading, it is one line in `policy.treat` for BACKUP_ARCHIVE with state PRESENT. |
+| 17 | case_531 | INCOMPLETE; backup_3382 restore_allowed=true (evidence_62 lines 104–108); account_3146 is the only FAILED delete in the window (activity_89), state unproven | same; account_3146 as an uncited future VERIFY_RECORD_ABSENT | Agree (ADR 0006: unproven → future verification only) |
+| 18 | case_63 | **COMPLETE `[]`**; the catalog claim activity_4008 is rejected because evidence_60 shows Soo-jin Park; nothing else names the subject | INCOMPLETE `[]` (ADR 0015); REJECTED_LINK logged | Agree on the evidence (claim rejected, no step). The status differs: COMPLETE with no steps would claim compliance without evidence, which the contract and ADR 0015 rule out. **Documented assumption.** |
+| 19 | case_61 | INCOMPLETE; object_19 (`delivery_confirmation_19.pdf`, evidence_46) remaining → DELETE, ownership from the catalog claim activity_4007 alone | INCOMPLETE `[]`; activity_4007 logged UNRESOLVED_LINK (unconfirmed) | **Documented assumption** (ADR 0005/0006): the screen shows a file name, no person and no object id. The auditor marked its own confidence medium. |
+| 20 | case_540 | NOT_APPLICABLE (copy of invoices; "leave my profile and purchase history in place") | NOT_APPLICABLE | Agree |
+
+**Summary for cases 7–20:**
+- 9 agree on status and grounded resources.
+- **1 engine bug**, found in two cases (#7, #13). It was fixed with a regression test and changed 12 eval rows.
+- 5 documented assumptions where the auditor read the evidence more permissively, or asked an open question: #15 and #19 (unconfirmed catalog claims), #16 (backup with no restore flag), #18 (COMPLETE vs INCOMPLETE with `[]`), #14 (timing-only analytics).
+- All 4 auditors confirmed every account tie the engine logs as unresolved (#11, #12, #13, #14). None found an account the engine missed.

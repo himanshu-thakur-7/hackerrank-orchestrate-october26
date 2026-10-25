@@ -43,9 +43,18 @@ class CategoryPrecedence(unittest.TestCase):
         o = [obs("support_platform", "support_9538", attrs=(("event", "attachment_pii_scan"), ("file", "delivery_confirmation_32.pdf")))]
         self.assertEqual(policy.categorize("support_platform", o, [act("REDACT_RECORD", "support_9538")]),
                          ("SUPPORT_ATTACHMENT", "content"))
-        # a message scan is a conversation record (evidence_01 line 15 support_9553)
+        # a message scan is a conversation record (evidence_01 line 15 support_9553); with no claim it decides
         o = [obs("support_platform", "support_9553", attrs=(("event", "message_pii_scan"),))]
-        self.assertEqual(policy.categorize("support_platform", o, []), ("SUPPORT_MESSAGE", "content"))
+        self.assertEqual(policy.categorize("support_platform", o, []), ("SUPPORT_MESSAGE", "message content"))
+
+    def test_message_text_does_not_override_a_delete_claim(self):
+        # silver audit regression (case_431 support_3615, case_347 support_9474): a ticket export carries a
+        # templated message_excerpt for every ticket, so it is weaker than the deletion_worker's DELETE_RECORD
+        # (ADR 0009: only an uploaded file is content that outranks the activity type)
+        o = [obs("support_platform", "support_3615", attrs=(("message_excerpt", "Customer contacted support about account access."),))]
+        self.assertEqual(policy.categorize("support_platform", o, [act("DELETE_RECORD", "support_3615")]),
+                         ("SUPPORT_ATTACHMENT", "activity"))
+        self.assertEqual(policy.categorize("support_platform", o, []), ("SUPPORT_MESSAGE", "message content"))
 
     def test_hash_keyed_contact_lookup_is_a_secondary_identifier(self):
         # evidence_01 line 92 analytics_9914 contact_lookup_completed keyed by an email hash (case_12: DELETE)
