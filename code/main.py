@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import sys
 from collections import Counter
 from collections.abc import Callable, Sequence
@@ -150,6 +151,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Entry point: --report, --explain, or the full run that writes output.csv.
 
     Returns the process exit code (0 on success, 1 for an unknown --explain case)."""
+    logging.basicConfig(format="%(levelname)s: %(message)s", stream=sys.stderr)
     a = parse_args(argv)
     ctx = build_context(a)
     if a.report:

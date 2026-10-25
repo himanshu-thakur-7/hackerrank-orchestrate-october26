@@ -97,6 +97,19 @@ class Resolver:
             i.phones.discard("")
             for e in i.emails:
                 self._by_email.setdefault(e, set()).add(i.user_id)
+        self._owner = self._owner_index()
+
+    def _owner_index(self) -> dict[str, str]:
+        """Every exact identifier -> its user_id (phones as 'tel:<digits>'); a later user wins a
+        shared identifier."""
+        owner: dict[str, str] = {}
+        for u in self._by_user.values():
+            owner[u.user_id] = u.user_id
+            for e in u.emails | u.email_hashes:
+                owner[e] = u.user_id
+            for ph in u.phones:
+                owner["tel:" + ph] = u.user_id
+        return owner
 
     @classmethod
     def from_dataset(cls, data_dir: str | Path) -> Resolver:
@@ -116,14 +129,6 @@ class Resolver:
     def owner_of(self, token: str | None) -> str | None:
         """user_id whose identifier set contains `token` exactly (email any case, sha256, phone,
         user_id), else None."""
-        if not hasattr(self, "_owner"):
-            self._owner = {}
-            for u in self._by_user.values():
-                self._owner[u.user_id] = u.user_id
-                for e in u.emails | u.email_hashes:
-                    self._owner[e] = u.user_id
-                for ph in u.phones:
-                    self._owner["tel:" + ph] = u.user_id
         t = (token or "").strip()
         hit = self._owner.get(t) or self._owner.get(t.lower())
         if hit is None and len(_digits(t)) >= MIN_PHONE_DIGITS and not re.search(r"[A-Za-z]", t):

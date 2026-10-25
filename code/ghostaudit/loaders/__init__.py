@@ -11,9 +11,9 @@ Decisions: ADR 0007 (one-file-per-case structure is never a feature), ADR 0014
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Container
-from pathlib import Path
+from collections.abc import Callable
 
+from ghostaudit.errors import GhostAuditError
 from ghostaudit.loaders import (
     bundle,
     handover,
@@ -31,11 +31,11 @@ from ghostaudit.loaders.common import LoadResult, Unit  # noqa: F401  (re-export
 PENDING: dict[str, str] = {}  # signature -> board task that will implement it
 
 
-class UnknownSignature(Exception):
+class UnknownSignature(GhostAuditError):
     """Raised for a file whose content matches no known signature."""
 
 
-class LoaderPending(Exception):
+class LoaderPending(GhostAuditError):
     """Raised (strict mode) for a known signature whose adapter is not built."""
 
 
@@ -129,20 +129,3 @@ def load_bytes(file_id: str, captured_at: str, raw: bytes, strict: bool = True) 
         except screens.MissingTranscription as e:
             raise UnknownSignature(str(e)) from e
     return LOADERS[sig](file_id, captured_at, raw.decode("utf-8"))
-
-
-def load_manifest(
-    data_dir: str | Path, strict: bool = True, only: Container[str] | None = None
-) -> dict[str, LoadResult]:
-    """Load every evidence file listed in evidence_files.csv -> {file_id: LoadResult}."""
-    import csv
-
-    d = Path(data_dir)
-    out = {}
-    with open(d / "evidence_files.csv", newline="", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            if only and row["file_id"] not in only:
-                continue
-            raw = (d / row["file_path"]).read_bytes()
-            out[row["file_id"]] = load_bytes(row["file_id"], row["captured_at"], raw, strict=strict)
-    return out

@@ -12,7 +12,6 @@ Decisions: ADR: none (test scaffolding; dataset/ is never written).
 
 import csv
 import io
-import json
 import os
 import shutil
 import subprocess
@@ -20,17 +19,10 @@ import sys
 import tempfile
 from pathlib import Path
 
+from evaluation import scorer
+
 ROOT = Path(__file__).resolve().parents[2]
 MAIN = ROOT / "code" / "main.py"
-
-
-def read_output(path):
-    """{case_id: (status, steps)} of an output file."""
-    with open(path, newline="", encoding="utf-8") as f:
-        return {
-            r["case_id"]: (r["deletion_status"], json.loads(r["steps_json"]))
-            for r in csv.DictReader(f)
-        }
 
 
 def run_pipeline(data_dir, out_path, requests=None, env=None):
@@ -43,7 +35,7 @@ def run_pipeline(data_dir, out_path, requests=None, env=None):
     )
     if p.returncode != 0:
         raise RuntimeError(f"pipeline failed on {data_dir}:\n{p.stdout}\n{p.stderr}")
-    return read_output(out_path)
+    return scorer.load(out_path)
 
 
 def changed(a, b):

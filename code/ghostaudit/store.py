@@ -90,18 +90,6 @@ class Coverage:
 
 
 @dataclass(frozen=True)
-class Link:
-    """A grounded resource-to-person link with its source and time."""
-
-    resource_id: str
-    user_id: str
-    grounding: str  # SAME_RECORD | TRACE_JOIN | UNIQUE_ACTIVITY_CANDIDATE | CATALOG_CLAIM
-    source_id: str  # file_id or activity_id
-    at: str
-    status: str = "OK"  # OK | CONTRADICTED | UNCONFIRMED
-
-
-@dataclass(frozen=True)
 class ActivityEvent:
     """One system_activity.csv row: a claim about an operation, never proof of state."""
 
@@ -140,13 +128,11 @@ class EvidenceStore:
         files: Iterable[EvidenceFile] = (),
         observations: Iterable[Observation] = (),
         coverage: Iterable[Coverage] = (),
-        links: Iterable[Link] = (),
         activity: Iterable[ActivityEvent] = (),
     ) -> None:
         self.files = {f.file_id: f for f in files}
         self.observations = list(observations)
         self.coverage = list(coverage)
-        self.links = list(links)
         self.activity_events = sorted(activity, key=lambda a: (a.event_time, a.activity_id))
         self._by_resource = defaultdict(list)
         self._by_identifier = defaultdict(set)
@@ -204,10 +190,6 @@ class CaseView:
                 if self._visible(o.file_id):
                     out[(o.system_id, o.resource_id)].add(o)
         return {k: sorted(v, key=_time_order) for k, v in out.items()}
-
-    def resources_with_identifier(self, tokens: Iterable[str]) -> set[tuple[str, str]]:
-        """(system_id, resource_id) pairs whose visible observations carry any of `tokens`."""
-        return set(self.linking_observations(tokens))
 
     def citation(self, system_id: str, resource_id: str, result: StateResult) -> str:
         """File to cite for `result` (docs/02 §4.3): the latest visible file that NAMES the
@@ -277,12 +259,4 @@ class CaseView:
             a
             for a in self._s.activity_events
             if a.event_time <= self.cutoff and (resource_id is None or a.resource_id == resource_id)
-        ]
-
-    def links_for_user(self, user_id: str) -> list[Link]:
-        """Links to `user_id` visible at the cutoff, contradicted links excluded."""
-        return [
-            link
-            for link in self._s.links
-            if link.user_id == user_id and link.at <= self.cutoff and link.status != "CONTRADICTED"
         ]

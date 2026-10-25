@@ -21,8 +21,8 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import logging
 import os
-import sys
 import time
 from collections.abc import Iterable, Mapping
 from importlib.abc import Loader
@@ -44,6 +44,7 @@ REQUEST_TIMEOUT_SECONDS = 30  # one API request; a slower answer counts as a fai
 RETRY_BACKOFF_SECONDS = 0.5  # sleep before retry n is n times this
 PREFETCH_WORKERS = 8  # parallel live calls when the cache is filled ahead of a run
 MAX_RETRIES = 2  # per text, after the first attempt; then the rules decide (never a crash)
+log = logging.getLogger(__name__)  # main.py prints warnings as 'WARNING: <message>'
 _warned: set[str] = set()  # warning keys already printed this process
 PROMPT_PATH = Path(__file__).resolve().parents[1] / "prompts" / "intent_classifier.md"
 CACHE_PATH = Path(__file__).resolve().parent / "llm_cache.py"
@@ -158,7 +159,7 @@ def _warn_once(key: str, message: str, tracker: Tracker | None = None) -> None:
     if key in _warned:
         return
     _warned.add(key)
-    print(f"WARNING: {message}", file=sys.stderr)
+    log.warning(message)
     if tracker is not None:
         tracker.note(message)
 

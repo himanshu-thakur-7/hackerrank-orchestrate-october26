@@ -20,6 +20,7 @@ from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from typing import cast
 
+from ghostaudit.errors import GhostAuditError
 from ghostaudit.loaders.common import (
     EMAIL_IN_TEXT,
     PREFIX_SYSTEM,
@@ -45,7 +46,7 @@ ATTR_RES = (
 )
 
 
-class PdfTextUnavailable(Exception):
+class PdfTextUnavailable(GhostAuditError):
     """Raised for a PDF that is not in the text cache and that no backend can read."""
 
 

@@ -588,7 +588,7 @@ Each change has to keep finding precision at 1.000 on the samples and the loss l
 4. **Board** (`docs/BOARD.md`): tasks T01–T17, each with an acceptance command, built test-first.
 5. **Independent checks:** blind sub-agent audits, metamorphic relations, the Jev spike with a pre-registered decision rule, and a readiness pass. Every turn is logged in `log.txt` (submitted separately).
 
-The tests: 162 solver tests in `code/tests/` and 110 evaluation tests in `code/evaluation/tests/`.
+The tests: 167 solver tests in `code/tests/` and 110 evaluation tests in `code/evaluation/tests/`.
 
 ---
 

@@ -8,7 +8,7 @@ import unittest
 
 from _path import DATA  # noqa: F401  (sets sys.path)
 
-from ghostaudit.store import ActivityEvent, Coverage, EvidenceFile, EvidenceStore, Link, Observation
+from ghostaudit.store import ActivityEvent, Coverage, EvidenceFile, EvidenceStore, Observation
 
 
 def f(fid, cap):
@@ -96,10 +96,10 @@ class CutoffView(unittest.TestCase):
 
     def test_identifier_index_is_case_insensitive_and_exact(self):
         self.assertEqual(
-            self.view.resources_with_identifier({"a@x.com"}),
+            set(self.view.linking_observations({"a@x.com"})),
             {("search_service", "search_1"), ("search_service", "search_2")},
         )
-        self.assertEqual(self.view.resources_with_identifier({"a.jr@x.com"}), set())
+        self.assertEqual(self.view.linking_observations({"a.jr@x.com"}), {})
 
 
 class StateReconstruction(unittest.TestCase):
@@ -191,42 +191,6 @@ class StateReconstruction(unittest.TestCase):
         )
         self.assertEqual(
             st.as_of("2026-09-05T00:00:00Z").state("search_service", "search_9").state, "PRESENT"
-        )
-
-
-class Links(unittest.TestCase):
-    def test_links_respect_cutoff_and_contradiction_status(self):
-        st = EvidenceStore(
-            links=[
-                Link(
-                    "marketing_001",
-                    "user_09",
-                    "CATALOG_CLAIM",
-                    "activity_4008",
-                    "2026-09-16T07:27:01Z",
-                    "CONTRADICTED",
-                ),
-                Link(
-                    "account_5762",
-                    "user_11",
-                    "CATALOG_CLAIM",
-                    "activity_4000",
-                    "2026-09-26T11:07:01Z",
-                    "OK",
-                ),
-            ]
-        )
-        v = st.as_of("2026-09-20T00:00:00Z")
-        self.assertEqual(
-            v.links_for_user("user_09"), []
-        )  # contradicted links are never returned (ADR 0005)
-        self.assertEqual(v.links_for_user("user_11"), [])  # not yet visible at this cutoff
-        self.assertEqual(
-            [
-                link.resource_id
-                for link in st.as_of("2026-09-27T00:00:00Z").links_for_user("user_11")
-            ],
-            ["account_5762"],
         )
 
 

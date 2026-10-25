@@ -7,11 +7,12 @@ from __future__ import annotations
 import hashlib
 from typing import Any, cast
 
+from ghostaudit.errors import GhostAuditError
 from ghostaudit.loaders import screens_data
 from ghostaudit.loaders.common import LoadResult, Unit, identifiers
 
 
-class MissingTranscription(Exception):
+class MissingTranscription(GhostAuditError):
     """Raised for a PNG whose sha256 has no committed transcription."""
 
 
