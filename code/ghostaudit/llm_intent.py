@@ -17,6 +17,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import sys
 import time
 from pathlib import Path
 
@@ -24,6 +25,8 @@ from ghostaudit.intent import Intent, _del, _neg, classify_rules
 
 MODEL = "gpt-5.4-mini-2026-03-17"
 SEED = 20261025
+MAX_RETRIES = 2                 # per text, after the first attempt; then the rules decide (never a crash)
+_warned = set()
 PROMPT_PATH = Path(__file__).resolve().parents[1] / "prompts" / "intent_classifier.md"
 CACHE_PATH = Path(__file__).resolve().parent / "llm_cache.py"
 SCHEMA = {
@@ -79,19 +82,80 @@ def write_cache(path, cache):
     Path(path).write_text("\n".join(lines), encoding="utf-8")
 
 
-def default_client():
+def _warn_once(key, message, tracker=None):
+    if key in _warned:
+        return
+    _warned.add(key)
+    print(f"WARNING: {message}", file=sys.stderr)
+    if tracker is not None:
+        tracker.note(message)
+
+
+def default_client(tracker=None):
+    """An OpenAI client when OPENAI_API_KEY is set and the optional `openai` package imports; else None.
+    A key without the package degrades to rules + cache with one warning, never a crash."""
     if not os.environ.get("OPENAI_API_KEY"):
         return None
-    from openai import OpenAI
-    return OpenAI()
+    try:
+        from openai import OpenAI
+    except ImportError:
+        _warn_once("sdk", "OPENAI_API_KEY is set but the optional `openai` package is not installed; "
+                          "intent uses rules + the committed cache", tracker)
+        return None
+    return OpenAI(max_retries=0, timeout=30)       # retries are bounded here (MAX_RETRIES), not inside the SDK
+
+
+def _valid(answers):
+    keys = ("asks_to_delete", "asks_to_verify_or_finish_deletion", "excludes_deletion")
+    return isinstance(answers, dict) and all(isinstance(answers.get(k), bool) for k in keys) and isinstance(answers.get("rationale"), str)
 
 
 class IntentClassifier:
-    def __init__(self, client=None, cache=None, tracker=None, prompt=None):
-        self.client, self.tracker = client, tracker
+    def __init__(self, client=None, cache=None, tracker=None, prompt=None, backoff=0.5):
+        self.client, self.tracker, self.backoff = client, tracker, backoff
         self.cache = read_cache() if cache is None else cache
         self.prompt = prompt if prompt is not None else prompt_text()
         self.disagreements, self.new_entries = [], 0
+        self.failed = set()                      # keys whose live call failed this run: not retried again, never cached
+        self._decided = {}                       # text -> source, for the end-of-run summary
+
+    @property
+    def counts(self):
+        from collections import Counter
+        c = Counter(self._decided.values())
+        return {"rules": c["rules"], "cache": c["model (cache)"], "model": c["model"],
+                "rules_fallback": c["rules (no model verdict)"], "degraded": c["rules (model error)"]}
+
+    def summary(self):
+        c = self.counts
+        return (f"intent decisions ({len(self._decided)} unique texts): rules (clear) {c['rules']}, cache {c['cache']}, "
+                f"live model {c['model']}, rules fallback {c['rules_fallback']}, degraded by error {c['degraded']}")
+
+    def _live(self, text, key):
+        """One text through the API with bounded retries; None (and a recorded failure) if every attempt fails."""
+        errors = []
+        t0 = time.perf_counter()
+        for attempt in range(1 + MAX_RETRIES):
+            try:
+                resp = self.client.chat.completions.create(
+                    model=MODEL, messages=build_messages(text, self.prompt), seed=SEED, reasoning_effort="none",
+                    response_format={"type": "json_schema", "json_schema": SCHEMA}, store=False)
+                answers = json.loads(resp.choices[0].message.content)
+                if not _valid(answers):
+                    raise ValueError("answer violates the schema")
+                u = resp.usage
+                if self.tracker:
+                    self.tracker.record("openai", MODEL, u.prompt_tokens, u.completion_tokens, (time.perf_counter() - t0) * 1000, cache_hit=False)
+                return answers
+            except Exception as e:                # auth, connection, timeout, rate limit, bad JSON, schema
+                errors.append(f"{type(e).__name__}: {str(e)[:120]}")
+                if attempt < MAX_RETRIES and self.backoff:
+                    time.sleep(self.backoff * (attempt + 1))
+        self.failed.add(key)
+        if self.tracker:
+            self.tracker.record_failure("openai", MODEL, len(errors), (time.perf_counter() - t0) * 1000, errors[-1])
+        _warn_once("api", f"intent model call failed ({errors[-1]}); falling back to rules for affected texts", self.tracker)
+        return None
 
     def _verdict(self, text):
         key = cache_key(text, self.prompt)
@@ -100,20 +164,14 @@ class IntentClassifier:
             if self.tracker:
                 self.tracker.record("openai", hit["model"], 0, 0, 0.0, cache_hit=True)
             return hit, True
-        if self.client is None:
+        if self.client is None or key in self.failed:
             return None, False
-        t0 = time.perf_counter()
-        resp = self.client.chat.completions.create(
-            model=MODEL, messages=build_messages(text, self.prompt), seed=SEED, reasoning_effort="none",
-            response_format={"type": "json_schema", "json_schema": SCHEMA}, store=False)
-        ms = (time.perf_counter() - t0) * 1000
-        answers = json.loads(resp.choices[0].message.content)
+        answers = self._live(text, key)
+        if answers is None:
+            return None, False
         entry = {"answers": answers, "label": label(answers), "model": MODEL}
         self.cache[key] = entry
         self.new_entries += 1
-        if self.tracker:
-            u = resp.usage
-            self.tracker.record("openai", MODEL, u.prompt_tokens, u.completion_tokens, ms, cache_hit=False)
         return entry, False
 
     def prefetch(self, texts, workers=8):
@@ -137,11 +195,18 @@ class IntentClassifier:
         return v
 
     def classify(self, text):
+        out = self._classify(text)
+        self._decided.setdefault(text, out.source)
+        return out
+
+    def _classify(self, text):
         r = classify_rules(text)
         if rules_clarity(text) == "clear":
             return r
         v, cached = self._verdict(text)
         if v is None:
+            if cache_key(text, self.prompt) in self.failed:
+                return Intent(r.label, r.reason + "; model call failed", "rules (model error)")
             return Intent(r.label, r.reason + "; no model verdict (no key, cache miss)", "rules (no model verdict)")
         return Intent(v["label"], v["answers"]["rationale"], "model (cache)" if cached else "model")
 

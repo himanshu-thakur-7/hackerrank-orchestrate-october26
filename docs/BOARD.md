@@ -144,6 +144,10 @@ Four sub-agents audited 14 eval cases from `dataset/` only (no engine output, co
 
 `docs/JEV_SPIKE.md`. Jev `jev-1.14.0` is reachable from the container. 50 propositions (25 true / 25 false, 5 perturbation kinds): AUROC 0.959 (supports) / 0.945 (supports − contradicts) passes; repeat stability over 20 identical requests: Δp = 0.090 > 0.05 **fails**. No option-order bias (0/18 changes). 88 calls, 60,871 in / 3,614 out tokens, median latency 107 ms, ≈ $0.003. **Gate FAIL: no judge code is built**; the fallback is the blind sub-agent audit.
 
+## Robustness: optional dependencies and API failures (peer-reported bug)
+
+A key set without the `openai` package crashed `main.py` (and the custom run). Fixed test-first (`code/tests/test_degrade.py`, 7 tests): guarded SDK import with one warning; bounded retries (2) with backoff and JSON/schema validation; failures recorded (usage log, `degraded` count) and never cached; an end-of-run decision summary; committed PDF text cache, so no PDF tool is needed. Two whole-pipeline subprocess tests: a fake key with `openai` blocked, and a client that raises on every call (over an overlay with a fresh remainder text); both give output byte-identical to the cache-only / no-key run. Acceptance in both environments (key unset; key set + openai blocked): selftest OK, determinism eb99c26b7974, invariants 9/9, custom 12/12, metamorphic 13/13; outputs byte-identical to each other, to the committed output.csv, and to a run with no `pdftotext` on PATH.
+
 ## Where this board deviates from the relayed list (and why)
 
 1. **T02 includes rules-only intent.** In the design, slice 1 is "skeleton end-to-end". A baseline run cannot write 518 *valid* rows without NOT_APPLICABLE detection, and ADR 0008 requires a rules-only path anyway. T11 keeps the cached OpenAI layer and the usage tracker.

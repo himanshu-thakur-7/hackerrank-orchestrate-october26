@@ -985,3 +985,23 @@ branch=claude/stoic-bell-1t82oq
 repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
+
+## [2026-10-25T02:47:40Z] Robustness: key without openai / API failures / missing PDF tool degrade to rules + caches
+
+User Prompt (verbatim, secrets redacted):
+(relayed by peer session "Prompt playbook website publishing" for the user) Bug found on a clean machine: OPENAI_API_KEY set but `openai` not installed crashes code/main.py and the custom run. Fix test-first with regression tests: missing package with a key (warn once, rules fallback, exit 0); API errors (auth, connection, timeout, rate limit, malformed JSON, schema violation) with a bounded retry (max 2) then rules fallback, recorded and never cached; an end-of-run summary of cache / live / rules fallback / degraded; harden every optional dependency; subprocess tests with openai blocked and with a raising client, byte-identical to the cache-only run; rerun the acceptance set in both environments. A later relayed message queues a bounded Jev follow-up spike after this fix.
+
+Agent Response Summary:
+Confirmed the cause: an unguarded `from openai import OpenAI` in llm_intent.default_client. Wrote 7 degradation tests first (red), then implemented: guarded import + warn once (stderr and usage notes); OpenAI(max_retries=0) with our own MAX_RETRIES=2 and backoff, JSON + schema validation, a per-run failed-key set, failures recorded in the tracker and never cached; per-unique-text decision counts and a summary line; usage log fields for degraded texts and notes. Also removed the hidden poppler dependency: the dataset PDFs come from a committed sha256-keyed text cache (generated with pdftotext); the T12 strictness test now targets a PDF outside the cache. Both environments pass selftest, determinism, invariants, custom and metamorphic, and outputs are byte-identical (also with no pdftotext on PATH).
+
+Actions:
+* Edited code/ghostaudit/llm_intent.py, usage.py, code/main.py, loaders/pdf.py; generated loaders/pdf_text_cache.py; wrote code/tests/test_degrade.py; edited test_loaders_t12.py
+* Ran all tests (137 + 67), audit, and selftest/determinism/invariants/custom/metamorphic in both environments; cmp of outputs; updated code/README.md, docs/BOARD.md
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none

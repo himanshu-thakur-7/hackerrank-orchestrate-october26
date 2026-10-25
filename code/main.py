@@ -33,7 +33,7 @@ def main(argv=None):
     reqs = data.load_requests(a.requests or data_dir / "deletion_requests.csv")
     resolver = identity.Resolver.from_dataset(data_dir)
     tracker = usage.Tracker()
-    clf = None if a.intent == "rules" else llm_intent.IntentClassifier(client=llm_intent.default_client(), tracker=tracker)
+    clf = None if a.intent == "rules" else llm_intent.IntentClassifier(client=llm_intent.default_client(tracker), tracker=tracker)
     classify = intent.classify_rules if clf is None else clf.classify
     intents = {q["case_id"]: classify(q["request_text"]) for q in reqs}
 
@@ -64,8 +64,7 @@ def main(argv=None):
     print(eng.linker.summary([q["case_id"] for q in reqs]))
     if clf is not None:
         clf.save()
-        src = Counter(i.source for i in intents.values())
-        print(f"intent sources: {dict(sorted(src.items()))}")
+        print(clf.summary())
         print(tracker.summary())
         usage.write_run_log(ROOT / "runs" / "usage", tracker)
     return 0

@@ -43,9 +43,10 @@ class Pdf(unittest.TestCase):
         s = load(DOCS / "account_history_report_20260718.pdf")
         self.assertEqual((s.observations, [u.reason for u in s.unattributed]), ([], ["no resource id"]))
 
-    def test_no_text_backend_is_a_hard_error(self):
+    def test_no_text_backend_is_a_hard_error_for_a_pdf_outside_the_committed_cache(self):
+        # dataset PDFs come from pdf_text_cache.py (see test_degrade); anything else needs a real backend
         with self.assertRaises(pdf.PdfTextUnavailable):
-            pdf.extract_text((DOCS / "security_retention_extract.pdf").read_bytes(), backends=())
+            pdf.extract_text(b"%PDF-1.4 unknown document", backends=())
 
 
 class Screens(unittest.TestCase):
