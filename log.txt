@@ -1243,3 +1243,44 @@ branch=claude/stoic-bell-1t82oq
 repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
+
+## [2026-10-25T10:26:31Z] Code-quality pass, stages 4-8: types, docstrings, structure, coverage, quality command
+
+User Prompt (verbatim, secrets redacted):
+(relayed by peer session "Prompt playbook website publishing" for the user) "code quality is also top notch, because code.zip also holds like a good percentage of marks. Make sure the code.zip quality and the code quality is very good." Separate commits after the README job; HARD SAFETY RULE: no behaviour change. Record the baseline (output.csv sha, dev/holdout scores, metamorphic 13/13, invariants 9/9, custom 12/12, determinism hash); after each commit run the fast subset and after the last commit final --matrix; revert any commit that changes output.csv by one byte or turns a gate red. Stages: 1 pyproject.toml with ruff/mypy config and optional extras, dev tools optional; 2 lint to zero with ruff format; 3 refactor every function graded C or D (nothing above B in ghostaudit, nothing above C in evaluation) with focused tests; 4 types and mypy; 5 docstrings and named constants; 6 layering test, dead code, error types, no print in library code; 7 coverage per module, tests for modules under 85%; 8 a quality command in final. Finish with README "Code quality" numbers, final --matrix, code.zip, a before/after table, commit, push, log, stop.
+
+Agent Response Summary:
+Continuation of the same relayed turn after the stages 1-3 entry. Stage 4 annotated every function in ghostaudit, main.py and package.py and named the dict and tuple shapes (TypedDicts and aliases). mypy strict went from 197 errors to 0 (148 on the pre-quality tree). Imports are now sorted. Stage 5 added a docstring with its ADR to every module and docstrings to every public class and function (solver 174/174, evaluation 138/138), and turned magic numbers into named constants. Stage 6 added a layering test and the GhostAuditError family, routed warnings through logging (the CLI output is unchanged), and removed dead code. Stage 7 added tests at public seams: every ghostaudit module now has at least 89% coverage, and the total went from 86% to 95%. Stage 8 added `main.py quality`, which `final` now runs, plus the README §12.1 before/after table, checked by test_readme. After every commit, output.csv and the engine logs for all 550 cases were byte-identical to the baseline, and the evaluation command outputs were identical to the pre-quality tree.
+
+Actions:
+* Commits abd2366, 3fbd322, 6c9847e, 2c4f32c, 7b62ca1, e7c8759, 7d03f0f on claude/stoic-bell-1t82oq
+* Added code/ghostaudit/errors.py, code/evaluation/quality.py, tests test_layering/test_errors/test_dataset_seam/test_loader_edges/test_usage/test_quality; README §12.1; docs/BOARD.md code-quality section
+* Ran ruff, mypy, radon and coverage.py (dev only), plus the scratchpad fast check and the evaluation-output compare after each commit
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+
+## [2026-10-25T10:34:16Z] Layering probe counts only real imports; final --matrix rerun on a clean clone
+
+User Prompt (verbatim, secrets redacted):
+(relayed by peer session "Prompt playbook website publishing" for the user) "The quality pass is verified on my side except for one red gate: I ran `python3 code/evaluation/main.py final --matrix` on commit 7d03f0f on a machine without the optional packages. 20 of 25 steps pass, including contract, determinism, invariants, metamorphic 13/13, custom 12/12, literal audit, quality, selftest, usage report, key scan and clean room (sha eb99c26b7974). ruff reports 0 findings and mypy is clean with the project config. The 5 failures are all the same test: code/tests/test_layering.py::test_default_path_imports_no_optional_dependency, in the matrix steps with pandas, openai, pypdf, typesafe_sdk and all blocked. Cause: the matrix hides a package by setting sys.modules[name] = None in the sitecustomize shim. The probe in that test prints every sys.modules key whose top-level name is in OPTIONAL, so a blocked module shows up as an imported one (value None) and the test expects "[]". It is a false failure of the test, not a solver problem. Fix, test-first: in the probe, count only modules that are really imported (the value in sys.modules is not None, for example `m for m, mod in sys.modules.items() if mod is not None and m.split('.')[0] in OPTIONAL`). Add a regression test that blocks one optional module the way the matrix does and asserts the layering test's probe still returns [] while a deliberately imported optional module is still detected (so the test cannot become vacuous). Then run `final --matrix` yourself on a clean tree and confirm 25/25, because the commit message for stage 8 implied the matrix was green and it is not on a machine where those packages are absent. Also confirm output.csv sha256 stays eb99c26b7974... Commit, push, add the usual log entry, rebuild code.zip, and report: the final --matrix result line, the quality command output, the zip size, and the list of commits in this quality pass. Then stop and wait."
+
+Agent Response Summary:
+The regression test came first: with the old filter, a module blocked as None was reported as imported (['pandas']). The probe now counts only sys.modules entries that hold a module. The new test checks that a blocked package gives [] and that a really imported one is listed. Committed as d03642e, with README counts refreshed (181 solver, 119 evaluation). final --matrix then ran on a fresh clone of d03642e with no keys set: RED, 23/25. The layering steps pass, but test_readme's code-quality coverage row fails in the [pdftotext blocked] and [all blocked] evaluation suites. On a machine with coverage.py installed, blocking pdftotext skips the PDF-cache regeneration test, so the measured ghostaudit coverage drops below the README value. Machines without coverage.py skip that row, which is why the peer saw 25/25. output.csv sha256 stays eb99c26b7974; the clean room passed. The fix was reported and not applied, because the next relayed request forbids code changes.
+
+Actions:
+* Edited code/tests/test_layering.py and README.md; commit d03642e pushed
+* Ran final --matrix in a scratchpad clone; reproduced the coverage-row failure with final.blocked_env(("pdftotext",))
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
