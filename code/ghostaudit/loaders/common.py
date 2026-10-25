@@ -9,7 +9,7 @@ PHONE_RE = re.compile(r"^\+?[\d][\d ()\-]{7,}\d$")
 ISO_RE = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
 
 NAME_FIELDS = {"full_name", "name", "display_name", "requester_name"}
-EMAIL_FIELDS = {"email", "requester_email", "owner_email", "customer_email"}
+EMAIL_FIELDS = {"email", "requester_email", "owner_email", "customer_email", "uploaded_by"}
 PHONE_FIELDS = {"phone", "requester_phone", "owner_phone"}
 HASH_FIELDS = {"email_hash"}
 PII_ORDER = ("name", "email", "phone", "email_hash")
@@ -95,6 +95,18 @@ def attrs(fields, exclude=()):
             continue
         out.append((k, str(v).lower() if isinstance(v, bool) else str(v)))
     return tuple(sorted(out))
+
+
+EMAIL_IN_TEXT = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+
+
+def emails_in_text(fields):
+    """Emails embedded in free-text values (e.g. a support message body)."""
+    out = []
+    for _, v in scalar_items(fields):
+        if isinstance(v, str) and not kind(v):
+            out += [e.rstrip(".") for e in EMAIL_IN_TEXT.findall(v)]
+    return out
 
 
 KV_RE = re.compile(r'(\w+)=("(?:[^"\\]|\\.)*"|\S+)')

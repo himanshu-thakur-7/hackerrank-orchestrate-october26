@@ -6,7 +6,7 @@ Signatures whose adapter is not built yet raise LoaderPending (strict) so nothin
 import json
 from pathlib import Path
 
-from ghostaudit.loaders import handover, readback, service_export
+from ghostaudit.loaders import handover, readback, service_export, sql
 from ghostaudit.loaders.common import LoadResult, Unit  # noqa: F401  (re-exported)
 
 PENDING = {}            # signature -> board task that will implement it
@@ -24,8 +24,9 @@ LOADERS = {
     "txt:handover": handover.load,
     "json:service_exports": service_export.load,
     "log:readback": readback.load,
+    "sql": sql.load,
 }
-PENDING.update({"sql": "T05", "json:snapshots": "T06", "json:records": "T06", "log:record_lookup": "T06",
+PENDING.update({"json:snapshots": "T06", "json:records": "T06", "log:record_lookup": "T06",
                 "log:observability": "T07", "pdf": "T12", "png": "T12"})
 
 
@@ -52,7 +53,7 @@ def sniff(raw, file_id="?"):
         if isinstance(data, dict) and isinstance(data.get("records"), list):
             return "json:records"
         raise UnknownSignature(f"{file_id}: unknown content signature: JSON object with keys {keys}")
-    if "CREATE TABLE" in text and "INSERT INTO" in text:
+    if sql.matches(text):
         return "sql"
     if handover.matches(text):
         return "txt:handover"

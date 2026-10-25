@@ -611,3 +611,24 @@ repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
 
+## [2026-10-25T01:19:18Z] T05 done: SQL snapshot loader with proven coverage and replica drift
+
+User Prompt (verbatim, secrets redacted):
+(same relayed prompt as the T04 entry: implement T04-T07 sequentially, tdd, strict loaders)
+
+Agent Response Summary:
+T05 test-first (tdd): fixtures copied verbatim from evidence_54 (whole failover dump), evidence_93 (inventory with snapshot_scope) and stitched generic customer_data_* INSERT lines (evidence_05/20/24). 7 exact-Observation tests cover typed tables, inventory scope coverage, JSON-blob rows (collection -> category, emails inside message_text -> PII), generic per-system coverage, and an unknown table reported rather than skipped. Coverage proof is recorded in the loader docstring: a dump is the whole table (gold verifies absences by omission from evidence_54); inventory coverage only for systems in snapshot_scope. Dataset run: 24 SQL files, 891 observations, 243 coverage entries, 0 unparsed, 0 unknown; gold 10/10 including 3 coverage-only absences; drift 13 replica-only resources in 11 files and 8 DELETION_PENDING rows, as in the data notes. Scorer delta 0 (engine trivial). Recorded a T10 finding: ticket_id and source_resource_id are join keys.
+
+Actions:
+* Wrote code/ghostaudit/loaders/sql.py, code/tests/test_loaders_t05.py, three SQL fixtures; edited loaders/__init__.py and common.py (uploaded_by, emails in free text)
+* Extended code/evaluation/loader_check.py with SQL drift and DELETION_PENDING report (+ CLI test)
+* Ran loaders --kind sql --spot, contract, score, audit; updated docs/BOARD.md
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+

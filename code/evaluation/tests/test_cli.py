@@ -116,3 +116,11 @@ class LoaderCheck(unittest.TestCase):
             self.assertIn(marker, out)
         self.assertIn("gold-cited pairs: ", out)
         self.assertIn(" 0 failed", out)
+
+
+class SqlLoaderReport(unittest.TestCase):
+    def test_sql_kind_reports_replica_drift_and_deletion_pending(self):
+        code, out = run("loaders", "--kind", "sql")
+        self.assertEqual(code, 0, out)
+        self.assertIn("SQL DRIFT: 13 replica-only resources in 11 files", out)
+        self.assertIn("DELETION_PENDING rows: 8", out)

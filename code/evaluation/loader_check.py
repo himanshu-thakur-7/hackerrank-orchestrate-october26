@@ -73,6 +73,21 @@ def run(root, files=None, kinds=None, spot=False):
         if fid in results and results[fid].signature not in loaders.LOADERS:
             print(f"  NOTE {fid}: signature {results[fid].signature} not built yet")
 
+    sql_sel = [fid for fid in sorted(sel) if fid in results and results[fid].signature == "sql"]
+    if sql_sel:
+        drift, files_with = 0, 0
+        pending = 0
+        for fid in sql_sel:
+            obs = results[fid].observations
+            pending += sum(1 for o in obs if dict(o.attrs).get("account_status") == "DELETION_PENDING")
+            prim = {o.resource_id for o in obs if "primary" in o.table}
+            rep = {o.resource_id for o in obs if "replica" in o.table}
+            only = sorted(rep - prim) if prim else []
+            if only:
+                files_with += 1; drift += len(only)
+                print(f"  drift {fid}: replica-only {', '.join(only)}")
+        print(f"SQL DRIFT: {drift} replica-only resources in {files_with} files")
+        print(f"DELETION_PENDING rows: {pending}")
     print("GOLD CHECK (sample steps citing the selected files)")
     gold = {r["case_id"]: json.loads(r["steps_json"]) for r in csv.DictReader(open(data / "sample_output.csv", newline="", encoding="utf-8"))}
     reqs = {r["case_id"]: r for r in csv.DictReader(open(data / "sample_deletion_requests.csv", newline="", encoding="utf-8"))}
