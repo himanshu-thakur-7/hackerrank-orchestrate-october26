@@ -733,3 +733,42 @@ The "16 eval cases with only post-audit evidence" count was **wrong**. It ignore
 - **9 of the 11 are non-deletion requests** (case_534 to case_542), which need no evidence.
 - The two deletion cases, **case_61** and **case_63**, are screenshot-only cases whose person link rests on `LINK_RESOURCE_IDENTITY` activity claims (`activity_4007` / `activity_4008`).
 - In case_63, the screenshot `evidence_60` shows a different, unknown person (sj.park@naver.com) for `marketing_001`.
+
+---
+
+## Pass 6 — Recovering account and analytics IDs from system_activity
+
+This is a summary; full method, numbers and scripts are in `docs/03_ID_RECOVERY_PROTOTYPE.md`.
+
+**Timing in the generated regime** (samples case_09 and case_11 to case_32; 506 of 518 eval rows, where `reported_at − requested_at` is exactly 24, 48 or 72 h):
+
+- The gold `DELETE_RECORD → account_service` lands **0.75 to 1.23 h before `reported_at`** (n=23). Example: case_26 `activity_3600` account_5684, 0.85 h.
+- Its `reported_result` matches `reported_status` in **23/23**: COMPLETE↔SUCCESS 11, NOT_STARTED↔FAILED 10, PARTIALLY_COMPLETE↔PARTIAL 2.
+- No activity column names the user.
+
+**Sample hit rate** (exact unique hit, out of 32):
+
+| Heuristic | Hits | Wrong |
+| --- | --- | --- |
+| window [rep−1.5 h, rep−0.5 h] + result↔status | 12 | 0 |
+| + pre-audit identity filter | 17 | 0 |
+| + global one-to-one assignment across all 550 requests | 19 | 0 |
+| + A23 sub-snapshot linking | 21 | 0 |
+| + case_id-order tie-break | **23** | 1 (case_23) |
+
+- The case_id-order tie-break is a **generator artifact**, so use it only as a flagged last resort.
+- The ambiguous groups on samples are case_23 (a triple), case_25/case_26 and case_28/case_29.
+- The 8 misses are the hand-written samples (case_01 to case_08, case_10). In those, the delete sits within ±0.15 h of `reported_at`, and `account_004` has no activity at all.
+
+**Eval:**
+
+- After the grounded steps, the candidates per case are 1 for 360 cases, 2 for 110 and 3 for 26.
+- After the rank tie-break, 494 cases have one candidate and 2 have two.
+- The **12 cases in the 42 h family** have no account-delete signal: case_33, 34, 35, 39, 45, 46, 50, 52, 53, 55, 61 and 63. They are covered by `LINK_RESOURCE_IDENTITY` (`activity_4000` to `activity_4011`) plus screenshots.
+
+**Downstream batching:**
+
+- COMPLETE-style policy actions follow the account delete by +22 to +66 min, in the order ANONYMIZE → REDACT → DISABLE → BLOCK.
+- They are **batched by clock time across users**. For example, `activity_3602` and `activity_3603` both run at 2026-09-02 11:31, so time windows attribute rows poorly (precision 0.22 to 0.28).
+- Every gold search, support, data_flow, backup, export and tombstone resource is directly linked by a pre-audit record.
+- The 7 unlinked analytics IDs are exactly the already-anonymized ones (case_03, 04, 21, 25, 26, 27, 28). Five of them are recoverable only through the rank artifact.
