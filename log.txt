@@ -782,3 +782,24 @@ branch=claude/stoic-bell-1t82oq
 repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
+
+## [2026-10-25T02:12:50Z] T16 done: invariants 9/9 on 518 rows, loss ledger (unknown 0), silver audit 6/20 checked
+
+User Prompt (verbatim, secrets redacted):
+(same relayed T15/T16 prompt as the T15 entry)
+
+Agent Response Summary:
+T16 with tests: invariant tests break one property of a copy of the real output each (the module was written before the first run, so red was only the missing import), plus loss-ledger tests (reason mapping; real eval has no 'unknown'). invariants.py checks I1-I9 over output.csv: 9/9 hold on 518/518. lossledger.py derives per-case reasons from the engine's own log/resources and writes docs/LOSS_LEDGER.md: unknown 0; counts match the ADR measurements (DELETION_PENDING 8, legal hold 6); step-recall ceiling estimate ~0.89. silver.py draws 20 stratified cases (seed); I hand-checked 6 against raw file lines with an independent grep: 0 disagreements, 2 probable anonymized-analytics misses (the known loss class). Selftest, determinism, contract and audit green.
+
+Actions:
+* Wrote code/evaluation/invariants.py, lossledger.py, silver.py, tests/test_invariants.py, tests/test_lossledger.py; edited evaluation/main.py (invariants, lossledger)
+* Wrote docs/LOSS_LEDGER.md (generated), docs/SILVER_AUDIT.md; updated docs/BOARD.md
+* Ran unit tests (all green), invariants, lossledger, explain + raw greps on 6 cases, contract, determinism, selftest, audit
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none

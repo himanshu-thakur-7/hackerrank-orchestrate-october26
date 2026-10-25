@@ -7,6 +7,8 @@
   python3 code/evaluation/main.py loaders [--files ID,ID] [--kind sql,json,log,...] [--spot]
   python3 code/evaluation/main.py states [--split dev|holdout|all] [--risk]
   python3 code/evaluation/main.py linking
+  python3 code/evaluation/main.py invariants [--file output.csv]
+  python3 code/evaluation/main.py lossledger                 # writes docs/LOSS_LEDGER.md
   python3 code/evaluation/main.py metamorphic [--only M1,M7]
   python3 code/evaluation/main.py audit
   python3 code/evaluation/main.py selftest
@@ -165,6 +167,16 @@ def cmd_metamorphic(a):
     return metamorphic.run([x.strip().upper() for x in a.only.split(",") if x.strip()] or None)
 
 
+def cmd_invariants(a):
+    from evaluation import invariants
+    return invariants.run(a.file, DATA)
+
+
+def cmd_lossledger(_):
+    from evaluation import lossledger
+    return lossledger.run(ROOT, write=ROOT / "docs" / "LOSS_LEDGER.md")[0]
+
+
 def cmd_audit(_):
     hits = audit.scan(ROOT / "code")
     print(f"LITERAL AUDIT: {len(hits)} hit(s)")
@@ -250,13 +262,15 @@ def main(argv=None):
     lo = sub.add_parser("loaders"); lo.add_argument("--files", default=""); lo.add_argument("--kind", default=""); lo.add_argument("--spot", action="store_true")
     st = sub.add_parser("states"); st.add_argument("--split", default="dev", choices=("dev", "holdout", "all")); st.add_argument("--risk", action="store_true")
     sub.add_parser("linking")
+    iv = sub.add_parser("invariants"); iv.add_argument("--file", default=str(ROOT / "output.csv"))
+    sub.add_parser("lossledger")
     mm = sub.add_parser("metamorphic"); mm.add_argument("--only", default="", help="e.g. M1,M7")
     sub.add_parser("audit")
     sub.add_parser("selftest")
     a = p.parse_args(argv)
     os.chdir(ROOT)
     return {"contract": cmd_contract, "score": cmd_score, "determinism": cmd_determinism,
-            "audit": cmd_audit, "selftest": cmd_selftest, "loaders": cmd_loaders, "states": cmd_states, "linking": cmd_linking, "metamorphic": cmd_metamorphic}[a.command](a)
+            "audit": cmd_audit, "selftest": cmd_selftest, "loaders": cmd_loaders, "states": cmd_states, "linking": cmd_linking, "metamorphic": cmd_metamorphic, "invariants": cmd_invariants, "lossledger": cmd_lossledger}[a.command](a)
 
 
 if __name__ == "__main__":
