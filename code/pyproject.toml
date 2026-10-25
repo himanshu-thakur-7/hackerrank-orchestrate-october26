@@ -30,7 +30,7 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "B", "SIM", "C90", "UP", "RET", "PIE"]
+select = ["E", "F", "W", "B", "SIM", "C90", "UP", "RET", "PIE", "I"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10

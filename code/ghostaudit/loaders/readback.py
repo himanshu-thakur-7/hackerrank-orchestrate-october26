@@ -19,7 +19,6 @@ from ghostaudit.loaders.common import (
 )
 from ghostaudit.store import Observation
 
-
 # (line number, timestamp, logfmt fields, raw line)
 TraceLine = tuple[int, str, dict[str, str], str]
 LINE_RE = re.compile(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) (level=\w+ service=\w+ .*)$")

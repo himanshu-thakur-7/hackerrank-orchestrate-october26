@@ -4,6 +4,8 @@ loaders."""
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any
 
 from ghostaudit.loaders.common import (
     Unit,
@@ -14,9 +16,6 @@ from ghostaudit.loaders.common import (
     state_from_fields,
 )
 from ghostaudit.store import Observation
-
-from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ghostaudit.loaders.common import LoadResult

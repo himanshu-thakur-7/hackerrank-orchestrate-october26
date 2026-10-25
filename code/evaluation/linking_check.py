@@ -8,7 +8,6 @@ from collections import Counter
 
 from ghostaudit.data import read_csv
 
-
 # (substring of an UNRESOLVED/REJECTED log line, suffix for its kind), checked in this order
 LINK_KINDS = (
     ("survive", ":tied"),

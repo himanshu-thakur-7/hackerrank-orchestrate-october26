@@ -11,9 +11,8 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
-from dataclasses import dataclass
-
 from collections.abc import Iterable
+from dataclasses import dataclass
 
 # (observed_at, capture time, file_id, result): ordered by the first three, latest wins
 Event = tuple[str, str | None, str, "StateResult"]

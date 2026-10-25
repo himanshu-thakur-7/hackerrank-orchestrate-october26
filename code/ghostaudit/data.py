@@ -5,7 +5,6 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-
 # A request row of deletion_requests.csv (all values are strings).
 Request = dict[str, str]
 

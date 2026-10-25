@@ -13,9 +13,8 @@ is not a deletion_rules category: connectors get the data-flow operations.
 from __future__ import annotations
 
 import csv
-from dataclasses import dataclass
-
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 

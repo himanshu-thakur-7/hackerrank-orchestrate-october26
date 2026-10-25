@@ -7,12 +7,12 @@ The status vocabulary is the same as the shift handover.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Any, cast
+
 from ghostaudit.loaders.common import Unit, kind
 from ghostaudit.loaders.handover import EXPOSING, PII_NAME, STATUS
 from ghostaudit.store import Observation
-
-from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from ghostaudit.loaders.common import LoadResult

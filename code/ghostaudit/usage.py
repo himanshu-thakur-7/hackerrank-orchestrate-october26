@@ -8,7 +8,6 @@ Prices are USD per 1M tokens (input, output), from the provider's model page
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-
 from pathlib import Path
 from typing import Any
 

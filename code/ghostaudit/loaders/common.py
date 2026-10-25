@@ -4,9 +4,8 @@ parsing."""
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
-
 from collections.abc import Collection, Mapping
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:

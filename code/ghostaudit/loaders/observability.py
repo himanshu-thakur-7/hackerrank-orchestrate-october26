@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import re
 from collections import OrderedDict
+from collections.abc import Callable, Mapping, Sequence
 
 from ghostaudit.loaders.common import (
     LoadResult,
@@ -33,8 +34,6 @@ from ghostaudit.loaders.common import (
     state_from_fields,
 )
 from ghostaudit.store import Observation
-
-from collections.abc import Callable, Mapping, Sequence
 
 # (line number, timestamp, fields, raw line, (service, trace_id) or None)
 LogRecord = tuple[int, str, dict[str, str], str, tuple[str, str] | None]

@@ -8,12 +8,11 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from ghostaudit.data import read_csv
-
-from collections.abc import Iterable, Mapping
 
 
 def _digits(s: str | None) -> str:

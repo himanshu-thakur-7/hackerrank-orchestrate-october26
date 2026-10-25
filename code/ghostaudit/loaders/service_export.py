@@ -7,6 +7,7 @@ exhaustive, so no Coverage is emitted.
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from ghostaudit.loaders.common import (
     LoadResult,
@@ -19,8 +20,6 @@ from ghostaudit.loaders.common import (
     state_from_fields,
 )
 from ghostaudit.store import Observation
-
-from typing import Any
 
 
 def _search_record(

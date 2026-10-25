@@ -19,6 +19,8 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+from collections.abc import Iterable
+from typing import Any, cast
 
 from ghostaudit.loaders.common import (
     ISO_RE,
@@ -31,9 +33,6 @@ from ghostaudit.loaders.common import (
     state_from_fields,
 )
 from ghostaudit.store import Coverage, Observation
-
-from collections.abc import Iterable
-from typing import Any, cast
 
 # a row normalized for one Observation: (system_id, category, fields, observed_at)
 Normalized = tuple[str, str | None, dict[str, Any], str]

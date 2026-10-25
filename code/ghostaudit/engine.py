@@ -13,16 +13,15 @@ anything that would need it is logged, never guessed (ADR 0004).
 from __future__ import annotations
 
 import csv
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
 
 from ghostaudit import contract, data, identity, linking, loaders, policy
 from ghostaudit import intent as intent_mod
 from ghostaudit.loaders.common import system_of
 from ghostaudit.store import ActivityEvent, EvidenceFile, EvidenceStore, StateResult
-
-from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from ghostaudit.contract import Step

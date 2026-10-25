@@ -24,15 +24,14 @@ import json
 import os
 import sys
 import time
-from pathlib import Path
-
-from ghostaudit.intent import Intent, _del, _neg, classify_rules
-
 from collections.abc import Iterable, Mapping
 from importlib.abc import Loader
 from importlib.machinery import ModuleSpec
+from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING, Any, cast
+
+from ghostaudit.intent import Intent, _del, _neg, classify_rules
 
 if TYPE_CHECKING:
     from ghostaudit.usage import Tracker

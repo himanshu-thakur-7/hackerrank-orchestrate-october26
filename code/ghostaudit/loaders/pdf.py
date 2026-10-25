@@ -16,7 +16,9 @@ import re
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
+from typing import cast
 
 from ghostaudit.loaders.common import (
     EMAIL_IN_TEXT,
@@ -27,9 +29,6 @@ from ghostaudit.loaders.common import (
     kind,
 )
 from ghostaudit.store import Observation
-
-from collections.abc import Callable, Iterable, Sequence
-from typing import cast
 
 RES_RE = re.compile(r"\b(" + "|".join(sorted(PREFIX_SYSTEM, key=len, reverse=True)) + r")_\d+\b")
 USER_RE = re.compile(r"\buser_\d+\b")

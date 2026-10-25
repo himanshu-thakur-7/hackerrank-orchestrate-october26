@@ -8,6 +8,7 @@ silently.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable, Container
 from pathlib import Path
 
 from ghostaudit.loaders import (
@@ -23,8 +24,6 @@ from ghostaudit.loaders import (
     sql,
 )
 from ghostaudit.loaders.common import LoadResult, Unit  # noqa: F401  (re-exported)
-
-from collections.abc import Callable, Container
 
 PENDING: dict[str, str] = {}  # signature -> board task that will implement it
 

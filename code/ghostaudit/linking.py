@@ -24,13 +24,12 @@ reported_at is reported for each candidate, but it is not used to choose.
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from typing import TYPE_CHECKING, cast
 
 from ghostaudit.loaders.common import EMAIL_IN_TEXT
-
-from collections.abc import Iterable, Mapping
-from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from ghostaudit.data import Request
