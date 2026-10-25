@@ -907,3 +907,23 @@ branch=claude/stoic-bell-1t82oq
 repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
+
+## [2026-10-25T02:26:57Z] T11 done: intent = rules pre-screen + cached pinned model; usage tracker
+
+User Prompt (verbatim, secrets redacted):
+(same relayed prompt as the previous entry; part 2, T11. OPENAI_API_KEY is read only from the environment and was never printed, logged or written: [REDACTED])
+
+Agent Response Summary:
+T11 test-first (11 tests with a fake SDK client, red then green): prompt with atomic yes/no questions and injection handling, synthetic few-shot only; llm_intent.py (rules clear -> rules; remainder -> cached/live model; no verdict -> rules), cache as a generated .py module keyed by sha256(model+prompt+text), usage.py tracker with official prices; main.py --intent auto|rules; evaluation  review. Installed the openai SDK; one synthetic probe call verified the pinned id and parameters. Live review of 398 unique texts: 0 rules/model disagreements, exactly case_533-542 non-deletion; 398 calls, 363,369 in / 20,163 out tokens, about $0.36. Rerun with a key: 0 calls; no-key and rules-only outputs byte-identical. Tests, selftest, determinism, invariants 9/9 and metamorphic 13/13 all green.
+
+Actions:
+* pip install openai; wrote code/prompts/intent_classifier.md, code/ghostaudit/llm_intent.py, usage.py, llm_cache.py (generated), code/evaluation/intent_review.py, intent_disagreements.md (generated), code/tests/test_intent_t11.py; edited main.py, engine.py (classify param), evaluation/main.py, code/README.md, docs/BOARD.md
+* Ran: live probe, evaluation intent (398 calls), main.py with key / without key / --intent rules, all tests, selftest, determinism, invariants, metamorphic, audit, contract
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none

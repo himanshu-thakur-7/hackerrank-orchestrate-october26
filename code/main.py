@@ -3,6 +3,7 @@
   python3 code/main.py                       # reads dataset/, writes ./output.csv
   python3 code/main.py --requests dataset/sample_deletion_requests.csv --out /tmp/pred.csv
   python3 code/main.py --report              # intent and identity counts, no file written
+  python3 code/main.py --intent rules        # rules-only intent (no model, no cache)
   python3 code/main.py --explain <case_id>                 # trace behind one row
 """
 import argparse
@@ -14,7 +15,7 @@ CODE = Path(__file__).resolve().parent
 ROOT = CODE.parent
 sys.path.insert(0, str(CODE))
 
-from ghostaudit import data, explain, identity, intent, writer  # noqa: E402
+from ghostaudit import data, explain, identity, intent, llm_intent, usage, writer  # noqa: E402
 from ghostaudit.engine import Engine  # noqa: E402
 
 
@@ -24,12 +25,17 @@ def main(argv=None):
     p.add_argument("--requests", default=None, help="defaults to <data>/deletion_requests.csv")
     p.add_argument("--out", default=str(ROOT / "output.csv"))
     p.add_argument("--report", action="store_true")
+    p.add_argument("--intent", choices=("auto", "rules"), default="auto",
+                   help="auto: rules decide clear texts, the cached model (live only with OPENAI_API_KEY) decides the rest")
     p.add_argument("--explain", default="", help="print the trace behind one case_id (searches both request files)")
     a = p.parse_args(argv)
     data_dir = Path(a.data)
     reqs = data.load_requests(a.requests or data_dir / "deletion_requests.csv")
     resolver = identity.Resolver.from_dataset(data_dir)
-    intents = {q["case_id"]: intent.classify_rules(q["request_text"]) for q in reqs}
+    tracker = usage.Tracker()
+    clf = None if a.intent == "rules" else llm_intent.IntentClassifier(client=llm_intent.default_client(), tracker=tracker)
+    classify = intent.classify_rules if clf is None else clf.classify
+    intents = {q["case_id"]: classify(q["request_text"]) for q in reqs}
 
     if a.report:
         c = Counter(i.label for i in intents.values())
@@ -41,7 +47,7 @@ def main(argv=None):
         print(f"identity: {resolved}/{len(reqs)} resolved")
         return 0
 
-    eng = Engine.from_dataset(data_dir, resolver)
+    eng = Engine.from_dataset(data_dir, resolver, classify)
     if a.explain:
         pool = {q["case_id"]: q for f in ("deletion_requests.csv", "sample_deletion_requests.csv")
                 for q in data.load_requests(data_dir / f)}
@@ -50,12 +56,18 @@ def main(argv=None):
         if q is None:
             print(f"unknown case_id {a.explain}")
             return 1
-        print(explain.render(eng, q, intent.classify_rules(q["request_text"])))
+        print(explain.render(eng, q, classify(q["request_text"])))
         return 0
     rows = [eng.audit(q, intents[q["case_id"]]) for q in reqs]
     writer.write(a.out, rows)
     print(f"wrote {len(rows)} rows -> {a.out}")
     print(eng.linker.summary([q["case_id"] for q in reqs]))
+    if clf is not None:
+        clf.save()
+        src = Counter(i.source for i in intents.values())
+        print(f"intent sources: {dict(sorted(src.items()))}")
+        print(tracker.summary())
+        usage.write_run_log(ROOT / "runs" / "usage", tracker)
     return 0
 
 

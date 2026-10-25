@@ -55,7 +55,7 @@ class Engine:
         self.notes = list(notes)      # run-level notes (e.g. evidence formats whose loader is pending)
 
     @classmethod
-    def from_dataset(cls, data_dir, resolver=None):
+    def from_dataset(cls, data_dir, resolver=None, classify=None):
         d = Path(data_dir)
         with open(d / "evidence_files.csv", newline="", encoding="utf-8") as f:
             manifest = list(csv.DictReader(f))
@@ -72,7 +72,8 @@ class Engine:
         # global one-to-one account assignment runs over every request file in the dataset (ADR 0003)
         requests = [q for f in ("sample_deletion_requests.csv", "deletion_requests.csv") if (d / f).exists()
                     for q in data.load_requests(d / f)]
-        intents = {q["case_id"]: intent_mod.classify_rules(q["request_text"]) for q in requests}
+        classify = classify or intent_mod.classify_rules     # the same intent the run uses (rules, or rules + model)
+        intents = {q["case_id"]: classify(q["request_text"]) for q in requests}
         lk = linking.Linker(store, resolver, requests, intents)
         return cls(store, resolver, policy.Rules.from_csv(d / "deletion_rules.csv"), notes, lk)
 

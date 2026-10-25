@@ -6,7 +6,12 @@
 - **Optional: `pandas`.** It is used only by the evaluation contract gate for an extra round-trip check of `output.csv`. When pandas is absent, that check is reported as `WARNING L0.pandas SKIPPED` and does not fail the gate. The mandatory stdlib `csv` round-trip still runs.
 - **External tool: `pdftotext`** (poppler-utils), to read the four PDF evidence files. Fallback: `pip install pypdf`. With neither, the run stops with `PdfTextUnavailable` (no PDF is skipped silently).
 - **Screenshots** are read from committed transcriptions (`ghostaudit/loaders/screens_data.py`, keyed by the PNG's sha256), so the no-key run reproduces `output.csv`. A PNG without a transcription stops the run.
-- **Planned optional (T11/T12): OpenAI API.** It is used only when `OPENAI_API_KEY` is set. A committed cache and a rules-only fallback produce all rows without any key (ADR 0008).
+- **Optional: OpenAI API** (`pip install openai`), intent only, pinned `gpt-5.4-mini-2026-03-17` (ADR 0008).
+  - Rules decide clear texts; the model decides only texts where deletion and negation/scope cues both fire.
+  - Verdicts are cached in the generated module `ghostaudit/llm_cache.py` (sha256 keys, answers only). A live call happens only on a cache miss with `OPENAI_API_KEY` set in the environment; the key is never read by our code, printed or stored.
+  - With no key (or `--intent rules`), all 518 rows are produced, and the committed cache reproduces `output.csv` exactly.
+  - `python3 code/evaluation/main.py intent` compares the rules and the model on every unique request text and writes `evaluation/intent_disagreements.md`.
+  - The prompt is in `code/prompts/intent_classifier.md`.
 
 ## Known risks
 
