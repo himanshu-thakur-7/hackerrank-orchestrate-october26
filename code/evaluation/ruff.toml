@@ -1,0 +1,5 @@
+# The evaluation harness inherits the project lint settings and allows complexity up to 15 (grade C).
+extend = "../pyproject.toml"
+
+[lint.mccabe]
+max-complexity = 15
