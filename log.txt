@@ -1223,3 +1223,23 @@ branch=claude/stoic-bell-1t82oq
 repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
+
+## [2026-10-25T08:57:48Z] Code-quality pass, stages 1-3: config, lint to zero, complexity targets met
+
+User Prompt (verbatim, secrets redacted):
+(relayed by peer session "Prompt playbook website publishing" for the user) "code quality is also top notch, because code.zip also holds like a good percentage of marks. Make sure the code.zip quality and the code quality is very good." Separate commits after the README job; HARD SAFETY RULE: no behaviour change. Record the baseline (output.csv sha, dev/holdout scores, metamorphic 13/13, invariants 9/9, custom 12/12, determinism hash); after each commit run the fast subset and after the last commit final --matrix; revert any commit that changes output.csv by one byte or turns a gate red. Stages: 1 pyproject.toml with ruff/mypy config and optional extras, dev tools optional; 2 lint to zero with ruff format; 3 refactor every function graded C or D (nothing above B in ghostaudit, nothing above C in evaluation) with focused tests; 4 types and mypy; 5 docstrings and named constants; 6 layering test, dead code, error types, no print in library code; 7 coverage per module, tests for modules under 85%; 8 a quality command in final. Finish with README "Code quality" numbers, final --matrix, code.zip, a before/after table, commit, push, log, stop.
+
+Agent Response Summary:
+Baseline recorded (output.csv eb99c26b7974, dev 0.798 / holdout 0.805, metamorphic 13/13, invariants 9/9, custom 12/12). Stage 1: code/pyproject.toml plus code/evaluation/ruff.toml (complexity 15 for the harness). Stage 2: ruff format and a string splitter, both verified AST-identical; hand fixes for lambdas, ambiguous names, raise-from, zip(strict) and open() in comprehensions; ruff now reports 0 findings (it was 1,576 with E501). Stage 3: 41 functions refactored. radon shows nothing above 10 in code/ghostaudit, main.py and package.py, and nothing above 15 in code/evaluation or the tests. New focused tests cover the policy judges, linking elimination, SQL rows and coverage, and the loader tables. Each commit was checked: output.csv byte-identical, the engine's status/steps/log identical for all 550 cases vs the pre-quality tree, plus scores, metamorphic details, loader check, report data and Markdown, linking, states, ledger, intent and Jev queue output identical. The literal audit caught case ids in a new docstring (fixed).
+
+Actions:
+* Added code/pyproject.toml, code/evaluation/ruff.toml, tests test_policy_tables/test_linking_parts/test_sql_parts/test_loader_tables; refactored modules across code/ghostaudit, code/main.py, code/package.py and code/evaluation
+* Verification tools in the scratchpad: AST snapshot compare, engine log dump vs the pre-quality tree, evaluation output compare vs that tree
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
