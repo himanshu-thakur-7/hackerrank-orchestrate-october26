@@ -1,5 +1,7 @@
 """Shared helpers for loaders: value classification, PII fields, identifiers, attrs, logfmt
-parsing."""
+parsing.
+
+Decisions: ADR 0014 (only absence signals and exhaustive files mean ABSENT)."""
 
 from __future__ import annotations
 
@@ -7,6 +9,8 @@ import re
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
+
+from ghostaudit.identity import MIN_PHONE_DIGITS
 
 if TYPE_CHECKING:
     pass
@@ -43,6 +47,8 @@ NAME_FIELDS = {"full_name", "name", "display_name", "requester_name"}
 EMAIL_FIELDS = {"email", "requester_email", "owner_email", "customer_email", "uploaded_by"}
 PHONE_FIELDS = {"phone", "requester_phone", "owner_phone"}
 HASH_FIELDS = {"email_hash"}
+# How much raw text an unusable unit keeps for the loss report (enough to find it again).
+EXCERPT_CHARS = 200
 PII_ORDER = ("name", "email", "phone", "email_hash")
 NOT_ATTRS = {"resource_id", "observed_at", "lookup_key", "trace_id", "level", "service", "event"}
 
@@ -59,6 +65,11 @@ class Unit:
 
 @dataclass
 class LoadResult:
+    """What one file yields: observations, coverage, and the units it could not use.
+
+    unattributed holds record units without an identifier; unparsed holds record-like lines the
+    format did not understand. Both are reported by the loss ledger, never dropped."""
+
     signature: str
     observations: list = field(default_factory=list)
     coverage: list = field(default_factory=list)
@@ -67,6 +78,7 @@ class LoadResult:
 
 
 def null(v: object) -> bool:
+    """True for None and for empty, 'null' or 'none' strings (any case, any padding)."""
     return v is None or (isinstance(v, str) and v.strip().lower() in ("", "null", "none"))
 
 
@@ -81,12 +93,13 @@ def kind(v: object) -> str | None:
         return "user_id"
     if HASH_RE.match(t.lower()):
         return "email_hash"
-    if PHONE_RE.match(t) and len(re.sub(r"\D", "", t)) >= 9:
+    if PHONE_RE.match(t) and len(re.sub(r"\D", "", t)) >= MIN_PHONE_DIGITS:
         return "phone"
     return None
 
 
 def pii_fields(fields: Mapping[str, Any]) -> tuple[str, ...]:
+    """The direct-identifier kinds (name, email, phone, email_hash) a record still shows."""
     found = set()
     for k, v in fields.items():
         if null(v) or isinstance(v, (dict, list)):
@@ -112,6 +125,7 @@ def identifiers(*values: object) -> tuple[str, ...]:
 
 
 def scalar_items(fields: Mapping[str, Any]) -> list[tuple[str, Any]]:
+    """(key, value) pairs of a record whose values are not nested dicts or lists."""
     return [(k, v) for k, v in fields.items() if not isinstance(v, (dict, list))]
 
 

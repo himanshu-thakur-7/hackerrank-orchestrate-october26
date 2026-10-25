@@ -40,6 +40,9 @@ if TYPE_CHECKING:
 Entry = dict[str, Any]
 MODEL = "gpt-5.4-mini-2026-03-17"
 SEED = 20261025
+REQUEST_TIMEOUT_SECONDS = 30  # one API request; a slower answer counts as a failed attempt
+RETRY_BACKOFF_SECONDS = 0.5  # sleep before retry n is n times this
+PREFETCH_WORKERS = 8  # parallel live calls when the cache is filled ahead of a run
 MAX_RETRIES = 2  # per text, after the first attempt; then the rules decide (never a crash)
 _warned: set[str] = set()  # warning keys already printed this process
 PROMPT_PATH = Path(__file__).resolve().parents[1] / "prompts" / "intent_classifier.md"
@@ -67,16 +70,25 @@ SCHEMA = {
 
 
 def prompt_text() -> str:
+    """The committed classifier prompt (code/prompts/intent_classifier.md)."""
     return PROMPT_PATH.read_text(encoding="utf-8")
 
 
 def cache_key(text: str, prompt: str | None = None, model: str = MODEL) -> str:
+    """Cache key of one model verdict: sha256 of model id, prompt and request text.
+
+    Any change to the model, the prompt or the text is a different key, so a stale verdict is
+    never reused."""
     return hashlib.sha256(
         f"{model}\n{prompt if prompt is not None else prompt_text()}\n{text}".encode()
     ).hexdigest()
 
 
 def build_messages(text: str | None, prompt: str | None = None) -> list[dict[str, str]]:
+    """Chat messages for one request: the prompt, then the text inside delimiters.
+
+    Delimiter look-alikes inside the text are broken up, so a request cannot close its own
+    quotation and pose as instructions."""
     safe = (text or "").replace("MESSAGE>>>", "MESSAGE> > >").replace("<<<MESSAGE", "< < <MESSAGE")
     return [
         {"role": "system", "content": prompt if prompt is not None else prompt_text()},
@@ -85,6 +97,8 @@ def build_messages(text: str | None, prompt: str | None = None) -> list[dict[str
 
 
 def label(answers: Mapping[str, Any]) -> str:
+    """DELETION iff the answers ask to delete (or to verify or finish a deletion) and do
+    not exclude deletion; otherwise NOT_DELETION."""
     asks = answers["asks_to_delete"] or answers["asks_to_verify_or_finish_deletion"]
     return "DELETION" if asks and not answers["excludes_deletion"] else "NOT_DELETION"
 
@@ -104,6 +118,7 @@ def _cache_module(path: str | Path) -> ModuleType:
 
 
 def read_cache(path: str | Path = CACHE_PATH) -> dict[str, Entry]:
+    """Model verdicts committed in the cache file, by cache_key; {} if there is none."""
     if not Path(path).exists():
         return {}
     return dict(_cache_module(path).CACHE)
@@ -149,9 +164,10 @@ def _warn_once(key: str, message: str, tracker: Tracker | None = None) -> None:
 
 
 def default_client(tracker: Tracker | None = None) -> Any:
-    """An OpenAI client when OPENAI_API_KEY is set and the optional `openai` package imports; else
-    None.
-    A key without the package degrades to rules + cache with one warning, never a crash."""
+    """An OpenAI client when OPENAI_API_KEY is set and the optional `openai` package imports.
+
+    Otherwise None. A key without the package degrades to rules + cache with one warning, never a
+    crash. The SDK reads the key from the environment; this function never touches it."""
     if not os.environ.get("OPENAI_API_KEY"):
         return None
     try:
@@ -165,7 +181,7 @@ def default_client(tracker: Tracker | None = None) -> Any:
         )
         return None
     return OpenAI(
-        max_retries=0, timeout=30
+        max_retries=0, timeout=REQUEST_TIMEOUT_SECONDS
     )  # retries are bounded here (MAX_RETRIES), not inside the SDK
 
 
@@ -179,13 +195,19 @@ def _valid(answers: object) -> bool:
 
 
 class IntentClassifier:
+    """Intent for request texts: rules for clear texts, the model for the remainder.
+
+    Model verdicts come from the cache first; a live call happens only on a cache miss with a
+    client. Failed calls are retried MAX_RETRIES times, then the rules decide (never a crash).
+    New verdicts are kept in memory until save()."""
+
     def __init__(
         self,
         client: Any = None,
         cache: dict[str, Entry] | None = None,
         tracker: Tracker | None = None,
         prompt: str | None = None,
-        backoff: float = 0.5,
+        backoff: float = RETRY_BACKOFF_SECONDS,
     ) -> None:
         self.client, self.tracker, self.backoff = client, tracker, backoff
         self.cache = read_cache() if cache is None else cache
@@ -199,6 +221,7 @@ class IntentClassifier:
 
     @property
     def counts(self) -> dict[str, int]:
+        """How many unique texts each source decided (rules, cache, live model, fallbacks)."""
         from collections import Counter
 
         c = Counter(self._decided.values())
@@ -211,6 +234,7 @@ class IntentClassifier:
         }
 
     def summary(self) -> str:
+        """One line with the per-source decision counts, for the run log."""
         c = self.counts
         return (
             f"intent decisions ({len(self._decided)} unique texts): rules (clear) {c['rules']}, "
@@ -281,7 +305,7 @@ class IntentClassifier:
         self.new_entries += 1
         return entry, False
 
-    def prefetch(self, texts: Iterable[str], workers: int = 8) -> int:
+    def prefetch(self, texts: Iterable[str], workers: int = PREFETCH_WORKERS) -> int:
         """Fill the cache for many texts with parallel live calls (cache misses only); results
         are order-free."""
         from concurrent.futures import ThreadPoolExecutor
@@ -311,6 +335,9 @@ class IntentClassifier:
         return v
 
     def classify(self, text: str) -> Intent:
+        """The Intent for `text` (see the module docstring for who decides).
+
+        The deciding source is recorded once per unique text for counts and summary."""
         out = self._classify(text)
         self._decided.setdefault(text, out.source)
         return out
@@ -331,6 +358,8 @@ class IntentClassifier:
         return Intent(v["label"], v["answers"]["rationale"], "model (cache)" if cached else "model")
 
     def save(self, path: str | Path = CACHE_PATH) -> None:
+        """Write the cache file if this run added verdicts, appending one ORIGIN record
+        (time, live calls, tokens, entries added). Nothing is written when no entry is new."""
         if self.new_entries:
             m = (
                 self.tracker.totals()["per_model"].get(MODEL, {})

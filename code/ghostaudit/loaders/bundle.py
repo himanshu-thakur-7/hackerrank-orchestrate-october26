@@ -17,6 +17,11 @@ from ghostaudit.store import Coverage
 
 
 def load(file_id: str, captured_at: str, text: str) -> LoadResult:
+    """Parse one evidence file of this format into a LoadResult.
+
+    Inputs: the manifest file_id and captured_at, and the decoded text. Output: Observations
+    (and Coverage where the format is exhaustive); record-like units that cannot be used go to
+    `unattributed` or `unparsed`, so nothing is dropped silently."""
     data = json.loads(text)
     lines = json_line_map(text, data)
     r = LoadResult("json:snapshots")

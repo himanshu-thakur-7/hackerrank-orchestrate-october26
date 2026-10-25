@@ -14,6 +14,8 @@ from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
 
+from ghostaudit.identity import MIN_PHONE_DIGITS
+
 # (observed_at, capture time, file_id, result): ordered by the first three, latest wins
 Event = tuple[str, str | None, str, "StateResult"]
 ABSENT = "ABSENT"
@@ -24,7 +26,7 @@ def token_key(t: str) -> str:
     lowercased."""
     t = str(t).strip()
     digits = re.sub(r"\D", "", t)
-    if len(digits) >= 9 and not re.search(r"[A-Za-z@]", t):
+    if len(digits) >= MIN_PHONE_DIGITS and not re.search(r"[A-Za-z@]", t):
         return "tel:" + digits
     return t.lower()
 
@@ -46,6 +48,8 @@ def _file_event(fid: str, obs: list[Observation], captured_at: str | None) -> Ev
 
 @dataclass(frozen=True)
 class EvidenceFile:
+    """One manifest row: where a file lives, where it came from, and when it was captured."""
+
     file_id: str
     file_path: str
     origin: str
@@ -54,6 +58,11 @@ class EvidenceFile:
 
 @dataclass(frozen=True)
 class Observation:
+    """One record unit a loader read: a resource's state as one file shows it.
+
+    identifiers are the exact identifiers in the same record unit (the grounded link to a
+    person); pii_fields are the direct identifiers still visible on the record."""
+
     file_id: str
     observed_at: str  # record time if the file has one, else the file's captured_at
     system_id: str
@@ -82,6 +91,8 @@ class Coverage:
 
 @dataclass(frozen=True)
 class Link:
+    """A grounded resource-to-person link with its source and time."""
+
     resource_id: str
     user_id: str
     grounding: str  # SAME_RECORD | TRACE_JOIN | UNIQUE_ACTIVITY_CANDIDATE | CATALOG_CLAIM
@@ -92,6 +103,8 @@ class Link:
 
 @dataclass(frozen=True)
 class ActivityEvent:
+    """One system_activity.csv row: a claim about an operation, never proof of state."""
+
     activity_id: str
     event_time: str
     event_type: str
@@ -104,6 +117,11 @@ class ActivityEvent:
 
 @dataclass(frozen=True)
 class StateResult:
+    """The state of one resource at a cutoff and the evidence behind it.
+
+    basis is observation (a file shows the record) or coverage (an exhaustive file omits it,
+    weak evidence, ADR 0014)."""
+
     state: str
     file_id: str
     basis: str  # "observation" | "coverage"
@@ -113,6 +131,10 @@ class StateResult:
 
 
 class EvidenceStore:
+    """Every loaded observation, coverage entry and activity row, indexed once.
+
+    Nothing is filtered by time here; as_of() returns the view a case may see."""
+
     def __init__(
         self,
         files: Iterable[EvidenceFile] = (),
@@ -137,10 +159,12 @@ class EvidenceStore:
             self._coverage_by_system[c.system_id].append(c)
 
     def captured_at(self, file_id: str) -> str | None:
+        """The capture time of `file_id`, or None for a file not in the manifest."""
         f = self.files.get(file_id)
         return f.captured_at if f else None
 
     def as_of(self, cutoff: str) -> CaseView:
+        """The view of the store at `cutoff` (inclusive): later files do not exist in it."""
         return CaseView(self, cutoff)
 
 
@@ -156,12 +180,14 @@ class CaseView:
         return cap is not None and cap <= self.cutoff
 
     def files(self) -> list[EvidenceFile]:
+        """Visible files, by capture time then file_id."""
         return sorted(
             (f for f in self._s.files.values() if f.captured_at <= self.cutoff),
             key=lambda f: (f.captured_at, f.file_id),
         )
 
     def observations(self, resource_id: str) -> list[Observation]:
+        """Visible observations of `resource_id`, oldest first, in a total, stable order."""
         obs = [o for o in self._s._by_resource.get(resource_id, ()) if self._visible(o.file_id)]
         return sorted(
             obs, key=lambda o: (o.observed_at, self._s.captured_at(o.file_id), o.file_id, o.locator)
@@ -180,12 +206,12 @@ class CaseView:
         return {k: sorted(v, key=_time_order) for k, v in out.items()}
 
     def resources_with_identifier(self, tokens: Iterable[str]) -> set[tuple[str, str]]:
+        """(system_id, resource_id) pairs whose visible observations carry any of `tokens`."""
         return set(self.linking_observations(tokens))
 
     def citation(self, system_id: str, resource_id: str, result: StateResult) -> str:
-        """File to cite for `result` (docs/02 §4.3): the latest visible file that NAMES the resource
-        with that
-        state; a covering file only when absence is known by omission alone."""
+        """File to cite for `result` (docs/02 §4.3): the latest visible file that NAMES the
+        resource with that state; a covering file only when absence is known by omission alone."""
         same = [
             o
             for o in self.observations(resource_id)
@@ -246,6 +272,7 @@ class CaseView:
         ]
 
     def activity(self, resource_id: str | None = None) -> list[ActivityEvent]:
+        """Activity rows at or before the cutoff, optionally for one resource only."""
         return [
             a
             for a in self._s.activity_events
@@ -253,6 +280,7 @@ class CaseView:
         ]
 
     def links_for_user(self, user_id: str) -> list[Link]:
+        """Links to `user_id` visible at the cutoff, contradicted links excluded."""
         return [
             link
             for link in self._s.links

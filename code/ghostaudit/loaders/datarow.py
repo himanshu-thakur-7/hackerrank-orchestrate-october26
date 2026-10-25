@@ -1,5 +1,7 @@
 """One data record (a row of a collection) -> Observation. Shared by bundle and collection-list
-loaders."""
+loaders.
+
+Decisions: ADR 0014 (the caller decides Coverage), ADR 0002 (observed_at)."""
 
 from __future__ import annotations
 
@@ -8,6 +10,7 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from ghostaudit.loaders.common import (
+    EXCERPT_CHARS,
     Unit,
     attrs,
     exposed_with_free_emails,
@@ -44,6 +47,10 @@ def observation(
     locator: str,
     result_out: LoadResult,
 ) -> Observation:
+    """The Observation of one data row, appended to `result_out`.
+
+    Fields of a nested "document" count as the row's own; an email in free text counts as an
+    exposed email. A row without any identifier is also recorded as unattributed."""
     fields = {k: v for k, v in rec.items() if not isinstance(v, (dict, list))}
     if isinstance(rec.get("document"), dict):
         fields.update(rec["document"])
@@ -64,6 +71,6 @@ def observation(
     result_out.observations.append(o)
     if not o.identifiers:
         result_out.unattributed.append(
-            Unit(file_id, locator, json.dumps(rec, default=str)[:200], "no identifier")
+            Unit(file_id, locator, json.dumps(rec, default=str)[:EXCERPT_CHARS], "no identifier")
         )
     return o

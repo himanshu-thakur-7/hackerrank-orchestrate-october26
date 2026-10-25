@@ -1,5 +1,7 @@
 """Output contract (AGENTS.md §6.4): the 15 (phase, operation, state) triples, in sort order.
-The position of an operation in this list is its op_rank, the first part of the step sort key."""
+The position of an operation in this list is its op_rank, the first part of the step sort key.
+
+Decisions: ADR 0006 decides which steps a verdict carries; this module only shapes them."""
 
 from __future__ import annotations
 
@@ -41,6 +43,10 @@ STATE = {op: state for _, op, state in TRIPLES}
 
 
 def step(operation: str, system_id: str, resource_id: str, evidence_id: str = "") -> Step:
+    """One step for `operation`, with its phase and state taken from the contract.
+
+    step_no is 0 until ordered() numbers the plan; evidence_id is "" for future work
+    (remediation and post-remediation checks), a file or activity id for a finding."""
     return {
         "step_no": 0,
         "phase": PHASE[operation],

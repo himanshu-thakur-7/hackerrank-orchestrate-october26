@@ -120,6 +120,11 @@ def parse_line(line: str) -> tuple[str, dict[str, str]] | None:
 
 
 def state(f: Mapping[str, str]) -> str:
+    """State of one log record from its fields.
+
+    A restore-eligibility line is RESTORABLE unless a deletion block is set (else BLOCKED); a
+    restore decision maps allow/deny to RESTORABLE/BLOCKED; available=false is ABSENT; any
+    other line uses the generic signals of state_from_fields."""
     g = {k: v.lower() for k, v in f.items()}
     if "eligible" in g or "deletion_block" in g:
         return (
@@ -190,6 +195,11 @@ def _exposed(f: Mapping[str, str]) -> tuple[str, ...]:
 
 
 def load(file_id: str, captured_at: str, text: str) -> LoadResult:
+    """Parse one evidence file of this format into a LoadResult.
+
+    Inputs: the manifest file_id and captured_at, and the decoded text. Output: Observations
+    (and Coverage where the format is exhaustive); record-like units that cannot be used go to
+    `unattributed` or `unparsed`, so nothing is dropped silently."""
     r = LoadResult("log:observability")
     keys, records = _scan(file_id, text, r)
     for n, ts, f, raw, trace in records:

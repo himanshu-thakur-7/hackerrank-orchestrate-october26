@@ -1,6 +1,8 @@
 """Readback trace logs (logfmt): '<ts> level=.. service=<system> trace_id=.. event=<x>_started
 resource_id=.. lookup_key=..' followed by '<x>_completed' with the state fields. The lookup key
 (owner) is joined to the completed record through trace_id. Not exhaustive: no Coverage.
+
+Decisions: ADR 0014 (no Coverage: the format is not exhaustive), ADR 0002 (observed_at).
 """
 
 from __future__ import annotations
@@ -30,6 +32,7 @@ GRAMMAR_RE = re.compile(
 
 
 def matches(text: str) -> bool:
+    """True when `text` has this format's content signature (never decided by file name)."""
     lines = [text_line for text_line in text.splitlines() if text_line.strip()]
     return (
         bool(lines)
@@ -89,6 +92,11 @@ def _trace_records(file_id: str, tid: str, lines: list[TraceLine], r: LoadResult
 
 
 def load(file_id: str, captured_at: str, text: str) -> LoadResult:
+    """Parse one evidence file of this format into a LoadResult.
+
+    Inputs: the manifest file_id and captured_at, and the decoded text. Output: Observations
+    (and Coverage where the format is exhaustive); record-like units that cannot be used go to
+    `unattributed` or `unparsed`, so nothing is dropped silently."""
     r = LoadResult("log:readback")
     for tid, lines in _traces(file_id, text, r).items():
         _trace_records(file_id, tid, lines, r)

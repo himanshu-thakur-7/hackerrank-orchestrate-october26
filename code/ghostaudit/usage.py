@@ -3,6 +3,8 @@ usage_report.md.
 
 Prices are USD per 1M tokens (input, output), from the provider's model page
 (https://developers.openai.com/api/docs/models/gpt-5.4-mini, checked 2026-10-25).
+
+Decisions: ADR 0008 (model calls are cached; a cache hit is counted, never billed).
 """
 
 from __future__ import annotations
@@ -16,6 +18,8 @@ PRICE_PER_MTOK = {"gpt-5.4-mini-2026-03-17": (0.75, 4.50)}
 
 @dataclass(frozen=True)
 class Call:
+    """One model lookup: a live call (tokens, latency) or a cache hit (zero tokens)."""
+
     provider: str
     model: str
     input_tokens: int
@@ -48,6 +52,11 @@ def _cache_hits_per_model(calls: list[Call]) -> dict[str, int]:
 
 
 class Tracker:
+    """Collects every model lookup of one run, plus failures and degradation notes.
+
+    totals() and summary() feed the run log and usage_report.md. Only counts, tokens, latency
+    and short error excerpts are kept: never a key or a request text."""
+
     def __init__(self) -> None:
         self.calls: list[Call] = []
         # texts whose live call failed after every retry (decided by rules instead)
@@ -55,12 +64,14 @@ class Tracker:
         self.notes: list[str] = []  # run-level degradations (e.g. a key without the SDK)
 
     def note(self, message: str) -> None:
+        """Record a run-level degradation once (repeats are ignored)."""
         if message not in self.notes:
             self.notes.append(message)
 
     def record_failure(
         self, provider: str, model: str, attempts: int, latency_ms: float, error: str
     ) -> None:
+        """Record a text whose live call failed after every attempt."""
         self.failures.append(
             {
                 "provider": provider,
@@ -80,6 +91,7 @@ class Tracker:
         latency_ms: float,
         cache_hit: bool,
     ) -> None:
+        """Record one model lookup: a live call with its tokens, or a cache hit."""
         self.calls.append(
             Call(
                 provider,
@@ -109,6 +121,7 @@ class Tracker:
         }
 
     def summary(self) -> str:
+        """One line with calls, cache hits, tokens, estimated cost and degradations."""
         t = self.totals()
         avg = (t["input_tokens"] + t["output_tokens"]) / t["calls"] if t["calls"] else 0
         return (
@@ -120,6 +133,7 @@ class Tracker:
         )
 
     def rows(self) -> list[dict[str, Any]]:
+        """Every recorded call as a plain dict, in call order."""
         return [asdict(c) for c in self.calls]
 
 

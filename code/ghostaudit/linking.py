@@ -103,6 +103,8 @@ def _settle(link: AccountLink, survivors: dict[str, Candidate]) -> None:
 
 @dataclass(frozen=True)
 class Candidate:
+    """One DELETE_RECORD activity row that may be the subject's primary account."""
+
     activity_id: str
     resource_id: str
     event_time: str
@@ -112,6 +114,11 @@ class Candidate:
 
 @dataclass
 class AccountLink:
+    """The primary-account decision for one request.
+
+    status is LINKED (resource_id and activity_id set), TIED, NO_CANDIDATE or NOT_A_DELETION;
+    candidates and survivors record what each filter kept, for the log."""
+
     case_id: str
     status: str  # LINKED | TIED | NO_CANDIDATE | NOT_A_DELETION
     resource_id: str | None = None
@@ -122,6 +129,7 @@ class AccountLink:
     filtered: list[tuple[str, str]] = field(default_factory=list)  # (resource_id, why dropped)
 
     def describe(self) -> str:
+        """One log line: the linked account and its distance, or why none was linked."""
         if self.status == "LINKED":
             c = next(c for c in self.survivors if c.resource_id == self.resource_id)
             return (
@@ -134,6 +142,8 @@ class AccountLink:
 
 @dataclass(frozen=True)
 class CatalogLink:
+    """A LINK_RESOURCE_IDENTITY claim and what its artifact shows (ADR 0005)."""
+
     activity_id: str
     system_id: str
     resource_id: str
@@ -143,6 +153,11 @@ class CatalogLink:
 
 
 class Linker:
+    """Links resources that do not carry the subject's identifiers (module docstring).
+
+    Account links are computed once for every request together, on first use, because the
+    one-to-one elimination is global."""
+
     def __init__(
         self,
         store: EvidenceStore,
@@ -246,6 +261,7 @@ class Linker:
         return self._accounts
 
     def account(self, case_id: str) -> AccountLink:
+        """The account link of `case_id` (NOT_A_DELETION for an unknown request)."""
         return self._all().get(case_id) or AccountLink(
             case_id, "NOT_A_DELETION", reason="unknown request"
         )

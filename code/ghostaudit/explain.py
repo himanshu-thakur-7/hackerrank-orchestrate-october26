@@ -1,5 +1,8 @@
 """--explain: every observation, link, rule and decision behind one case's row (docs/03_DESIGN.md
-§6)."""
+§6).
+
+Decisions: ADR 0002 (the trace shows only the as_of(audit_at) view), ADR 0004 and
+0006 (unresolved links and unproven states are printed, not hidden)."""
 
 from __future__ import annotations
 

@@ -5,6 +5,8 @@ python3 code/main.py --requests dataset/sample_deletion_requests.csv --out /tmp/
 python3 code/main.py --report              # intent and identity counts, no file written
 python3 code/main.py --intent rules        # rules-only intent (no model, no cache)
 python3 code/main.py --explain <case_id>                 # trace behind one row
+
+Decisions: ADR 0001 (row order), ADR 0002 (audit_at cutoff), ADR 0008 (intent model and cache).
 """
 
 from __future__ import annotations
@@ -32,6 +34,7 @@ if TYPE_CHECKING:
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    """Command-line options; defaults read dataset/ and write output.csv at the repository root."""
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
@@ -73,6 +76,9 @@ class Context:
 
 
 def build_context(a: argparse.Namespace) -> Context:
+    """Load the requests and the identities, and decide every request's intent once.
+
+    With --intent rules no classifier is built, so no model or cache is used."""
     data_dir = Path(a.data)
     reqs = data.load_requests(a.requests or data_dir / "deletion_requests.csv")
     tracker = usage.Tracker()
@@ -141,6 +147,9 @@ def run(ctx: Context, eng: Engine, a: argparse.Namespace) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Entry point: --report, --explain, or the full run that writes output.csv.
+
+    Returns the process exit code (0 on success, 1 for an unknown --explain case)."""
     a = parse_args(argv)
     ctx = build_context(a)
     if a.report:

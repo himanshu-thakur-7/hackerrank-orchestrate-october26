@@ -12,6 +12,9 @@ Coverage (absence by omission) and why it is sound here:
   * Inventory snapshots declare their scope explicitly: coverage only for systems in snapshot_scope.
   * Generic tables hold several systems: coverage per (origin_system, table) for systems the dump
     lists.
+
+Decisions: ADR 0014 (Coverage from a table dump is weak evidence), ADR 0002
+(observed_at is the row time, else the file's capture time).
 """
 
 from __future__ import annotations
@@ -23,6 +26,7 @@ from collections.abc import Iterable
 from typing import Any, cast
 
 from ghostaudit.loaders.common import (
+    EXCERPT_CHARS,
     ISO_RE,
     LoadResult,
     Unit,
@@ -66,6 +70,7 @@ INSERT_RE = re.compile(r"^INSERT INTO\s+\"?(\w+)\"?\s+VALUES\s*\(\s*'([^']*)'")
 
 
 def matches(text: str) -> bool:
+    """True when `text` has this format's content signature (never decided by file name)."""
     return "CREATE TABLE" in text and "INSERT INTO" in text
 
 
@@ -77,6 +82,13 @@ def _typed(table: str) -> tuple[str, str | None] | None:
 
 
 def load(file_id: str, captured_at: str, text: str) -> LoadResult:
+    """Parse one evidence file of this format into a LoadResult.
+
+    Inputs: the manifest file_id and captured_at, and the decoded text. Output: Observations
+    (and Coverage where the format is exhaustive); record-like units that cannot be used go to
+    `unattributed` or `unparsed`, so nothing is dropped silently.
+
+    The dump runs in a private in-memory SQLite database that is closed afterwards."""
     db = sqlite3.connect(":memory:")
     try:
         db.executescript(text)
@@ -200,7 +212,7 @@ def _load_table(
         if not o.identifiers:
             fields = normalized[2]
             r.unattributed.append(
-                Unit(file_id, loc, json.dumps(fields, default=str)[:200], "no identifier")
+                Unit(file_id, loc, json.dumps(fields, default=str)[:EXCERPT_CHARS], "no identifier")
             )
     r.coverage += _coverage(file_id, captured_at, table, typed, scope, systems_listed)
 

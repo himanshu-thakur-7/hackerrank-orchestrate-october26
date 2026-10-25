@@ -1,4 +1,4 @@
-"""Request intent, rules-only adapter (ADR 0008 fallback; the cached LLM adapter comes in T11).
+"""Request intent, rules-only adapter (ADR 0008 fallback; the cached model is llm_intent.py).
 
 DELETION needs a deletion cue and no negation/scope cue. The default is NOT_DELETION, because a
 request that never asks to delete, erase, remove or close does not authorize deletion
@@ -52,12 +52,21 @@ _neg = [re.compile(p, re.I) for p in NEGATION_CUES]
 
 @dataclass
 class Intent:
+    """The deletion decision for one request text.
+
+    label is DELETION or NOT_DELETION; reason names the cue or model rationale; source says who
+    decided (rules, model, model (cache), or a rules fallback)."""
+
     label: str  # DELETION | NOT_DELETION
     reason: str
     source: str = "rules"
 
 
 def classify_rules(text: str | None) -> Intent:
+    """Rules-only intent for `text`.
+
+    A negation or scope cue wins (NOT_DELETION), then a deletion cue (DELETION); no cue at all
+    is NOT_DELETION, because a request that never asks to delete does not authorize it."""
     t = text or ""
     neg = next((p.pattern for p in _neg if p.search(t)), None)
     if neg:

@@ -65,10 +65,9 @@ def _content(system_id: str, o: Observation) -> str | None:
 
 
 def _message_content(o: Observation) -> bool:
-    """Weak content: message text. Ticket exports carry a templated message_excerpt on every ticket,
-    so it only
-    decides when no deletion_worker claim exists (silver audit, docs/SILVER_AUDIT.md: 12 eval
-    records)."""
+    """Weak content: message text. Ticket exports carry a templated message_excerpt on every
+    ticket, so it only decides when no deletion_worker claim exists (silver audit,
+    docs/SILVER_AUDIT.md: 12 eval records)."""
     a = dict(o.attrs)
     return (
         a.get("event", "").startswith("message_") or "message_text" in a or "message_excerpt" in a
@@ -135,6 +134,8 @@ def categorize(
 
 
 class Rules:
+    """deletion_rules.csv read as data: category -> (rule_id, required_action)."""
+
     def __init__(self, rows: Iterable[Mapping[str, str]]) -> None:
         self._by_cat: dict[str | None, tuple[str | None, str | None]] = {
             r["data_category"]: (r["rule_id"], r["required_action"]) for r in rows
@@ -142,15 +143,22 @@ class Rules:
 
     @classmethod
     def from_csv(cls, path: str | Path) -> Rules:
+        """Rules read from a deletion_rules.csv file."""
         with open(path, newline="", encoding="utf-8") as f:
             return cls(list(csv.DictReader(f)))
 
     def action(self, category: str | None) -> tuple[str | None, str | None]:
+        """(rule_id, required_action) for `category`, or (None, None) when no rule names it."""
         return self._by_cat.get(category, (None, None))
 
 
 @dataclass(frozen=True)
 class Treatment:
+    """What policy requires of one resource and whether its state meets it.
+
+    kind is violation (finding, remediation and verification set), compliant (verification
+    set), unproven (the state is unknown, so only a future check) or none (no step)."""
+
     kind: str  # violation | compliant | unproven | none
     finding: str | None = None
     remediation: str | None = None

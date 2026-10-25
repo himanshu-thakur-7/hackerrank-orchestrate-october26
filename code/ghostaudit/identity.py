@@ -2,6 +2,8 @@
 
 Exact matching only (after lowercasing emails and keeping only digits of phones); look-alike
 emails never match (CONTEXT: look-alike decoy). History comes from user_audit_log.csv.
+
+Decisions: ADR 0003 and 0005 build on this exact matching; nothing here is fuzzy.
 """
 
 from __future__ import annotations
@@ -14,6 +16,9 @@ from pathlib import Path
 
 from ghostaudit.data import read_csv
 
+# A digit string shorter than this is never read as a phone number (ids, amounts, years).
+MIN_PHONE_DIGITS = 9
+
 
 def _digits(s: str | None) -> str:
     return re.sub(r"\D", "", s or "")
@@ -25,6 +30,11 @@ def _sha(s: str) -> str:
 
 @dataclass
 class Identity:
+    """Every exact identifier a subject has had: current snapshot plus audit history.
+
+    Emails and hashes are lowercased; phones are kept as digits only; email_hashes also hold the
+    sha256 of every known email, so a record keyed by a hash links like one keyed by email."""
+
     user_id: str
     emails: set[str] = field(default_factory=set)
     email_hashes: set[str] = field(default_factory=set)
@@ -48,11 +58,16 @@ class Identity:
             t == self.user_id
             or low in self.emails
             or low in self.email_hashes
-            or (len(_digits(t)) >= 9 and _digits(t) in self.phones)
+            or (len(_digits(t)) >= MIN_PHONE_DIGITS and _digits(t) in self.phones)
         )
 
 
 class Resolver:
+    """Maps a request email (current or historical) to the one subject it names.
+
+    Built once from user_identities.csv and user_audit_log.csv. An email shared by two subjects
+    resolves to nobody: ambiguity is reported, never guessed."""
+
     def __init__(
         self, identities: Iterable[Mapping[str, str]], audit_rows: Iterable[Mapping[str, str]]
     ) -> None:
@@ -85,6 +100,7 @@ class Resolver:
 
     @classmethod
     def from_dataset(cls, data_dir: str | Path) -> Resolver:
+        """A Resolver over the identity snapshot and audit log in `data_dir`."""
         d = Path(data_dir)
         return cls(read_csv(d / "user_identities.csv"), read_csv(d / "user_audit_log.csv"))
 
@@ -94,6 +110,7 @@ class Resolver:
         return self._by_user[next(iter(users))] if len(users) == 1 else None
 
     def user(self, user_id: str) -> Identity | None:
+        """The Identity of `user_id`, or None for an unknown id."""
         return self._by_user.get(user_id)
 
     def owner_of(self, token: str | None) -> str | None:
@@ -109,6 +126,6 @@ class Resolver:
                     self._owner["tel:" + ph] = u.user_id
         t = (token or "").strip()
         hit = self._owner.get(t) or self._owner.get(t.lower())
-        if hit is None and len(_digits(t)) >= 9 and not re.search(r"[A-Za-z]", t):
+        if hit is None and len(_digits(t)) >= MIN_PHONE_DIGITS and not re.search(r"[A-Za-z]", t):
             hit = self._owner.get("tel:" + _digits(t))
         return hit

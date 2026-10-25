@@ -1,5 +1,7 @@
 """output.csv writer: exact header, natural numeric case_id order, compact JSON in schema key
-order, \\n endings."""
+order, \\n endings.
+
+Decisions: ADR 0001 (rows sorted by case_id, numerically)."""
 
 from __future__ import annotations
 
@@ -13,11 +15,17 @@ STEP_KEYS = ["step_no", "phase", "system_id", "resource_id", "operation", "state
 
 
 def natural_key(case_id: str) -> tuple[str, int]:
+    """Sort key that orders case ids by their numeric suffix (ADR 0001).
+
+    An id without a numeric suffix sorts by its full text."""
     prefix, _, num = case_id.rpartition("_")
     return (prefix, int(num)) if num.isdigit() else (case_id, -1)
 
 
 def steps_json(steps: Iterable[Mapping[str, object]]) -> str:
+    """Compact JSON for steps_json: contract keys in schema order, no spaces, UTF-8.
+
+    Extra keys on a step are dropped, so the serialization is byte-stable."""
     return json.dumps(
         [{k: s[k] for k in STEP_KEYS} for s in steps], separators=(",", ":"), ensure_ascii=False
     )

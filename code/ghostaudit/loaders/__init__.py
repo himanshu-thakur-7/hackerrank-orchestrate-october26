@@ -3,6 +3,9 @@
 load_bytes(file_id, captured_at, raw) -> LoadResult; unknown content raises UnknownSignature.
 Signatures whose adapter is not built yet raise LoaderPending (strict) so nothing is skipped
 silently.
+
+Decisions: ADR 0007 (one-file-per-case structure is never a feature), ADR 0014
+(which formats emit Coverage).
 """
 
 from __future__ import annotations
@@ -29,11 +32,11 @@ PENDING: dict[str, str] = {}  # signature -> board task that will implement it
 
 
 class UnknownSignature(Exception):
-    pass
+    """Raised for a file whose content matches no known signature."""
 
 
 class LoaderPending(Exception):
-    pass
+    """Raised (strict mode) for a known signature whose adapter is not built."""
 
 
 LOADERS: dict[str, Callable[..., LoadResult]] = {
@@ -108,6 +111,11 @@ def sniff(raw: bytes, file_id: str = "?") -> str:
 
 
 def load_bytes(file_id: str, captured_at: str, raw: bytes, strict: bool = True) -> LoadResult:
+    """Load one evidence file by content signature.
+
+    Binary adapters (pdf, png) get the bytes, text adapters the decoded text. Raises
+    UnknownSignature for unknown content and, with strict=True, LoaderPending for a signature
+    without an adapter; with strict=False that file yields an empty LoadResult."""
     sig = sniff(raw, file_id)
     if sig not in LOADERS:
         if strict:

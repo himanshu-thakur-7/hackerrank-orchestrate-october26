@@ -2,6 +2,8 @@
 
 Each record is one probed resource (search records nest the hit documents). A probe list is not
 exhaustive, so no Coverage is emitted.
+
+Decisions: ADR 0014 (no Coverage: the format is not exhaustive), ADR 0002 (observed_at).
 """
 
 from __future__ import annotations
@@ -94,6 +96,11 @@ def _plain_record(
 
 
 def load(file_id: str, captured_at: str, text: str) -> LoadResult:
+    """Parse one evidence file of this format into a LoadResult.
+
+    Inputs: the manifest file_id and captured_at, and the decoded text. Output: Observations
+    (and Coverage where the format is exhaustive); record-like units that cannot be used go to
+    `unattributed` or `unparsed`, so nothing is dropped silently."""
     data = json.loads(text)
     lines = json_line_map(text, data)
     r = LoadResult("json:service_exports")

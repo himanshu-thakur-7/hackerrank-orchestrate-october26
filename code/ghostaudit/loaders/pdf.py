@@ -46,7 +46,7 @@ ATTR_RES = (
 
 
 class PdfTextUnavailable(Exception):
-    pass
+    """Raised for a PDF that is not in the text cache and that no backend can read."""
 
 
 def _pdftotext(raw: bytes) -> str | None:
@@ -73,6 +73,9 @@ def _pypdf(raw: bytes) -> str | None:
 def extract_text(
     raw: bytes, backends: Sequence[Callable[[bytes], str | None]] = (_pdftotext, _pypdf)
 ) -> str:
+    """The text of a PDF: the committed cache first, then each backend in order.
+
+    Raises PdfTextUnavailable when nothing yields text, so a document is never skipped."""
     import hashlib
 
     from ghostaudit.loaders import pdf_text_cache
@@ -145,6 +148,11 @@ def _attributes(unit: str) -> tuple[tuple[str, str], ...]:
 
 
 def load(file_id: str, captured_at: str, raw: bytes) -> LoadResult:
+    """Parse one evidence file of this format into a LoadResult.
+
+    Inputs: the manifest file_id and captured_at, and the raw bytes. Output: Observations
+    (and Coverage where the format is exhaustive); record-like units that cannot be used go to
+    `unattributed` or `unparsed`, so nothing is dropped silently."""
     r = LoadResult("pdf")
     for loc, unit, ids in units(extract_text(raw)):
         toks = identifiers(*_tokens(unit))

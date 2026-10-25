@@ -13,6 +13,8 @@ evidence ids are kept.
 Excluded: dataset/, runs/, scratch/, .env, nested archives, __pycache__ / *.pyc, virtual
 environments, .git. The build refuses to write a zip in which a key-shaped string (sk-...,
 apikey_...) appears.
+
+Decisions: ADR: none (packaging only; the submission contract is AGENTS.md §6.9).
 """
 
 from __future__ import annotations
@@ -83,10 +85,12 @@ FIXED_TIME = (2026, 10, 25, 0, 0, 0)  # constant timestamps keep the zip byte-st
 
 
 def key_hits(text: str) -> list[str]:
+    """Masked prefixes of every key-shaped string in `text` (empty means clean)."""
     return [m.group(0)[:6] + "..." for p in KEY_PATTERNS for m in p.finditer(text)]
 
 
 def files() -> list[Path]:
+    """Every file of README.md and code/ that ships, excluding caches, archives and secrets."""
     out = [ROOT / "README.md"]
     for p in sorted((ROOT / "code").rglob("*")):
         rel = p.relative_to(ROOT)
@@ -155,6 +159,8 @@ def _phone_token(m: re.Match[str]) -> str:
 
 
 def sanitize(text: str, values: IdentityValues) -> str:
+    """`text` with identity emails and phones replaced by stable tokens, and verbatim
+    dataset rows replaced by a placeholder; everything else is kept as written."""
     lines = []
     for line in text.split("\n"):
         segments = [line.strip()] + [
@@ -192,6 +198,10 @@ def docs() -> list[tuple[str, Path]]:
 
 
 def build(out: str | Path = OUT) -> Path:
+    """Write code.zip at `out` and return its path.
+
+    Entries get a fixed timestamp and mode, so two builds of the same tree are byte-identical.
+    Raises SystemExit, without writing, if any shipped file holds a key-shaped string."""
     entries = []
     for p in files():
         b = p.read_bytes()
@@ -231,6 +241,7 @@ def scan_repo() -> list[tuple[str, str]]:
 
 
 def main() -> int:
+    """Build code.zip and print its listing, file count and sizes."""
     out = build()
     with zipfile.ZipFile(out) as z:
         infos = z.infolist()

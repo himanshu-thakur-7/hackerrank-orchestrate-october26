@@ -5,9 +5,10 @@
   engine.audit(request, intent)  -> (case_id, status, steps)
 
 Stages: intent (given) -> identity -> discovery (resources whose visible record units carry an exact
-identifier of the subject: SAME_RECORD / TRACE_JOIN) -> state at audit_at (CaseView.state, ADR 0002,
-0014) -> policy (category + treatment) -> verdict + steps (T09). Linking beyond discovery is T10:
-anything that would need it is logged, never guessed (ADR 0004).
+identifier of the subject: SAME_RECORD / TRACE_JOIN) -> linking (stale links out, source references,
+catalog claims, the activity account; linking.py, ADR 0003-0005, 0016) -> state at audit_at
+(CaseView.state, ADR 0002, 0014) -> policy (category + treatment) -> verdict + steps (ADR 0006,
+0015). A link that cannot be grounded is logged, never guessed (ADR 0004).
 """
 
 from __future__ import annotations
@@ -34,6 +35,12 @@ Found = dict[tuple[str, str], tuple[list["Observation"], str]]
 
 @dataclass
 class ResourceAssessment:
+    """Everything decided about one resource of one case.
+
+    links are the visible observations that tie it to the subject; state is the latest evidence
+    at audit_at (None when nothing visible shows it); treatment is the policy outcome that
+    becomes steps; evidence is the file a COMPLETE step or a finding cites."""
+
     system_id: str
     resource_id: str
     links: list[Observation]  # visible observations naming the subject (the grounded link)
@@ -50,6 +57,11 @@ class ResourceAssessment:
 
 @dataclass
 class CaseAssessment:
+    """One case's verdict and plan, with the resources and log lines behind them.
+
+    status is COMPLETE, INCOMPLETE or NOT_APPLICABLE; steps are already ordered and numbered.
+    The log records every link, omission and unresolved choice, for --explain."""
+
     case_id: str
     status: str
     steps: list[Step]
@@ -59,6 +71,7 @@ class CaseAssessment:
 
 
 def load_activity(path: str | Path) -> list[ActivityEvent]:
+    """Every row of system_activity.csv as an ActivityEvent (claims, never state)."""
     with open(path, newline="", encoding="utf-8") as f:
         return [
             ActivityEvent(
@@ -150,6 +163,11 @@ def _apply_catalog_link(a: CaseAssessment, c: linking.CatalogLink, found: Found)
 
 
 class Engine:
+    """The per-case audit: identity, discovery, linking, state, policy, verdict, steps.
+
+    Build it once with from_dataset(); assess() and audit() are pure per request, so the run is
+    deterministic and cases are independent apart from the global account elimination."""
+
     def __init__(
         self,
         store: EvidenceStore,
@@ -168,6 +186,11 @@ class Engine:
         resolver: identity.Resolver | None = None,
         classify: Callable[[str], intent_mod.Intent] | None = None,
     ) -> Engine:
+        """Load every evidence file, the activity stream, the rules and the linker.
+
+        Every manifest file goes through a content-signature loader in strict mode, so an unknown
+        format stops the run instead of being skipped. The linker sees every request file in the
+        dataset, because the account elimination is global (ADR 0003)."""
         d = Path(data_dir)
         with open(d / "evidence_files.csv", newline="", encoding="utf-8") as f:
             manifest = list(csv.DictReader(f))
@@ -209,6 +232,11 @@ class Engine:
         return cls(store, resolver, policy.Rules.from_csv(d / "deletion_rules.csv"), notes, lk)
 
     def assess(self, request: Request, intent: intent_mod.Intent) -> CaseAssessment:
+        """The full assessment of one request, for the row and for --explain.
+
+        A non-deletion intent is NOT_APPLICABLE with no steps; an unresolved subject is
+        INCOMPLETE with no steps (ADR 0015); otherwise every grounded resource is assessed in the
+        as_of view."""
         case_id = request["case_id"]
         if intent.label != "DELETION":
             return CaseAssessment(
@@ -253,7 +281,7 @@ class Engine:
         request: Request,
         found: Found,
     ) -> None:
-        """Stage 4 (T10): stale links out, source references, catalog claims checked against
+        """Linking: stale links out (ADR 0016), source references, catalog claims checked against
         artifacts, the activity account."""
         _drop_stale_links(a, request, found)
         _add_source_refs(a, found)
@@ -298,5 +326,6 @@ class Engine:
         )
 
     def audit(self, request: Request, intent: intent_mod.Intent) -> tuple[str, str, list[Step]]:
+        """The output row of one request: (case_id, deletion_status, steps)."""
         a = self.assess(request, intent)
         return a.case_id, a.status, a.steps

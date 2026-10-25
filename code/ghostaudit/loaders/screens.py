@@ -1,7 +1,6 @@
 """Screenshots (signature: PNG magic bytes). Facts come from committed transcriptions keyed by the
 sha256 of the image (screens_data.py); a PNG without one is an unknown signature, never skipped.
-Live cached
-vision extraction is the second adapter (T11). observed_at is the file's captured_at (ADR 0002)."""
+The run makes no live vision call (ADR 0008). observed_at is the file's captured_at (ADR 0002)."""
 
 from __future__ import annotations
 
@@ -13,10 +12,15 @@ from ghostaudit.loaders.common import LoadResult, Unit, identifiers
 
 
 class MissingTranscription(Exception):
-    pass
+    """Raised for a PNG whose sha256 has no committed transcription."""
 
 
 def load(file_id: str, captured_at: str, raw: bytes) -> LoadResult:
+    """Parse one evidence file of this format into a LoadResult.
+
+    Inputs: the manifest file_id and captured_at, and the raw PNG bytes. Output: Observations
+    (and Coverage where the format is exhaustive); record-like units that cannot be used go to
+    `unattributed` or `unparsed`, so nothing is dropped silently."""
     from ghostaudit.store import Observation
 
     sha = hashlib.sha256(raw).hexdigest()
