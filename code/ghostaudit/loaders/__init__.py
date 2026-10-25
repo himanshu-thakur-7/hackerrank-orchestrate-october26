@@ -48,46 +48,58 @@ LOADERS = {
 BINARY = {"pdf", "png"}  # these adapters take the raw bytes
 
 
-def sniff(raw, file_id="?"):
-    if raw.startswith(b"%PDF"):
-        return "pdf"
-    if raw.startswith(b"\x89PNG"):
-        return "png"
+# Content signatures, checked in this order (the first match wins).
+BINARY_SIGNATURES = ((b"%PDF", "pdf"), (b"\x89PNG", "png"))
+JSON_SIGNATURES = (
+    ("json:service_exports", lambda data: "service_exports" in data),
+    ("json:snapshots", lambda data: "snapshots" in data),
+    ("json:records", lambda data: isinstance(data.get("records"), list)),
+)
+TEXT_SIGNATURES = (
+    ("sql", sql.matches),
+    ("txt:handover", handover.matches),
+    ("log:readback", readback.matches),
+    ("log:record_lookup", record_lookup.matches),
+    ("log:observability", observability.matches),
+)
+
+
+def _decode(raw, file_id):
     try:
-        text = raw.decode("utf-8")
+        return raw.decode("utf-8")
     except UnicodeDecodeError as e:
         raise UnknownSignature(
             f"{file_id}: not UTF-8 text and not a known binary format (byte {e.start}); first "
             f"bytes {raw[:16]!r}"
         ) from e
-    head = text.lstrip()
-    if head.startswith("{"):
-        try:
-            data = json.loads(text)
-        except json.JSONDecodeError as e:
-            raise UnknownSignature(
-                f"{file_id}: starts like JSON but does not parse ({e.msg} at line {e.lineno})"
-            ) from e
-        keys = sorted(data) if isinstance(data, dict) else []
-        if "service_exports" in keys:
-            return "json:service_exports"
-        if "snapshots" in keys:
-            return "json:snapshots"
-        if isinstance(data, dict) and isinstance(data.get("records"), list):
-            return "json:records"
+
+
+def _json_signature(text, file_id):
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as e:
         raise UnknownSignature(
-            f"{file_id}: unknown content signature: JSON object with keys {keys}"
-        )
-    if sql.matches(text):
-        return "sql"
-    if handover.matches(text):
-        return "txt:handover"
-    if readback.matches(text):
-        return "log:readback"
-    if record_lookup.matches(text):
-        return "log:record_lookup"
-    if observability.matches(text):
-        return "log:observability"
+            f"{file_id}: starts like JSON but does not parse ({e.msg} at line {e.lineno})"
+        ) from e
+    if isinstance(data, dict):
+        for sig, shape in JSON_SIGNATURES:
+            if shape(data):
+                return sig
+    keys = sorted(data) if isinstance(data, dict) else []
+    raise UnknownSignature(f"{file_id}: unknown content signature: JSON object with keys {keys}")
+
+
+def sniff(raw, file_id="?"):
+    """The content signature of one evidence file; UnknownSignature when nothing matches."""
+    for magic, sig in BINARY_SIGNATURES:
+        if raw.startswith(magic):
+            return sig
+    text = _decode(raw, file_id)
+    if text.lstrip().startswith("{"):
+        return _json_signature(text, file_id)
+    for sig, matches in TEXT_SIGNATURES:
+        if matches(text):
+            return sig
     first = next((line for line in text.splitlines() if line.strip()), "")
     raise UnknownSignature(f"{file_id}: unknown content signature; first line {first[:80]!r}")
 

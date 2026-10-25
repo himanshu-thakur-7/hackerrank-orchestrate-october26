@@ -29,6 +29,16 @@ def _time_order(o):
     return (o.observed_at, o.file_id, o.locator)
 
 
+def _file_event(fid, obs, captured_at):
+    """(time, capture time, file, StateResult) for one file's latest observations of a resource.
+    At the same snapshot instant, presence in any table (e.g. a replica) beats absence elsewhere."""
+    last_t = max(o.observed_at for o in obs)
+    latest = [o for o in obs if o.observed_at == last_t]
+    pick = next((o for o in latest if o.state != ABSENT), latest[-1])
+    result = StateResult(pick.state, fid, "observation", pick.observed_at, pick.locator, pick)
+    return (pick.observed_at, captured_at, fid, result)
+
+
 @dataclass(frozen=True)
 class EvidenceFile:
     file_id: str
@@ -183,49 +193,37 @@ class CaseView:
 
     def state(self, system_id, resource_id):
         """Latest evidence-backed state of a resource, or None when nothing visible proves
-        anything (UNPROVEN)."""
+        anything (UNPROVEN). Explicit observations follow latest-wins; omission from a covering
+        snapshot counts only when no visible observation shows the record present (ADR 0014)."""
+        per_file = self._observations_per_file(system_id, resource_id)
+        events = [_file_event(fid, obs, self._s.captured_at(fid)) for fid, obs in per_file.items()]
+        seen_present = any(o.state != ABSENT for obs in per_file.values() for o in obs)
+        if not seen_present:
+            events += self._omission_events(system_id, per_file)
+        if not events:
+            return None
+        return max(events, key=lambda e: e[:3])[3]
+
+    def _observations_per_file(self, system_id, resource_id):
         per_file = defaultdict(list)
         for o in self.observations(resource_id):
             if o.system_id == system_id:
                 per_file[o.file_id].append(o)
-        events = []
-        for fid, obs in per_file.items():
-            last_t = max(o.observed_at for o in obs)
-            latest = [o for o in obs if o.observed_at == last_t]
-            # same snapshot instant: presence in any table (e.g. a replica) beats absence elsewhere
-            pick = next((o for o in latest if o.state != ABSENT), latest[-1])
-            events.append(
-                (
-                    pick.observed_at,
-                    self._s.captured_at(fid),
-                    fid,
-                    StateResult(
-                        pick.state, fid, "observation", pick.observed_at, pick.locator, pick
-                    ),
-                )
-            )
-        # ADR 0014: omission is weak evidence; it only counts when no visible observation shows
-        # presence
-        seen_present = any(o.state != ABSENT for obs in per_file.values() for o in obs)
-        if not seen_present:
-            covering = {
-                c.file_id: c
-                for c in self._s._coverage_by_system.get(system_id, ())
-                if self._visible(c.file_id)
-            }
-            for fid, c in covering.items():
-                if fid not in per_file:
-                    events.append(
-                        (
-                            c.captured_at,
-                            c.captured_at,
-                            fid,
-                            StateResult(ABSENT, fid, "coverage", c.captured_at),
-                        )
-                    )
-        if not events:
-            return None
-        return max(events, key=lambda e: e[:3])[3]
+        return per_file
+
+    def _omission_events(self, system_id, per_file):
+        """ABSENT-by-omission events from visible covering snapshots that do not list the
+        resource."""
+        covering = {
+            c.file_id: c
+            for c in self._s._coverage_by_system.get(system_id, ())
+            if self._visible(c.file_id)
+        }
+        return [
+            (c.captured_at, c.captured_at, fid, StateResult(ABSENT, fid, "coverage", c.captured_at))
+            for fid, c in covering.items()
+            if fid not in per_file
+        ]
 
     def activity(self, resource_id=None):
         return [

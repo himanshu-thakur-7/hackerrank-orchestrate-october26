@@ -104,54 +104,64 @@ def units(text):
     ]
 
 
+def _without_resource_id(file_id, loc, unit, toks):
+    """Units for a text with no resource id. A register (several person rows, each with its own
+    user id) yields one Unit per row; any other text with identifiers yields one Unit."""
+    person_lines = [(n, line) for n, line in enumerate(unit.splitlines(), 1) if _tokens(line)]
+    users = [tuple(USER_RE.findall(line)) for _, line in person_lines]
+    if len(person_lines) > 1 and all(users) and len(set(users)) == len(users):
+        return [
+            Unit(file_id, f"text line {n}", line.strip(), "no resource id")
+            for n, line in person_lines
+        ]
+    if toks:
+        return [Unit(file_id, loc, " ".join(toks), "no resource id")]
+    return []
+
+
+def _exposed(toks, unit):
+    """Direct identifiers visible in the unit: emails and phones among its tokens, and a name."""
+    pii = {k for k in map(kind, toks) if k in ("email", "phone")}
+    if any(NAME_RE.match(line) for line in unit.splitlines()):
+        pii.add("name")
+    return tuple(p for p in ("name", "email", "phone") if p in pii)
+
+
+def _attributes(unit):
+    """The first value of each ATTR_RES attribute found in the unit, whitespace-normalized."""
+    found = {}
+    for line in unit.splitlines():
+        for key, rx in ATTR_RES:
+            m = rx.search(line)
+            if m and key not in found:
+                found[key] = re.sub(r"\s+", " ", m.group(1).strip())
+    return tuple(sorted(found.items()))
+
+
 def load(file_id, captured_at, raw):
     r = LoadResult("pdf")
-    text = extract_text(raw)
-    for loc, unit, ids in units(text):
+    for loc, unit, ids in units(extract_text(raw)):
         toks = identifiers(*_tokens(unit))
         if not ids:
-            person_lines = [
-                (n, text_line)
-                for n, text_line in enumerate(unit.splitlines(), 1)
-                if _tokens(text_line)
-            ]
-            users = [tuple(USER_RE.findall(text_line)) for _, text_line in person_lines]
-            if len(person_lines) > 1 and all(users) and len(set(users)) == len(users):
-                for n, text_line in person_lines:  # a register: one person per row
-                    r.unattributed.append(
-                        Unit(file_id, f"text line {n}", text_line.strip(), "no resource id")
-                    )
-            elif toks:
-                r.unattributed.append(Unit(file_id, loc, " ".join(toks), "no resource id"))
+            r.unattributed += _without_resource_id(file_id, loc, unit, toks)
             continue
-        pii = set()
-        for t in toks:
-            k = kind(t)
-            if k in ("email", "phone"):
-                pii.add(k)
-        if any(NAME_RE.match(text_line) for text_line in unit.splitlines()):
-            pii.add("name")
-        attrs = {}
-        for line in unit.splitlines():
-            for key, rx in ATTR_RES:
-                m = rx.search(line)
-                if m and key not in attrs:
-                    attrs[key] = re.sub(r"\s+", " ", m.group(1).strip())
+        pii, attrs = _exposed(toks, unit), _attributes(unit)
         for rid in ids:
-            prefix = RES_RE.match(rid).group(1)
-            o = Observation(
-                file_id,
-                captured_at,
-                PREFIX_SYSTEM[prefix],
-                rid,
-                "document",
-                "PRESENT",
-                pii_fields=tuple(p for p in ("name", "email", "phone") if p in pii),
-                identifiers=toks,
-                locator=loc,
-                attrs=tuple(sorted(attrs.items())),
+            system = PREFIX_SYSTEM[RES_RE.match(rid).group(1)]
+            r.observations.append(
+                Observation(
+                    file_id,
+                    captured_at,
+                    system,
+                    rid,
+                    "document",
+                    "PRESENT",
+                    pii_fields=pii,
+                    identifiers=toks,
+                    locator=loc,
+                    attrs=attrs,
+                )
             )
-            r.observations.append(o)
             if not toks:
                 r.unattributed.append(Unit(file_id, loc, rid, "no identifier"))
     return r
