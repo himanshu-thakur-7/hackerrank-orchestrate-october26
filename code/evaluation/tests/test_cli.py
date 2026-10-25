@@ -1,4 +1,5 @@
 """CLI behaviour of code/evaluation/main.py (run as a subprocess, the way users and CI call it)."""
+
 import os, subprocess, sys, tempfile, unittest
 from pathlib import Path
 from evaluation.tests.helpers import ROOT, GOLD, SAMPLE_REQ, gold_rows, tmp_copy, mutate_step
@@ -8,14 +9,19 @@ MAIN = ROOT / "code" / "evaluation" / "main.py"
 
 def run(*args, env_extra=None):
     env = dict(os.environ, **(env_extra or {}))
-    p = subprocess.run([sys.executable, str(MAIN), *args], capture_output=True, text=True, cwd=ROOT, env=env)
+    p = subprocess.run(
+        [sys.executable, str(MAIN), *args], capture_output=True, text=True, cwd=ROOT, env=env
+    )
     return p.returncode, p.stdout + p.stderr
 
 
 class Cli(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
-        self.env = {"GHOSTAUDIT_RUNS_DIR": str(self.tmp / "runs"), "GHOSTAUDIT_REVEAL_LOG": str(self.tmp / "reveals.md")}
+        self.env = {
+            "GHOSTAUDIT_RUNS_DIR": str(self.tmp / "runs"),
+            "GHOSTAUDIT_REVEAL_LOG": str(self.tmp / "reveals.md"),
+        }
 
     def test_contract_ok_on_gold(self):
         code, out = run("contract", "--file", str(GOLD), "--requests", str(SAMPLE_REQ))
@@ -35,9 +41,10 @@ class Cli(unittest.TestCase):
         rows = mutate_step(rows, "case_26", 1, resource_id="account_998")
         pred = tmp_copy(rows=rows)
         code, out = run("score", "--pred", str(pred), env_extra=self.env)
-        self.assertIn("DEV", out); self.assertIn("HOLDOUT (aggregate only)", out)
-        self.assertIn("case_01: missing", out)                           # dev case detail shown
-        self.assertNotIn("case_26:", out)                                # holdout case detail hidden
+        self.assertIn("DEV", out)
+        self.assertIn("HOLDOUT (aggregate only)", out)
+        self.assertIn("case_01: missing", out)  # dev case detail shown
+        self.assertNotIn("case_26:", out)  # holdout case detail hidden
         self.assertFalse((self.tmp / "reveals.md").exists())
         code, out = run("score", "--pred", str(pred), "--reveal-holdout", env_extra=self.env)
         self.assertIn("case_26: missing", out)
@@ -46,7 +53,9 @@ class Cli(unittest.TestCase):
     def test_score_records_history_and_diff_gate_blocks_dev_regression(self):
         code, out = run("score", "--pred", str(GOLD), env_extra=self.env)
         self.assertEqual(code, 0, out)
-        rows = mutate_step(gold_rows(), "case_01", 1, resource_id="account_999")   # dev case_01 regresses
+        rows = mutate_step(
+            gold_rows(), "case_01", 1, resource_id="account_999"
+        )  # dev case_01 regresses
         code, out = run("score", "--pred", str(tmp_copy(rows=rows)), env_extra=self.env)
         self.assertEqual(code, 2, out)
         self.assertIn("DIFF GATE", out)
@@ -59,8 +68,10 @@ class Cli(unittest.TestCase):
         self.assertIn("SELFTEST OK", out)
 
 
-BLOCK_PANDAS = ("import sys, runpy; sys.modules['pandas'] = None; sys.argv = ['main.py', 'selftest']; "
-                "runpy.run_path(%r, run_name='__main__')")
+BLOCK_PANDAS = (
+    "import sys, runpy; sys.modules['pandas'] = None; sys.argv = ['main.py', 'selftest']; "
+    "runpy.run_path(%r, run_name='__main__')"
+)
 
 
 class SelftestTargetsSpecificChecks(unittest.TestCase):
@@ -75,12 +86,24 @@ class SelftestTargetsSpecificChecks(unittest.TestCase):
         self.assertIn("SELFTEST OK", out)
 
     def test_selftest_with_pandas_available(self):
-        p = subprocess.run([sys.executable, str(MAIN), "selftest"], capture_output=True, text=True, cwd=ROOT, env=self.env)
+        p = subprocess.run(
+            [sys.executable, str(MAIN), "selftest"],
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+            env=self.env,
+        )
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         self._assert_specific(p.stdout)
 
     def test_selftest_with_pandas_import_blocked(self):
-        p = subprocess.run([sys.executable, "-c", BLOCK_PANDAS % str(MAIN)], capture_output=True, text=True, cwd=ROOT, env=self.env)
+        p = subprocess.run(
+            [sys.executable, "-c", BLOCK_PANDAS % str(MAIN)],
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+            env=self.env,
+        )
         out = p.stdout + p.stderr
         self.assertEqual(p.returncode, 0, out)
         self.assertIn("WARNING L0.pandas SKIPPED", out)
@@ -89,6 +112,7 @@ class SelftestTargetsSpecificChecks(unittest.TestCase):
 
 class BaselineFindings(unittest.TestCase):
     """Bugs found when the first real (trivial) prediction file was scored."""
+
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.env = {"GHOSTAUDIT_RUNS_DIR": str(self.tmp / "runs")}

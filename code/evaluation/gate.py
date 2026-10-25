@@ -3,6 +3,7 @@
 check(output_path, requests_path, manifest_path) -> list[str]
 An empty list means the file passes. Each violation starts with a stable code (e.g. "L0.header").
 """
+
 import csv
 import io
 import json
@@ -61,7 +62,9 @@ def check(output_path, requests_path, manifest_path, warnings=None):
     # ADR 0015 (proposed): INCOMPLETE with [] means nothing grounded could be reported; allowed, but counted
     empty = [c for c, st, sj in rows if st == "INCOMPLETE" and sj.strip() == "[]"]
     if empty and warnings is not None:
-        warnings.append(f"L0.empty_incomplete: {len(empty)} INCOMPLETE row(s) with no steps (ADR 0015): {', '.join(empty)}")
+        warnings.append(
+            f"L0.empty_incomplete: {len(empty)} INCOMPLETE row(s) with no steps (ADR 0015): {', '.join(empty)}"
+        )
     return v
 
 
@@ -69,7 +72,10 @@ def _evidence_times(manifest_path):
     """Every citable participant-visible id -> the time it became available."""
     t = {r["file_id"]: r["captured_at"] for r in _read_csv(manifest_path)}
     d = manifest_path.parent
-    for name, key, ts in (("system_activity.csv", "activity_id", "event_time"), ("user_audit_log.csv", "audit_id", "event_time")):
+    for name, key, ts in (
+        ("system_activity.csv", "activity_id", "event_time"),
+        ("user_audit_log.csv", "audit_id", "event_time"),
+    ):
         if (d / name).exists():
             t.update({r[key]: r[ts] for r in _read_csv(d / name)})
     return t
@@ -77,7 +83,9 @@ def _evidence_times(manifest_path):
 
 def _row(case_id, status, steps_json, audit_at, times):
     if status not in STATUSES:
-        return [f"L0.status: {case_id}: deletion_status '{status}' is not one of {', '.join(STATUSES)}"]
+        return [
+            f"L0.status: {case_id}: deletion_status '{status}' is not one of {', '.join(STATUSES)}"
+        ]
     try:
         steps = json.loads(steps_json)
     except json.JSONDecodeError as e:
@@ -89,16 +97,22 @@ def _row(case_id, status, steps_json, audit_at, times):
         if not isinstance(s, dict) or set(s) != KEYS:
             extra = sorted(set(s) - KEYS) if isinstance(s, dict) else []
             missing = sorted(KEYS - set(s)) if isinstance(s, dict) else sorted(KEYS)
-            v.append(f"L0.keys: {case_id} step {i}: needs exactly the 7 keys; extra={extra} missing={missing}")
+            v.append(
+                f"L0.keys: {case_id} step {i}: needs exactly the 7 keys; extra={extra} missing={missing}"
+            )
     if v:
         return v
     for i, s in enumerate(steps, 1):
         if type(s["step_no"]) is not int or s["step_no"] != i:
-            v.append(f"L0.step_no: {case_id}: step at position {i} has step_no {s['step_no']!r}; must be the integer {i}")
+            v.append(
+                f"L0.step_no: {case_id}: step at position {i} has step_no {s['step_no']!r}; must be the integer {i}"
+            )
             break
     for s in steps:
         if (s["phase"], s["operation"], s["state"]) not in TRIPLE_SET:
-            v.append(f"L0.triple: {case_id} step {s['step_no']}: ({s['phase']}, {s['operation']}, {s['state']}) is not an allowed phase/operation/state triple")
+            v.append(
+                f"L0.triple: {case_id} step {s['step_no']}: ({s['phase']}, {s['operation']}, {s['state']}) is not an allowed phase/operation/state triple"
+            )
         for k in ("system_id", "resource_id"):
             if not isinstance(s[k], str) or not s[k]:
                 v.append(f"L0.keys: {case_id} step {s['step_no']}: {k} must be a non-empty string")
@@ -107,17 +121,25 @@ def _row(case_id, status, steps_json, audit_at, times):
     keys = [(OP_RANK[s["operation"]], s["system_id"], s["resource_id"]) for s in steps]
     for a in range(1, len(keys)):
         if keys[a] < keys[a - 1]:
-            v.append(f"L0.sort: {case_id}: step {a + 1} ({steps[a]['operation']} {steps[a]['system_id']}/{steps[a]['resource_id']}) "
-                     f"must not come after step {a} ({steps[a - 1]['operation']} {steps[a - 1]['system_id']}/{steps[a - 1]['resource_id']}); "
-                     f"order is phase, operation rank, system_id, resource_id")
+            v.append(
+                f"L0.sort: {case_id}: step {a + 1} ({steps[a]['operation']} {steps[a]['system_id']}/{steps[a]['resource_id']}) "
+                f"must not come after step {a} ({steps[a - 1]['operation']} {steps[a - 1]['system_id']}/{steps[a - 1]['resource_id']}); "
+                f"order is phase, operation rank, system_id, resource_id"
+            )
             break
     phases = {s["phase"] for s in steps}
     if status == "NOT_APPLICABLE" and steps:
-        v.append(f"L0.status: {case_id}: NOT_APPLICABLE must have steps_json [] (has {len(steps)} steps)")
+        v.append(
+            f"L0.status: {case_id}: NOT_APPLICABLE must have steps_json [] (has {len(steps)} steps)"
+        )
     if status == "COMPLETE" and not steps:
-        v.append(f"L0.status: {case_id}: COMPLETE with an empty step list; COMPLETE needs cited verification steps")
+        v.append(
+            f"L0.status: {case_id}: COMPLETE with an empty step list; COMPLETE needs cited verification steps"
+        )
     if status == "COMPLETE" and phases - {"VERIFICATION"}:
-        v.append(f"L0.status: {case_id}: COMPLETE may contain only VERIFICATION steps (found {', '.join(sorted(phases - {'VERIFICATION'}))})")
+        v.append(
+            f"L0.status: {case_id}: COMPLETE may contain only VERIFICATION steps (found {', '.join(sorted(phases - {'VERIFICATION'}))})"
+        )
     v += _evidence(case_id, status, steps, audit_at, times)
     if status == "INCOMPLETE":
         v += _pairing(case_id, steps)
@@ -130,7 +152,9 @@ def _evidence(case_id, status, steps, audit_at, times):
         e = s["evidence_id"]
         where = f"{case_id} step {s['step_no']} ({s['operation']})"
         if e is None:
-            v.append(f"L0.evidence: {where}: evidence_id is null; use a string (\"\" for remediation/future verification)")
+            v.append(
+                f'L0.evidence: {where}: evidence_id is null; use a string ("" for remediation/future verification)'
+            )
             continue
         if not isinstance(e, str):
             v.append(f"L0.evidence: {where}: evidence_id must be a string, got {type(e).__name__}")
@@ -139,13 +163,21 @@ def _evidence(case_id, status, steps, audit_at, times):
         if must_cite:
             if not e:
                 kind = "finding" if s["phase"] == "FINDING" else "COMPLETE verification"
-                v.append(f"L0.evidence: {where}: a {kind} must cite a file_id, activity_id or audit_id")
+                v.append(
+                    f"L0.evidence: {where}: a {kind} must cite a file_id, activity_id or audit_id"
+                )
             elif e not in times:
-                v.append(f"L0.evidence: {where}: evidence_id '{e}' does not exist in the participant data")
+                v.append(
+                    f"L0.evidence: {where}: evidence_id '{e}' does not exist in the participant data"
+                )
             elif times[e] > audit_at:
-                v.append(f"L0.evidence: {where}: '{e}' is captured at {times[e]}, after audit_at {audit_at}")
+                v.append(
+                    f"L0.evidence: {where}: '{e}' is captured at {times[e]}, after audit_at {audit_at}"
+                )
         elif e != "":
-            v.append(f'L0.evidence: {where}: in an INCOMPLETE case this step describes future work; evidence_id must be "" (got \'{e}\')')
+            v.append(
+                f"L0.evidence: {where}: in an INCOMPLETE case this step describes future work; evidence_id must be \"\" (got '{e}')"
+            )
     return v
 
 
@@ -161,9 +193,13 @@ def _pairing(case_id, steps):
         ops = by_res[(s["system_id"], s["resource_id"])]
         res = f"{s['system_id']}/{s['resource_id']}"
         if not ops & finds:
-            v.append(f"L0.pairing: {case_id}: remediation {s['operation']} on {res} has no matching finding ({' or '.join(sorted(finds))})")
+            v.append(
+                f"L0.pairing: {case_id}: remediation {s['operation']} on {res} has no matching finding ({' or '.join(sorted(finds))})"
+            )
         if verify not in ops:
-            v.append(f"L0.pairing: {case_id}: remediation {s['operation']} on {res} has no matching verification {verify}")
+            v.append(
+                f"L0.pairing: {case_id}: remediation {s['operation']} on {res} has no matching verification {verify}"
+            )
     return v
 
 
@@ -187,13 +223,21 @@ def _cases(rows, requests):
         v.append(f"L0.cases: duplicate case_id rows: {', '.join(dups)}")
     missing = sorted(set(want) - set(got), key=natural_key)
     if missing:
-        v.append(f"L0.cases: missing {len(missing)} case_id(s) from the input: {', '.join(missing[:10])}")
+        v.append(
+            f"L0.cases: missing {len(missing)} case_id(s) from the input: {', '.join(missing[:10])}"
+        )
     unknown = sorted(set(got) - set(want), key=natural_key)
     if unknown:
         v.append(f"L0.cases: unknown case_id(s) not in the input: {', '.join(unknown[:10])}")
     for i in range(1, len(got)):
-        if got[i] in set(want) and got[i - 1] in set(want) and natural_key(got[i]) < natural_key(got[i - 1]):
-            v.append(f"L0.order: {got[i]} (data row {i + 1}) comes after {got[i - 1]}; rows must be in natural numeric case_id order")
+        if (
+            got[i] in set(want)
+            and got[i - 1] in set(want)
+            and natural_key(got[i]) < natural_key(got[i - 1])
+        ):
+            v.append(
+                f"L0.order: {got[i]} (data row {i + 1}) comes after {got[i - 1]}; rows must be in natural numeric case_id order"
+            )
             break
     if len(got) != len(want) and not (missing or unknown or dups):
         v.append(f"L0.cases: expected {len(want)} rows, got {len(got)}")
@@ -218,21 +262,29 @@ def _format(raw, warnings):
     rows = list(csv.reader(io.StringIO(text)))
     for i, r in enumerate(rows, 1):
         if len(r) != 3:
-            return [f"L0.csv: line {_physical_line(text, i)} parses to {len(r)} fields, expected 3 (check quoting of steps_json)"]
+            return [
+                f"L0.csv: line {_physical_line(text, i)} parses to {len(r)} fields, expected 3 (check quoting of steps_json)"
+            ]
     buf = io.StringIO()
     csv.writer(buf, lineterminator="\n").writerows(rows)
     if buf.getvalue() != text:
         a, b = text.split("\n"), buf.getvalue().split("\n")
         n = next((k for k, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))
-        return [f"L0.csv: line {n + 1} does not round-trip through the csv module (quoting differs)"]
+        return [
+            f"L0.csv: line {n + 1} does not round-trip through the csv module (quoting differs)"
+        ]
     try:
-        import pandas as pd   # optional: the stdlib csv round-trip above is the mandatory check
+        import pandas as pd  # optional: the stdlib csv round-trip above is the mandatory check
     except ImportError:
-        warnings.append(f"{OPTIONAL_DEPENDENCY_WARNINGS[0]}: pandas is not installed; optional pandas round-trip not run (stdlib csv round-trip passed)")
+        warnings.append(
+            f"{OPTIONAL_DEPENDENCY_WARNINGS[0]}: pandas is not installed; optional pandas round-trip not run (stdlib csv round-trip passed)"
+        )
         return []
     df = pd.read_csv(io.StringIO(text), dtype=str, keep_default_na=False)
     if df.to_csv(index=False, lineterminator="\n") != text:
-        return ["L0.pandas: file does not round-trip identically through pandas (dtype=str, keep_default_na=False)"]
+        return [
+            "L0.pandas: file does not round-trip identically through pandas (dtype=str, keep_default_na=False)"
+        ]
     return []
 
 
@@ -251,12 +303,21 @@ def determinism(cmd, output_path, runs=2):
     """Run cmd `runs` times; pass iff each run exits 0 and output_path has the same sha256 every time."""
     import hashlib
     import subprocess
+
     hashes = []
     for k in range(runs):
         p = subprocess.run(cmd, capture_output=True, text=True)
         if p.returncode != 0:
-            return False, hashes, f"L0.determinism: run {k + 1} failed (exit {p.returncode}): {p.stderr.strip()[-300:]}"
+            return (
+                False,
+                hashes,
+                f"L0.determinism: run {k + 1} failed (exit {p.returncode}): {p.stderr.strip()[-300:]}",
+            )
         hashes.append(hashlib.sha256(Path(output_path).read_bytes()).hexdigest())
     if len(set(hashes)) != 1:
-        return False, hashes, "L0.determinism: output differs between runs: " + " vs ".join(h[:12] for h in hashes)
+        return (
+            False,
+            hashes,
+            "L0.determinism: output differs between runs: " + " vs ".join(h[:12] for h in hashes),
+        )
     return True, hashes, f"L0.determinism: {runs} runs identical (sha256 {hashes[0][:12]})"

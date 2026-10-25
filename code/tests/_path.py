@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+
 CODE = Path(__file__).resolve().parents[1]
 ROOT = CODE.parent
 DATA = ROOT / "dataset"

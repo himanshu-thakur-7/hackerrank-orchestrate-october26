@@ -1,7 +1,8 @@
 """Record-list JSON: {"records": [...]} in two shapes, recognised by record content:
-  * registers (record_type/result rows): checks, no Coverage;
-  * collection lists {"collection": ..., "captured_at": ..., "records": [data rows]}: weak Coverage (ADR 0014).
+* registers (record_type/result rows): checks, no Coverage;
+* collection lists {"collection": ..., "captured_at": ..., "records": [data rows]}: weak Coverage (ADR 0014).
 """
+
 import json
 
 from ghostaudit.loaders import datarow, register
@@ -22,10 +23,26 @@ def load(file_id, captured_at, text):
     coll = data.get("collection")
     system = datarow.COLLECTION_SYSTEM.get(coll)
     if system is None:
-        r.unparsed.append(Unit(file_id, "file", f"collection={coll!r} keys={sorted(data)}", f"unknown collection {coll!r}"))
+        r.unparsed.append(
+            Unit(
+                file_id,
+                "file",
+                f"collection={coll!r} keys={sorted(data)}",
+                f"unknown collection {coll!r}",
+            )
+        )
         return r
     cap = data.get("captured_at") or captured_at
     for rec in recs:
-        datarow.observation(file_id, rec, system, coll, COLLECTION_CATEGORY.get(coll), cap, lines.get(id(rec), ""), r)
+        datarow.observation(
+            file_id,
+            rec,
+            system,
+            coll,
+            COLLECTION_CATEGORY.get(coll),
+            cap,
+            lines.get(id(rec), ""),
+            r,
+        )
     r.coverage.append(Coverage(file_id, cap, system, coll))
     return r

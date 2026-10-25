@@ -1,4 +1,5 @@
 """Frozen dev/holdout split of the 32 labeled samples."""
+
 import unittest
 from collections import Counter
 from evaluation import split, scorer
@@ -21,7 +22,7 @@ class FrozenSplit(unittest.TestCase):
 
     def test_holdout_is_stratified_by_status(self):
         mix = Counter(self.gold[c][0] for c in self.hold)
-        self.assertEqual(mix, Counter({"INCOMPLETE": 7, "COMPLETE": 3}))   # 22:10 of 32 -> 6.9 / 3.1
+        self.assertEqual(mix, Counter({"INCOMPLETE": 7, "COMPLETE": 3}))  # 22:10 of 32 -> 6.9 / 3.1
 
     def test_every_multi_case_evidence_format_appears_on_both_sides(self):
         fmt = split.formats(self.gold, MANIFEST)

@@ -3,13 +3,25 @@
 load_bytes(file_id, captured_at, raw) -> LoadResult; unknown content raises UnknownSignature.
 Signatures whose adapter is not built yet raise LoaderPending (strict) so nothing is skipped silently.
 """
+
 import json
 from pathlib import Path
 
-from ghostaudit.loaders import bundle, handover, observability, pdf, readback, record_lookup, records, screens, service_export, sql
+from ghostaudit.loaders import (
+    bundle,
+    handover,
+    observability,
+    pdf,
+    readback,
+    record_lookup,
+    records,
+    screens,
+    service_export,
+    sql,
+)
 from ghostaudit.loaders.common import LoadResult, Unit  # noqa: F401  (re-exported)
 
-PENDING = {}            # signature -> board task that will implement it
+PENDING = {}  # signature -> board task that will implement it
 
 
 class UnknownSignature(Exception):
@@ -32,7 +44,7 @@ LOADERS = {
     "pdf": pdf.load,
     "png": screens.load,
 }
-BINARY = {"pdf", "png"}       # these adapters take the raw bytes
+BINARY = {"pdf", "png"}  # these adapters take the raw bytes
 
 
 def sniff(raw, file_id="?"):
@@ -43,13 +55,17 @@ def sniff(raw, file_id="?"):
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError as e:
-        raise UnknownSignature(f"{file_id}: not UTF-8 text and not a known binary format (byte {e.start}); first bytes {raw[:16]!r}")
+        raise UnknownSignature(
+            f"{file_id}: not UTF-8 text and not a known binary format (byte {e.start}); first bytes {raw[:16]!r}"
+        )
     head = text.lstrip()
     if head.startswith("{"):
         try:
             data = json.loads(text)
         except json.JSONDecodeError as e:
-            raise UnknownSignature(f"{file_id}: starts like JSON but does not parse ({e.msg} at line {e.lineno})")
+            raise UnknownSignature(
+                f"{file_id}: starts like JSON but does not parse ({e.msg} at line {e.lineno})"
+            )
         keys = sorted(data) if isinstance(data, dict) else []
         if "service_exports" in keys:
             return "json:service_exports"
@@ -57,7 +73,9 @@ def sniff(raw, file_id="?"):
             return "json:snapshots"
         if isinstance(data, dict) and isinstance(data.get("records"), list):
             return "json:records"
-        raise UnknownSignature(f"{file_id}: unknown content signature: JSON object with keys {keys}")
+        raise UnknownSignature(
+            f"{file_id}: unknown content signature: JSON object with keys {keys}"
+        )
     if sql.matches(text):
         return "sql"
     if handover.matches(text):
@@ -76,7 +94,9 @@ def load_bytes(file_id, captured_at, raw, strict=True):
     sig = sniff(raw, file_id)
     if sig not in LOADERS:
         if strict:
-            raise LoaderPending(f"{file_id}: signature {sig} has no loader yet ({PENDING.get(sig, 'unplanned')})")
+            raise LoaderPending(
+                f"{file_id}: signature {sig} has no loader yet ({PENDING.get(sig, 'unplanned')})"
+            )
         return LoadResult(sig)
     if sig in BINARY:
         try:
@@ -89,6 +109,7 @@ def load_bytes(file_id, captured_at, raw, strict=True):
 def load_manifest(data_dir, strict=True, only=None):
     """Load every evidence file listed in evidence_files.csv -> {file_id: LoadResult}."""
     import csv
+
     d = Path(data_dir)
     out = {}
     with open(d / "evidence_files.csv", newline="", encoding="utf-8") as f:

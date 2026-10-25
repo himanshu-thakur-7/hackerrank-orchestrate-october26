@@ -19,18 +19,31 @@ Metric definitions (all micro-averaged over the given cases unless stated):
   row_exact           share of cases with identical status and identical step list (pessimistic bound)
   proxy               equal-weight mean of the nine headline metrics listed in PROXY
 """
+
 import csv
 import json
 from collections import defaultdict
 
 FIELDS = ("operation", "state", "evidence_id", "step_no")
-PROXY = ("status_accuracy", "identity_recall", "finding_f1", "policy_accuracy", "evidence_accuracy",
-         "strict_step_f1", "field_acc_mean", "sequence_exact", "sequence_lcs_mean")
+PROXY = (
+    "status_accuracy",
+    "identity_recall",
+    "finding_f1",
+    "policy_accuracy",
+    "evidence_accuracy",
+    "strict_step_f1",
+    "field_acc_mean",
+    "sequence_exact",
+    "sequence_lcs_mean",
+)
 
 
 def load(path):
     with open(path, newline="", encoding="utf-8") as f:
-        return {r["case_id"]: (r["deletion_status"], json.loads(r["steps_json"])) for r in csv.DictReader(f)}
+        return {
+            r["case_id"]: (r["deletion_status"], json.loads(r["steps_json"]))
+            for r in csv.DictReader(f)
+        }
 
 
 def _prf(tp, n_pred, n_gold):
@@ -76,7 +89,10 @@ def score(pred, gold, case_ids):
         status_ok += ps == gs
         row_ok += ps == gs and psteps == gsteps
 
-        seq = lambda steps: [(s["phase"], s["system_id"], s["resource_id"], s["operation"], s["state"]) for s in steps]
+        seq = lambda steps: [
+            (s["phase"], s["system_id"], s["resource_id"], s["operation"], s["state"])
+            for s in steps
+        ]
         gq, pq = seq(gsteps), seq(psteps)
         seq_ok += gq == pq
         lcs_sum += 1.0 if not gq and not pq else _lcs(gq, pq) / max(len(gq), len(pq))
@@ -86,9 +102,15 @@ def score(pred, gold, case_ids):
         id_tot += len(gres)
         id_hit += len(gres & pres)
 
-        fkey = lambda steps: {(s["system_id"], s["resource_id"], s["operation"]) for s in steps if s["phase"] == "FINDING"}
+        fkey = lambda steps: {
+            (s["system_id"], s["resource_id"], s["operation"])
+            for s in steps
+            if s["phase"] == "FINDING"
+        }
         gf, pf = fkey(gsteps), fkey(psteps)
-        f_tp += len(gf & pf); f_pred += len(pf); f_gold += len(gf)
+        f_tp += len(gf & pf)
+        f_pred += len(pf)
+        f_gold += len(gf)
 
         for r in sorted(gres):
             pol_tot += 1
@@ -96,25 +118,38 @@ def score(pred, gold, case_ids):
             p_t = _treatment([s for s in psteps if (s["system_id"], s["resource_id"]) == r])
             pol_ok += g_t == p_t
 
-        pev = {(s["phase"], s["system_id"], s["resource_id"], s["operation"]): s["evidence_id"] for s in psteps}
+        pev = {
+            (s["phase"], s["system_id"], s["resource_id"], s["operation"]): s["evidence_id"]
+            for s in psteps
+        }
         for s in gsteps:
             if s["evidence_id"]:
                 ev_tot += 1
-                ev_ok += pev.get((s["phase"], s["system_id"], s["resource_id"], s["operation"])) == s["evidence_id"]
+                ev_ok += (
+                    pev.get((s["phase"], s["system_id"], s["resource_id"], s["operation"]))
+                    == s["evidence_id"]
+                )
 
         full = lambda steps: [tuple(sorted(s.items())) for s in steps]
-        noord = lambda steps: [tuple(sorted((k, v) for k, v in s.items() if k != "step_no")) for s in steps]
+        noord = lambda steps: [
+            tuple(sorted((k, v) for k, v in s.items() if k != "step_no")) for s in steps
+        ]
         for get, acc in ((full, "s"), (noord, "u")):
             gl, pl = get(gsteps), get(psteps)
             pool = list(pl)
             tp = 0
             for t in gl:
                 if t in pool:
-                    pool.remove(t); tp += 1
+                    pool.remove(t)
+                    tp += 1
             if acc == "s":
-                s_tp += tp; s_pred += len(pl); s_gold += len(gl)
+                s_tp += tp
+                s_pred += len(pl)
+                s_gold += len(gl)
             else:
-                u_tp += tp; u_pred += len(pl); u_gold += len(gl)
+                u_tp += tp
+                u_pred += len(pl)
+                u_gold += len(gl)
 
         buckets = defaultdict(list)
         for s in psteps:
@@ -150,7 +185,14 @@ def case_diff(pred, gold, case_id):
     """Human-readable differences for one case (used for dev failure detail)."""
     gs, gsteps = gold[case_id]
     ps, psteps = pred.get(case_id, (None, []))
-    key = lambda s: (s["phase"], s["system_id"], s["resource_id"], s["operation"], s["state"], s["evidence_id"])
+    key = lambda s: (
+        s["phase"],
+        s["system_id"],
+        s["resource_id"],
+        s["operation"],
+        s["state"],
+        s["evidence_id"],
+    )
     g, p = [key(s) for s in gsteps], [key(s) for s in psteps]
     lines = [f"{case_id}: status pred={ps} gold={gs}"] if ps != gs else []
     lines += [f"{case_id}: missing  {' '.join(k)}" for k in g if k not in p]

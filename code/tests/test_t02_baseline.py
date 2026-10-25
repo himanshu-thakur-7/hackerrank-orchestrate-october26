@@ -1,10 +1,13 @@
 """T02: CSV loading, identity resolution, rules-only intent, writer, and the baseline CLI."""
+
 import csv, hashlib, subprocess, sys, tempfile, unittest
 from pathlib import Path
 from _path import ROOT, DATA, CODE
 from ghostaudit import data, identity, intent, writer
 
-EVAL_NON_DELETION = {f"case_{n}" for n in range(533, 543)}   # read from request text in docs/02_DATA_NOTES.md §1.8
+EVAL_NON_DELETION = {
+    f"case_{n}" for n in range(533, 543)
+}  # read from request text in docs/02_DATA_NOTES.md §1.8
 
 
 class Loading(unittest.TestCase):
@@ -12,7 +15,18 @@ class Loading(unittest.TestCase):
         ev = data.load_requests(DATA / "deletion_requests.csv")
         sm = data.load_requests(DATA / "sample_deletion_requests.csv")
         self.assertEqual((len(ev), len(sm)), (518, 32))
-        self.assertEqual(set(ev[0]), {"case_id", "email", "requested_at", "reported_status", "reported_at", "audit_at", "request_text"})
+        self.assertEqual(
+            set(ev[0]),
+            {
+                "case_id",
+                "email",
+                "requested_at",
+                "reported_status",
+                "reported_at",
+                "audit_at",
+                "request_text",
+            },
+        )
 
 
 class Identity(unittest.TestCase):
@@ -26,7 +40,9 @@ class Identity(unittest.TestCase):
     def test_oldest_historical_email_resolves_with_full_identifier_set(self):
         i = self.r.resolve("abena.o189491@zoho.com")
         self.assertEqual(i.user_id, "user_35")
-        self.assertEqual(i.emails, {"abena.o189491@zoho.com", "abena.o189466@zoho.com", "abena.o1894@zoho.com"})
+        self.assertEqual(
+            i.emails, {"abena.o189491@zoho.com", "abena.o189466@zoho.com", "abena.o1894@zoho.com"}
+        )
         self.assertIn(hashlib.sha256(b"abena.o189491@zoho.com").hexdigest(), i.email_hashes)
         self.assertTrue(i.phones and all(p.isdigit() for p in i.phones))
 
@@ -46,11 +62,17 @@ class Identity(unittest.TestCase):
 class Intent(unittest.TestCase):
     def test_all_labeled_samples_are_deletion(self):
         for q in data.load_requests(DATA / "sample_deletion_requests.csv"):
-            self.assertEqual(intent.classify_rules(q["request_text"]).label, "DELETION", q["case_id"])
+            self.assertEqual(
+                intent.classify_rules(q["request_text"]).label, "DELETION", q["case_id"]
+            )
 
     def test_eval_non_deletion_set(self):
         reqs = data.load_requests(DATA / "deletion_requests.csv")
-        got = {q["case_id"] for q in reqs if intent.classify_rules(q["request_text"]).label == "NOT_DELETION"}
+        got = {
+            q["case_id"]
+            for q in reqs
+            if intent.classify_rules(q["request_text"]).label == "NOT_DELETION"
+        }
         self.assertEqual(got, EVAL_NON_DELETION)
 
     def test_negation_and_scope_cues(self):
@@ -67,27 +89,51 @@ class Intent(unittest.TestCase):
 class Writer(unittest.TestCase):
     def test_numeric_order_compact_json_and_newlines(self):
         p = Path(tempfile.mkdtemp()) / "o.csv"
-        step = {"step_no": 1, "phase": "VERIFICATION", "system_id": "s", "resource_id": "r",
-                "operation": "VERIFY_RECORD_ABSENT", "state": "ABSENT", "evidence_id": "e"}
+        step = {
+            "step_no": 1,
+            "phase": "VERIFICATION",
+            "system_id": "s",
+            "resource_id": "r",
+            "operation": "VERIFY_RECORD_ABSENT",
+            "state": "ABSENT",
+            "evidence_id": "e",
+        }
         writer.write(p, [("case_100", "COMPLETE", [step]), ("case_33", "NOT_APPLICABLE", [])])
         raw = p.read_bytes()
         self.assertNotIn(b"\r", raw)
         rows = list(csv.reader(raw.decode().splitlines()))
         self.assertEqual([r[0] for r in rows[1:]], ["case_33", "case_100"])
-        self.assertEqual(rows[2][2], '[{"step_no":1,"phase":"VERIFICATION","system_id":"s","resource_id":"r",'
-                                     '"operation":"VERIFY_RECORD_ABSENT","state":"ABSENT","evidence_id":"e"}]')
+        self.assertEqual(
+            rows[2][2],
+            '[{"step_no":1,"phase":"VERIFICATION","system_id":"s","resource_id":"r",'
+            '"operation":"VERIFY_RECORD_ABSENT","state":"ABSENT","evidence_id":"e"}]',
+        )
 
 
 class BaselineCli(unittest.TestCase):
     def _run(self, *args):
-        return subprocess.run([sys.executable, str(CODE / "main.py"), *args], capture_output=True, text=True, cwd=ROOT)
+        return subprocess.run(
+            [sys.executable, str(CODE / "main.py"), *args], capture_output=True, text=True, cwd=ROOT
+        )
 
     def test_sample_run_passes_the_gate(self):
         out = Path(tempfile.mkdtemp()) / "pred.csv"
         p = self._run("--requests", str(DATA / "sample_deletion_requests.csv"), "--out", str(out))
         self.assertEqual(p.returncode, 0, p.stderr)
-        g = subprocess.run([sys.executable, str(CODE / "evaluation" / "main.py"), "contract", "--file", str(out),
-                            "--requests", str(DATA / "sample_deletion_requests.csv")], capture_output=True, text=True, cwd=ROOT)
+        g = subprocess.run(
+            [
+                sys.executable,
+                str(CODE / "evaluation" / "main.py"),
+                "contract",
+                "--file",
+                str(out),
+                "--requests",
+                str(DATA / "sample_deletion_requests.csv"),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+        )
         self.assertEqual(g.returncode, 0, g.stdout)
 
     def test_report_counts(self):
@@ -102,6 +148,8 @@ class OwnerLookup(unittest.TestCase):
         r = identity.Resolver.from_dataset(DATA)
         self.assertEqual(r.owner_of("NOAH.F438085@OUTLOOK.COM"), "user_29")
         self.assertEqual(r.owner_of("user_49"), "user_49")
-        self.assertEqual(r.owner_of(hashlib.sha256(b"abena.o189491@zoho.com").hexdigest()), "user_35")
+        self.assertEqual(
+            r.owner_of(hashlib.sha256(b"abena.o189491@zoho.com").hexdigest()), "user_35"
+        )
         self.assertIsNone(r.owner_of("g.silva76.jr@gmail.com"))
         self.assertIsNone(r.owner_of("no direct identifier"))

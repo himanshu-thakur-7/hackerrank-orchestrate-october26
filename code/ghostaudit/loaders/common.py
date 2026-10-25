@@ -1,4 +1,5 @@
 """Shared helpers for loaders: value classification, PII fields, identifiers, attrs, logfmt parsing."""
+
 import re
 from dataclasses import dataclass, field
 
@@ -8,11 +9,19 @@ HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 PHONE_RE = re.compile(r"^\+?[\d][\d ()\-]{7,}\d$")
 ISO_RE = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
 
-PREFIX_SYSTEM = {   # resource-id prefix -> owning system, for formats that print ids without a system column
-    "account": "account_service", "support": "support_platform", "search": "search_service",
-    "analytics": "analytics_platform", "export": "export_service", "backup": "backup_service",
-    "data_flow": "integration_service", "audit_record": "security_service", "legal_hold": "legal_service",
-    "tombstone": "identity_service", "marketing": "marketing_platform", "object": "object_storage",
+PREFIX_SYSTEM = {  # resource-id prefix -> owning system, for formats that print ids without a system column
+    "account": "account_service",
+    "support": "support_platform",
+    "search": "search_service",
+    "analytics": "analytics_platform",
+    "export": "export_service",
+    "backup": "backup_service",
+    "data_flow": "integration_service",
+    "audit_record": "security_service",
+    "legal_hold": "legal_service",
+    "tombstone": "identity_service",
+    "marketing": "marketing_platform",
+    "object": "object_storage",
 }
 
 
@@ -33,6 +42,7 @@ NOT_ATTRS = {"resource_id", "observed_at", "lookup_key", "trace_id", "level", "s
 @dataclass
 class Unit:
     """A record unit a loader could not fully use (for the 'what is lost' report)."""
+
     file_id: str
     locator: str
     raw: str
@@ -44,8 +54,8 @@ class LoadResult:
     signature: str
     observations: list = field(default_factory=list)
     coverage: list = field(default_factory=list)
-    unattributed: list = field(default_factory=list)   # records with a resource but no identifier
-    unparsed: list = field(default_factory=list)       # record-like units that could not be parsed
+    unattributed: list = field(default_factory=list)  # records with a resource but no identifier
+    unparsed: list = field(default_factory=list)  # record-like units that could not be parsed
 
 
 def null(v):
@@ -105,7 +115,7 @@ def attrs(fields, exclude=()):
             continue
         if k in NAME_FIELDS | EMAIL_FIELDS | PHONE_FIELDS | HASH_FIELDS:
             continue
-        if isinstance(v, str) and kind(v):          # identifier-valued (customer_reference=user_N, ...)
+        if isinstance(v, str) and kind(v):  # identifier-valued (customer_reference=user_N, ...)
             continue
         out.append((k, str(v).lower() if isinstance(v, bool) else str(v)))
     return tuple(sorted(out))
@@ -138,9 +148,19 @@ def logfmt(text):
 
 def state_from_fields(f):
     """Generic state for one record from its fields. Absence signals win, then flow/restore flags."""
-    g = {k: (str(v).lower() if not isinstance(v, str) else v.lower()) for k, v in f.items() if not isinstance(v, (dict, list))}
-    if g.get("http_status") == "404" or g.get("status_code") == "404" or g.get("rows") == "0" \
-            or g.get("result") in ("miss", "not_found") or g.get("total_hits") == "0" or g.get("archive_present") == "false":
+    g = {
+        k: (str(v).lower() if not isinstance(v, str) else v.lower())
+        for k, v in f.items()
+        if not isinstance(v, (dict, list))
+    }
+    if (
+        g.get("http_status") == "404"
+        or g.get("status_code") == "404"
+        or g.get("rows") == "0"
+        or g.get("result") in ("miss", "not_found")
+        or g.get("total_hits") == "0"
+        or g.get("archive_present") == "false"
+    ):
         return "ABSENT"
     if "restore_allowed" in g:
         return "RESTORABLE" if g["restore_allowed"] in ("true", "1") else "BLOCKED"

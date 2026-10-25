@@ -1,5 +1,6 @@
 """Output contract (AGENTS.md §6.4): the 15 (phase, operation, state) triples, in sort order.
 The position of an operation in this list is its op_rank, the first part of the step sort key."""
+
 TRIPLES = (
     ("FINDING", "REPORT_REMAINING_RECORD", "PRESENT"),
     ("FINDING", "REPORT_EXPOSED_PII", "PRESENT"),
@@ -23,8 +24,15 @@ STATE = {op: state for _, op, state in TRIPLES}
 
 
 def step(operation, system_id, resource_id, evidence_id=""):
-    return {"step_no": 0, "phase": PHASE[operation], "system_id": system_id, "resource_id": resource_id,
-            "operation": operation, "state": STATE[operation], "evidence_id": evidence_id}
+    return {
+        "step_no": 0,
+        "phase": PHASE[operation],
+        "system_id": system_id,
+        "resource_id": resource_id,
+        "operation": operation,
+        "state": STATE[operation],
+        "evidence_id": evidence_id,
+    }
 
 
 def ordered(steps):

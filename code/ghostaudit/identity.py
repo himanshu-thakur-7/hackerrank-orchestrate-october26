@@ -3,6 +3,7 @@
 Exact matching only (after lowercasing emails and keeping only digits of phones); look-alike
 emails never match (CONTEXT: look-alike decoy). History comes from user_audit_log.csv.
 """
+
 import hashlib
 import re
 from dataclasses import dataclass, field
@@ -24,7 +25,9 @@ class Identity:
 
     def tokens(self):
         """Every exact identifier of the subject, as Evidence Store index keys (phones as 'tel:<digits>')."""
-        return sorted({self.user_id} | self.emails | self.email_hashes | {"tel:" + p for p in self.phones})
+        return sorted(
+            {self.user_id} | self.emails | self.email_hashes | {"tel:" + p for p in self.phones}
+        )
 
     def matches(self, token):
         """True if token is exactly one of the subject's identifiers (case-insensitive for text)."""
@@ -32,15 +35,25 @@ class Identity:
         if not t:
             return False
         low = t.lower()
-        return (t == self.user_id or low in self.emails or low in self.email_hashes
-                or (len(_digits(t)) >= 9 and _digits(t) in self.phones))
+        return (
+            t == self.user_id
+            or low in self.emails
+            or low in self.email_hashes
+            or (len(_digits(t)) >= 9 and _digits(t) in self.phones)
+        )
 
 
 class Resolver:
     def __init__(self, identities, audit_rows):
         self._by_user = {}
         for r in identities:
-            i = Identity(r["user_id"], {r["email"].lower()}, {r["email_hash"].lower()}, {_digits(r["phone"])}, {r["name"]})
+            i = Identity(
+                r["user_id"],
+                {r["email"].lower()},
+                {r["email_hash"].lower()},
+                {_digits(r["phone"])},
+                {r["name"]},
+            )
             self._by_user[r["user_id"]] = i
         for a in audit_rows:
             i = self._by_user.get(a["user_id"])

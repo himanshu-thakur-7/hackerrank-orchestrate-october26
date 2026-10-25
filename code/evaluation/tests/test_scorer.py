@@ -1,27 +1,54 @@
 """L1 scorer: score(pred, gold, case_ids) -> metrics. Expected values below were worked out by hand."""
+
 import unittest
 from evaluation import scorer
 from evaluation.tests.helpers import GOLD
 
 
 def st(n, phase, sys_, res, op, state, ev=""):
-    return {"step_no": n, "phase": phase, "system_id": sys_, "resource_id": res, "operation": op, "state": state, "evidence_id": ev}
+    return {
+        "step_no": n,
+        "phase": phase,
+        "system_id": sys_,
+        "resource_id": res,
+        "operation": op,
+        "state": state,
+        "evidence_id": ev,
+    }
 
 
 GOLD_TOY = {
-    "A": ("INCOMPLETE", [st(1, "FINDING", "s1", "r1", "REPORT_REMAINING_RECORD", "PRESENT", "ev1"),
-                         st(2, "REMEDIATION", "s1", "r1", "DELETE_RECORD", "ABSENT"),
-                         st(3, "VERIFICATION", "s1", "r1", "VERIFY_RECORD_ABSENT", "ABSENT"),
-                         st(4, "VERIFICATION", "acct", "a1", "VERIFY_RECORD_ABSENT", "ABSENT")]),
-    "B": ("COMPLETE", [st(1, "VERIFICATION", "acct", "b1", "VERIFY_RECORD_ABSENT", "ABSENT", "ev3")]),
+    "A": (
+        "INCOMPLETE",
+        [
+            st(1, "FINDING", "s1", "r1", "REPORT_REMAINING_RECORD", "PRESENT", "ev1"),
+            st(2, "REMEDIATION", "s1", "r1", "DELETE_RECORD", "ABSENT"),
+            st(3, "VERIFICATION", "s1", "r1", "VERIFY_RECORD_ABSENT", "ABSENT"),
+            st(4, "VERIFICATION", "acct", "a1", "VERIFY_RECORD_ABSENT", "ABSENT"),
+        ],
+    ),
+    "B": (
+        "COMPLETE",
+        [st(1, "VERIFICATION", "acct", "b1", "VERIFY_RECORD_ABSENT", "ABSENT", "ev3")],
+    ),
 }
 PRED_TOY = {
-    "A": ("INCOMPLETE", [st(1, "FINDING", "s1", "r1", "REPORT_REMAINING_RECORD", "PRESENT", "ev2"),
-                         st(2, "REMEDIATION", "s1", "r1", "DELETE_RECORD", "ABSENT"),
-                         st(3, "VERIFICATION", "s1", "r1", "VERIFY_RECORD_ABSENT", "ABSENT")]),
-    "B": ("INCOMPLETE", [st(1, "FINDING", "acct", "b1", "REPORT_REMAINING_RECORD", "PRESENT", "ev3"),
-                         st(2, "REMEDIATION", "acct", "b1", "DELETE_RECORD", "ABSENT"),
-                         st(3, "VERIFICATION", "acct", "b1", "VERIFY_RECORD_ABSENT", "ABSENT")]),
+    "A": (
+        "INCOMPLETE",
+        [
+            st(1, "FINDING", "s1", "r1", "REPORT_REMAINING_RECORD", "PRESENT", "ev2"),
+            st(2, "REMEDIATION", "s1", "r1", "DELETE_RECORD", "ABSENT"),
+            st(3, "VERIFICATION", "s1", "r1", "VERIFY_RECORD_ABSENT", "ABSENT"),
+        ],
+    ),
+    "B": (
+        "INCOMPLETE",
+        [
+            st(1, "FINDING", "acct", "b1", "REPORT_REMAINING_RECORD", "PRESENT", "ev3"),
+            st(2, "REMEDIATION", "acct", "b1", "DELETE_RECORD", "ABSENT"),
+            st(3, "VERIFICATION", "acct", "b1", "VERIFY_RECORD_ABSENT", "ABSENT"),
+        ],
+    ),
 }
 
 
@@ -38,12 +65,17 @@ class Scorer(unittest.TestCase):
         expect = {
             "status_accuracy": 0.5,
             "identity_recall": 2 / 3,
-            "finding_precision": 0.5, "finding_recall": 1.0, "finding_f1": 2 / 3,
+            "finding_precision": 0.5,
+            "finding_recall": 1.0,
+            "finding_f1": 2 / 3,
             "policy_accuracy": 1 / 3,
             "evidence_accuracy": 0.0,
             "strict_step_f1": 4 / 11,
             "step_f1_unordered": 4 / 11,
-            "field_acc_operation": 1.0, "field_acc_state": 1.0, "field_acc_evidence_id": 0.5, "field_acc_step_no": 0.75,
+            "field_acc_operation": 1.0,
+            "field_acc_state": 1.0,
+            "field_acc_evidence_id": 0.5,
+            "field_acc_step_no": 0.75,
             "field_acc_mean": 0.8125,
             "sequence_exact": 0.0,
             "sequence_lcs_mean": (0.75 + 1 / 3) / 2,
@@ -67,7 +99,13 @@ class Scorer(unittest.TestCase):
 class NoInflationWhenNothingAligns(unittest.TestCase):
     def test_empty_predictions_score_zero_everywhere_in_the_proxy(self):
         m = scorer.score({}, GOLD_TOY, ["A", "B"])
-        for k in ("field_acc_operation", "field_acc_state", "field_acc_evidence_id", "field_acc_step_no", "field_acc_mean"):
+        for k in (
+            "field_acc_operation",
+            "field_acc_state",
+            "field_acc_evidence_id",
+            "field_acc_step_no",
+            "field_acc_mean",
+        ):
             self.assertEqual(m[k], 0.0, k)
         self.assertEqual(m["proxy"], 0.0)
 

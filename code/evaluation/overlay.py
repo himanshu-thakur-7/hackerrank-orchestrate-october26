@@ -6,6 +6,7 @@ then the real pipeline (`code/main.py`, as a subprocess) runs over it. dataset/ 
       ov.add_evidence(file_id, rel_path, origin, captured_at, raw)   # also adds the manifest row
       out = ov.run()                                                 # {case_id: (status, steps)}
 """
+
 import csv
 import io
 import json
@@ -22,14 +23,19 @@ MAIN = ROOT / "code" / "main.py"
 
 def read_output(path):
     with open(path, newline="", encoding="utf-8") as f:
-        return {r["case_id"]: (r["deletion_status"], json.loads(r["steps_json"])) for r in csv.DictReader(f)}
+        return {
+            r["case_id"]: (r["deletion_status"], json.loads(r["steps_json"]))
+            for r in csv.DictReader(f)
+        }
 
 
 def run_pipeline(data_dir, out_path, requests=None, env=None):
     cmd = [sys.executable, str(MAIN), "--data", str(data_dir), "--out", str(out_path)]
     if requests:
         cmd += ["--requests", str(requests)]
-    p = subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT, env={**os.environ, **(env or {})})
+    p = subprocess.run(
+        cmd, capture_output=True, text=True, cwd=ROOT, env={**os.environ, **(env or {})}
+    )
     if p.returncode != 0:
         raise RuntimeError(f"pipeline failed on {data_dir}:\n{p.stdout}\n{p.stderr}")
     return read_output(out_path)
@@ -75,7 +81,14 @@ class Overlay:
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(raw)
         m = self.rows("evidence_files.csv")
-        m.append({"file_id": file_id, "file_path": rel_path, "origin": origin, "captured_at": captured_at})
+        m.append(
+            {
+                "file_id": file_id,
+                "file_path": rel_path,
+                "origin": origin,
+                "captured_at": captured_at,
+            }
+        )
         self.write_rows("evidence_files.csv", m)
 
     def remove_evidence(self, file_id):

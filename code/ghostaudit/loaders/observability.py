@@ -15,11 +15,21 @@ identifiers count, so a lookup_key that is itself a resource id attributes nothi
 
 Not exhaustive (a trace log only shows what was queried): no Coverage.
 """
+
 import json
 import re
 from collections import OrderedDict
 
-from ghostaudit.loaders.common import LoadResult, Unit, attrs, identifiers, kind, logfmt, pii_fields, state_from_fields
+from ghostaudit.loaders.common import (
+    LoadResult,
+    Unit,
+    attrs,
+    identifiers,
+    kind,
+    logfmt,
+    pii_fields,
+    state_from_fields,
+)
 from ghostaudit.store import Observation
 
 TS = r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ)"
@@ -32,8 +42,11 @@ DIALECTS = (
     ("cloud", re.compile(TS + r' requestId=(\S+) level=(\w+) function=(\S+) message="(.*)"$')),
 )
 # services that log on behalf of a catalogue system under another name
-SERVICE_SYSTEM = {"support_replica": "support_platform", "attachment_preview": "support_platform",
-                  "profile_service": "account_service"}
+SERVICE_SYSTEM = {
+    "support_replica": "support_platform",
+    "attachment_preview": "support_platform",
+    "profile_service": "account_service",
+}
 NOISE = {"instance", "pod", "region", "severity", "logger", "attempt"}
 
 
@@ -51,7 +64,11 @@ def parse_line(line):
                 f = {k: v for k, v in json.loads(g[1]).items() if not isinstance(v, (dict, list))}
             except json.JSONDecodeError:
                 return None
-            f = {k: (str(v).lower() if isinstance(v, bool) else str(v)) for k, v in f.items() if v is not None}
+            f = {
+                k: (str(v).lower() if isinstance(v, bool) else str(v))
+                for k, v in f.items()
+                if v is not None
+            }
         elif name == "syslog":
             f = logfmt(g[3])
             f.update(service=g[1], trace_id=g[2])
@@ -70,7 +87,11 @@ def parse_line(line):
 def state(f):
     g = {k: v.lower() for k, v in f.items()}
     if "eligible" in g or "deletion_block" in g:
-        return "RESTORABLE" if g.get("eligible") == "true" and g.get("deletion_block") != "true" else "BLOCKED"
+        return (
+            "RESTORABLE"
+            if g.get("eligible") == "true" and g.get("deletion_block") != "true"
+            else "BLOCKED"
+        )
     if g.get("decision") in ("allow", "deny"):
         return "RESTORABLE" if g["decision"] == "allow" else "BLOCKED"
     if g.get("available") == "false":
@@ -84,7 +105,9 @@ TS_LINE = re.compile(TS + " ")
 def matches(text):
     """Every line is timestamped and at least one is in a known dialect; the rest surface as unparsed."""
     lines = [l for l in text.splitlines() if l.strip()]
-    return bool(lines) and all(TS_LINE.match(l) for l in lines) and any(parse_line(l) for l in lines)
+    return (
+        bool(lines) and all(TS_LINE.match(l) for l in lines) and any(parse_line(l) for l in lines)
+    )
 
 
 def load(file_id, captured_at, text):
@@ -95,22 +118,42 @@ def load(file_id, captured_at, text):
             continue
         p = parse_line(line)
         if p is None:
-            r.unparsed.append(Unit(file_id, f"line {n}", line, "line matches no observability dialect"))
+            r.unparsed.append(
+                Unit(file_id, f"line {n}", line, "line matches no observability dialect")
+            )
             continue
         ts, f = p
         trace = (f["service"], f["trace_id"]) if "trace_id" in f else None
         if f["event"].endswith("_started") and trace:
-            keys.setdefault(trace, []).extend(v for k, v in f.items() if k.endswith("_key") or k == "subject_ref")
+            keys.setdefault(trace, []).extend(
+                v for k, v in f.items() if k.endswith("_key") or k == "subject_ref"
+            )
         if "resource_id" in f:
             records.append((n, ts, f, line, trace))
     for n, ts, f, raw, trace in records:
         ids = identifiers(*keys.get(trace, ()), *f.values())
-        exposed = {kind(f["matched_value"])} & {"email", "phone", "email_hash"} if "matched_value" in f else set()
-        pii = tuple(p for p in ("name", "email", "phone", "email_hash") if p in set(pii_fields(f)) | exposed)
+        exposed = (
+            {kind(f["matched_value"])} & {"email", "phone", "email_hash"}
+            if "matched_value" in f
+            else set()
+        )
+        pii = tuple(
+            p for p in ("name", "email", "phone", "email_hash") if p in set(pii_fields(f)) | exposed
+        )
         service = f["service"]
         a = tuple(sorted(attrs(f, exclude=NOISE) + (("event", f["event"]),)))
-        o = Observation(file_id, ts, SERVICE_SYSTEM.get(service, service), f["resource_id"], f"{service}.log", state(f),
-                        pii_fields=pii, identifiers=ids, locator=f"line {n}", attrs=a)
+        o = Observation(
+            file_id,
+            ts,
+            SERVICE_SYSTEM.get(service, service),
+            f["resource_id"],
+            f"{service}.log",
+            state(f),
+            pii_fields=pii,
+            identifiers=ids,
+            locator=f"line {n}",
+            attrs=a,
+        )
         r.observations.append(o)
         if not ids:
             r.unattributed.append(Unit(file_id, f"line {n}", raw, "no identifier"))

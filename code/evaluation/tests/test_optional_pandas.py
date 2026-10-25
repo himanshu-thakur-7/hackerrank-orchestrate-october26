@@ -1,4 +1,5 @@
 """The pandas round-trip is optional: absent pandas -> SKIPPED warning, never a gate failure."""
+
 import sys, unittest
 from evaluation import gate
 from evaluation.tests.helpers import GOLD, SAMPLE_REQ, MANIFEST, gold_rows, tmp_copy, mutate_step
@@ -7,7 +8,7 @@ from evaluation.tests.helpers import GOLD, SAMPLE_REQ, MANIFEST, gold_rows, tmp_
 class PandasBlocked(unittest.TestCase):
     def setUp(self):
         self._saved = sys.modules.get("pandas", "absent")
-        sys.modules["pandas"] = None            # makes `import pandas` raise ImportError
+        sys.modules["pandas"] = None  # makes `import pandas` raise ImportError
 
     def tearDown(self):
         if self._saved == "absent":

@@ -9,6 +9,7 @@ extensions the gold row cites. The holdout count per status is proportional and 
 (INCOMPLETE 22 -> 7, COMPLETE 10 -> 3). Within a status, the holdout slots go to formats by
 largest remainder, and cases are drawn with random.Random(seed) after natural-order sorting.
 """
+
 import csv
 import random
 import sys
@@ -82,6 +83,7 @@ def load_frozen(path=FROZEN):
 def freeze(seed=20261025):
     sys.path.insert(0, str(HERE.parent))
     from evaluation import scorer
+
     root = HERE.parents[1]
     gold = scorer.load(root / "dataset" / "sample_output.csv")
     if FROZEN.exists():
@@ -89,7 +91,9 @@ def freeze(seed=20261025):
     dev, hold = make_split(gold, root / "dataset" / "evidence_files.csv", seed)
     FROZEN.write_text(
         "# Frozen dev/holdout split of dataset/sample_output.csv. Made once; do not edit.\n"
-        f"seed={seed}\ndev={','.join(dev)}\nholdout={','.join(hold)}\n", encoding="utf-8")
+        f"seed={seed}\ndev={','.join(dev)}\nholdout={','.join(hold)}\n",
+        encoding="utf-8",
+    )
     print(f"froze {len(dev)} dev / {len(hold)} holdout with seed {seed} -> {FROZEN}")
 
 

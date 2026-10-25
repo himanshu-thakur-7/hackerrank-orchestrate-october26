@@ -1,4 +1,5 @@
 """T17 Jev ranker (advisory, evaluation only). No network: the Jev client is a fake with the SDK's call shape."""
+
 import hashlib
 import os
 import subprocess
@@ -23,8 +24,13 @@ class FakeJev:
     def system_one(self, state, questions, model):
         self.calls += 1
         assert model == jev_ranker.MODEL
-        ans = {"supports": SimpleNamespace(noul=self.sup), "contradicts": SimpleNamespace(noul=self.con)}
-        return SimpleNamespace(answers=ans, model=model, usage=SimpleNamespace(input_tokens=700, output_tokens=40))
+        ans = {
+            "supports": SimpleNamespace(noul=self.sup),
+            "contradicts": SimpleNamespace(noul=self.con),
+        }
+        return SimpleNamespace(
+            answers=ans, model=model, usage=SimpleNamespace(input_tokens=700, output_tokens=40)
+        )
 
 
 class Items(unittest.TestCase):
@@ -45,8 +51,18 @@ class Items(unittest.TestCase):
         it = next(i for i in self.items if i["state"] is not None)
         st = it["state"]
         self.assertEqual(set(st), {"subject", "audit_at", "evidence", "precomputed_facts"})
-        self.assertEqual(set(st["precomputed_facts"]), {"identifier_match", "evidence_captured_before_audit", "resource_mentioned_in_evidence"})
-        self.assertTrue(st["evidence"]["lines"] or st["precomputed_facts"]["resource_mentioned_in_evidence"] is False)
+        self.assertEqual(
+            set(st["precomputed_facts"]),
+            {
+                "identifier_match",
+                "evidence_captured_before_audit",
+                "resource_mentioned_in_evidence",
+            },
+        )
+        self.assertTrue(
+            st["evidence"]["lines"]
+            or st["precomputed_facts"]["resource_mentioned_in_evidence"] is False
+        )
         self.assertNotIn(it["claim"], str(st))
 
 
@@ -62,7 +78,14 @@ class Scope(unittest.TestCase):
 
 class ScoringAndCache(unittest.TestCase):
     def test_mean_of_k_and_cache_round_trip_without_text(self):
-        items = [{"key": "k1", "state": {"evidence": {"lines": ["secret line text"]}}, "claim": "c", "step": {"evidence_id": "e"}}]
+        items = [
+            {
+                "key": "k1",
+                "state": {"evidence": {"lines": ["secret line text"]}},
+                "claim": "c",
+                "step": {"evidence_id": "e"},
+            }
+        ]
         fake = FakeJev(0.8, 0.1)
         cache = {}
         res = jev_ranker.score_items(items, fake, cache, workers=2)
@@ -77,32 +100,58 @@ class ScoringAndCache(unittest.TestCase):
 
     def test_cache_records_the_live_run_that_produced_it_and_a_cache_only_rerun_keeps_it(self):
         d = Path(tempfile.mkdtemp())
-        origin = {"run_at": "2026-10-25T02:55:00Z", "live_calls": 20, "input_tokens": 1400, "output_tokens": 80, "errors": 0}
-        jev_ranker.write_cache(d / "c.py", {"k": {"supports": 0.5, "contradicts": 0.1, "k": 10, "model": jev_ranker.MODEL}}, origin)
+        origin = {
+            "run_at": "2026-10-25T02:55:00Z",
+            "live_calls": 20,
+            "input_tokens": 1400,
+            "output_tokens": 80,
+            "errors": 0,
+        }
+        jev_ranker.write_cache(
+            d / "c.py",
+            {"k": {"supports": 0.5, "contradicts": 0.1, "k": 10, "model": jev_ranker.MODEL}},
+            origin,
+        )
         self.assertEqual(jev_ranker.read_origin(d / "c.py"), origin)
-        jev_ranker.write_cache(d / "c.py", jev_ranker.read_cache(d / "c.py"), None)     # a cache-only rerun
+        jev_ranker.write_cache(
+            d / "c.py", jev_ranker.read_cache(d / "c.py"), None
+        )  # a cache-only rerun
         self.assertEqual(jev_ranker.read_origin(d / "c.py"), origin)
 
     def test_no_client_and_no_cache_is_skipped_not_an_error(self):
         items = [{"key": "k2", "state": {}, "claim": "c", "step": {"evidence_id": "e"}}]
-        self.assertEqual(jev_ranker.score_items(items, None, {}, workers=1)["k2"]["source"], "skipped (no key/SDK/network)")
+        self.assertEqual(
+            jev_ranker.score_items(items, None, {}, workers=1)["k2"]["source"],
+            "skipped (no key/SDK/network)",
+        )
 
 
 class Isolation(unittest.TestCase):
     def test_main_pipeline_never_imports_the_ranker_or_typesafe(self):
-        code = ("import runpy, sys; sys.argv=['main.py', '--out', sys.argv[1]]\n"
-                "try:\n    runpy.run_path('code/main.py', run_name='__main__')\nexcept SystemExit:\n    pass\n"
-                "bad = [m for m, v in sys.modules.items() if v is not None and (m.startswith('typesafe') or m.endswith('jev_ranker'))]\n"
-                "print('IMPORTED', bad)")
+        code = (
+            "import runpy, sys; sys.argv=['main.py', '--out', sys.argv[1]]\n"
+            "try:\n    runpy.run_path('code/main.py', run_name='__main__')\nexcept SystemExit:\n    pass\n"
+            "bad = [m for m, v in sys.modules.items() if v is not None and (m.startswith('typesafe') or m.endswith('jev_ranker'))]\n"
+            "print('IMPORTED', bad)"
+        )
         out = Path(tempfile.mkdtemp()) / "o.csv"
-        p = subprocess.run([sys.executable, "-c", code, str(out)], capture_output=True, text=True, cwd=ROOT)
+        p = subprocess.run(
+            [sys.executable, "-c", code, str(out)], capture_output=True, text=True, cwd=ROOT
+        )
         self.assertIn("IMPORTED []", p.stdout, p.stderr)
 
     def test_output_csv_is_identical_with_the_ranker_on_and_off(self):
         tmp = Path(tempfile.mkdtemp())
         run_pipeline(DATA, tmp / "off.csv")
         before = hashlib.sha256((tmp / "off.csv").read_bytes()).hexdigest()
-        jev_ranker.run(output=tmp / "off.csv", client=FakeJev(), cache={}, queue_path=tmp / "q.md", write_cache_to=None, k=1)
+        jev_ranker.run(
+            output=tmp / "off.csv",
+            client=FakeJev(),
+            cache={},
+            queue_path=tmp / "q.md",
+            write_cache_to=None,
+            k=1,
+        )
         run_pipeline(DATA, tmp / "on.csv")
         self.assertEqual(hashlib.sha256((tmp / "off.csv").read_bytes()).hexdigest(), before)
         self.assertEqual(hashlib.sha256((tmp / "on.csv").read_bytes()).hexdigest(), before)

@@ -12,21 +12,24 @@ I7 the cited file names the resource (an observation of it), or covers its syste
 I8 a resource id's prefix agrees with its system_id wherever the prefix has an owning system
 I9 in INCOMPLETE rows, remediation and verification steps are uncited (future work)
 """
+
 import csv
 import json
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-NAMES = {"I1.evidence_exists_pre_audit": "cited evidence exists and is <= audit_at",
-         "I2.finding_has_plan": "finding -> remediation + verification",
-         "I3.complete_is_cited_verification": "COMPLETE = cited verification only",
-         "I4.no_claim_citation": "no activity_id / audit_id cited",
-         "I5.no_literals_in_code": "no case/evidence literals in code/",
-         "I6.status_matches_steps": "status consistent with steps",
-         "I7.citation_names_resource": "cited file names the resource (or covers it)",
-         "I8.prefix_matches_system": "resource prefix matches system_id",
-         "I9.incomplete_plan_uncited": "INCOMPLETE remediation/verification uncited"}
+NAMES = {
+    "I1.evidence_exists_pre_audit": "cited evidence exists and is <= audit_at",
+    "I2.finding_has_plan": "finding -> remediation + verification",
+    "I3.complete_is_cited_verification": "COMPLETE = cited verification only",
+    "I4.no_claim_citation": "no activity_id / audit_id cited",
+    "I5.no_literals_in_code": "no case/evidence literals in code/",
+    "I6.status_matches_steps": "status consistent with steps",
+    "I7.citation_names_resource": "cited file names the resource (or covers it)",
+    "I8.prefix_matches_system": "resource prefix matches system_id",
+    "I9.incomplete_plan_uncited": "INCOMPLETE remediation/verification uncited",
+}
 
 
 def check(output_path, data_dir):
@@ -34,6 +37,7 @@ def check(output_path, data_dir):
     from evaluation import audit
     from ghostaudit.engine import Engine
     from ghostaudit.loaders.common import system_of
+
     d = Path(data_dir)
     eng = Engine.from_dataset(d)
     files = eng.store.files
@@ -62,21 +66,38 @@ def check(output_path, data_dir):
                 v["I4.no_claim_citation"].append(f"{where} cites {ev}")
             elif ev:
                 if ev not in files:
-                    v["I1.evidence_exists_pre_audit"].append(f"{where}: {ev} is not in the manifest")
+                    v["I1.evidence_exists_pre_audit"].append(
+                        f"{where}: {ev} is not in the manifest"
+                    )
                 elif files[ev].captured_at > audit_at.get(c, ""):
-                    v["I1.evidence_exists_pre_audit"].append(f"{where}: {ev} captured {files[ev].captured_at} > audit_at {audit_at.get(c)}")
-                elif res not in named.get(ev, set()) and s["system_id"] not in covers.get(ev, set()):
-                    v["I7.citation_names_resource"].append(f"{where}: {ev} neither names nor covers it")
+                    v["I1.evidence_exists_pre_audit"].append(
+                        f"{where}: {ev} captured {files[ev].captured_at} > audit_at {audit_at.get(c)}"
+                    )
+                elif res not in named.get(ev, set()) and s["system_id"] not in covers.get(
+                    ev, set()
+                ):
+                    v["I7.citation_names_resource"].append(
+                        f"{where}: {ev} neither names nor covers it"
+                    )
             sysid = system_of(s["resource_id"])
             if sysid and sysid != s["system_id"]:
                 v["I8.prefix_matches_system"].append(f"{where}: prefix says {sysid}")
             if st == "INCOMPLETE" and s["phase"] != "FINDING" and ev:
                 v["I9.incomplete_plan_uncited"].append(f"{where} cites {ev}")
-        if st == "COMPLETE" and (any(p != "VERIFICATION" for p in phases) or any(not s["evidence_id"] for s in steps)):
-            v["I3.complete_is_cited_verification"].append(f"{c}: COMPLETE with {sorted(set(phases))} / uncited step")
-        if (st == "NOT_APPLICABLE" and steps) or (st == "COMPLETE" and (not steps or "FINDING" in phases)) \
-                or (st == "INCOMPLETE" and steps and "FINDING" not in phases):
-            v["I6.status_matches_steps"].append(f"{c}: {st} with phases {sorted(set(phases)) or '[]'}")
+        if st == "COMPLETE" and (
+            any(p != "VERIFICATION" for p in phases) or any(not s["evidence_id"] for s in steps)
+        ):
+            v["I3.complete_is_cited_verification"].append(
+                f"{c}: COMPLETE with {sorted(set(phases))} / uncited step"
+            )
+        if (
+            (st == "NOT_APPLICABLE" and steps)
+            or (st == "COMPLETE" and (not steps or "FINDING" in phases))
+            or (st == "INCOMPLETE" and steps and "FINDING" not in phases)
+        ):
+            v["I6.status_matches_steps"].append(
+                f"{c}: {st} with phases {sorted(set(phases)) or '[]'}"
+            )
         by_res = {}
         for s in steps:
             by_res.setdefault((s["system_id"], s["resource_id"]), set()).add(s["phase"])
@@ -84,7 +105,9 @@ def check(output_path, data_dir):
             if "FINDING" in ph and not {"REMEDIATION", "VERIFICATION"} <= ph:
                 v["I2.finding_has_plan"].append(f"{c} {res[0]}/{res[1]}: {sorted(ph)}")
             if "REMEDIATION" in ph and "FINDING" not in ph:
-                v["I2.finding_has_plan"].append(f"{c} {res[0]}/{res[1]}: remediation without finding")
+                v["I2.finding_has_plan"].append(
+                    f"{c} {res[0]}/{res[1]}: remediation without finding"
+                )
     v["rows"] = len(rows)
     return v
 
@@ -96,8 +119,14 @@ def run(output_path, data_dir):
     for k, desc in NAMES.items():
         bad = v[k]
         rows_bad = len({x.split()[0] for x in bad}) if not k.startswith("I5") else len(bad)
-        print(f"  {k:36} {'OK  ' if not bad else 'FAIL'} {desc}" + (f": {rows_bad} violation(s)" if bad else
-                                                                     ("" if k.startswith("I5") else f" ({n}/{n})")))
+        print(
+            f"  {k:36} {'OK  ' if not bad else 'FAIL'} {desc}"
+            + (
+                f": {rows_bad} violation(s)"
+                if bad
+                else ("" if k.startswith("I5") else f" ({n}/{n})")
+            )
+        )
         for x in bad[:5]:
             print(f"      {x}")
     return 0 if not any(v.values()) else 1

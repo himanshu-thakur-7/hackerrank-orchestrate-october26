@@ -1,4 +1,5 @@
 """output.csv writer: exact header, natural numeric case_id order, compact JSON in schema key order, \\n endings."""
+
 import csv
 import json
 
@@ -12,7 +13,9 @@ def natural_key(case_id):
 
 
 def steps_json(steps):
-    return json.dumps([{k: s[k] for k in STEP_KEYS} for s in steps], separators=(",", ":"), ensure_ascii=False)
+    return json.dumps(
+        [{k: s[k] for k in STEP_KEYS} for s in steps], separators=(",", ":"), ensure_ascii=False
+    )
 
 
 def write(path, rows):

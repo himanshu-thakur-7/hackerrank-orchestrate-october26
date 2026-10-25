@@ -1,4 +1,5 @@
 """T13 custom cases: hand-written expectations over a dataset overlay; the real 518 rows must not move."""
+
 import copy
 import unittest
 
@@ -14,8 +15,19 @@ class CustomCases(unittest.TestCase):
     def test_at_least_eight_fixtures_covering_the_required_situations(self):
         titles = " | ".join(c["title"] for c in CASES)
         self.assertGreaterEqual(len(CASES), 8)
-        for need in ("replica-only", "DELETION_PENDING", "contradicted", "legal hold", "uppercase historical", "post-cutoff",
-                     "redacted tombstone", "exposed tombstone", "marketing-only", "tied", "unproven"):
+        for need in (
+            "replica-only",
+            "DELETION_PENDING",
+            "contradicted",
+            "legal hold",
+            "uppercase historical",
+            "post-cutoff",
+            "redacted tombstone",
+            "exposed tombstone",
+            "marketing-only",
+            "tied",
+            "unproven",
+        ):
             self.assertIn(need, titles)
 
     def test_every_case_matches_its_hand_written_row_and_log(self):

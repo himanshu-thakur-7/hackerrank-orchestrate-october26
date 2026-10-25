@@ -1,6 +1,7 @@
 """T13 custom evaluation cases: apply the synthetic fixtures to a dataset overlay, run the real pipeline, and
 compare each custom row with its hand-written expectation (and required log lines). Also checks that the
 518 real rows are unchanged by the additions."""
+
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -26,8 +27,12 @@ class Report:
 
 
 def apply(ov, cases):
-    adds = {"user_identities.csv": "people", "user_audit_log.csv": "audit", "deletion_requests.csv": "requests",
-            "system_activity.csv": "activity"}
+    adds = {
+        "user_identities.csv": "people",
+        "user_audit_log.csv": "audit",
+        "deletion_requests.csv": "requests",
+        "system_activity.csv": "activity",
+    }
     for name, key in adds.items():
         rows = ov.rows(name)
         for c in cases:
@@ -46,8 +51,10 @@ def _compare(cid, got, want):
         problems.append(f"status: expected {ws}, got {gs}")
     strip = lambda steps: [{k: v for k, v in s.items() if k != "step_no"} for s in steps]
     if strip(gsteps) != wsteps:
-        problems.append(f"steps: expected {[(s['operation'], s['resource_id'], s['evidence_id']) for s in wsteps]}, "
-                        f"got {[(s['operation'], s['resource_id'], s['evidence_id']) for s in gsteps]}")
+        problems.append(
+            f"steps: expected {[(s['operation'], s['resource_id'], s['evidence_id']) for s in wsteps]}, "
+            f"got {[(s['operation'], s['resource_id'], s['evidence_id']) for s in gsteps]}"
+        )
     if [s["step_no"] for s in gsteps] != list(range(1, len(gsteps) + 1)):
         problems.append("step_no not consecutive from 1")
     return problems
@@ -58,6 +65,7 @@ def run_cases(cases, check_real=True):
     from ghostaudit import intent as intent_mod
     from ghostaudit import llm_intent
     from ghostaudit.engine import Engine
+
     base = None
     if check_real:
         with Overlay(DATA) as ov0:
@@ -79,14 +87,21 @@ def run_cases(cases, check_real=True):
                         if not any(frag in line for line in a.log):
                             problems.append(f"log: no line containing {frag!r} (log: {a.log})")
                 results.append(CaseResult(cid, c["title"], not problems, problems))
-    real_changed = [] if base is None else [x for x in changed(base, {k: v for k, v in out.items() if k in base}) if x in base]
+    real_changed = (
+        []
+        if base is None
+        else [x for x in changed(base, {k: v for k, v in out.items() if k in base}) if x in base]
+    )
     return Report(results, real_changed)
 
 
 def run():
     from evaluation.fixtures.custom_cases import CASES
+
     rep = run_cases(CASES)
-    print(f"CUSTOM CASES ({len(rep.results)} rows from {len(CASES)} fixtures; synthetic people and evidence, dated 2027)")
+    print(
+        f"CUSTOM CASES ({len(rep.results)} rows from {len(CASES)} fixtures; synthetic people and evidence, dated 2027)"
+    )
     for r in rep.results:
         print(f"  {'PASS' if r.ok else 'FAIL'}  {r.case_id:10} {r.title}")
         for p in r.problems:

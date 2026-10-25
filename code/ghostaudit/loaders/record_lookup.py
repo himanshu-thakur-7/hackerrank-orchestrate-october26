@@ -1,11 +1,14 @@
 """Record-lookup logs: '<ts> INFO service=<logger> event=record_lookup seq=N system="..." resource_id="..."
 record_type="..." result="..." subject_reference="..."'. Register semantics, no Coverage."""
+
 import re
 
 from ghostaudit.loaders import register
 from ghostaudit.loaders.common import LoadResult, Unit, logfmt
 
-LINE_RE = re.compile(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) \w+ (service=\S+ event=record_lookup .*)$")
+LINE_RE = re.compile(
+    r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) \w+ (service=\S+ event=record_lookup .*)$"
+)
 
 
 def matches(text):
@@ -24,5 +27,7 @@ def load(file_id, captured_at, text):
             r.unparsed.append(Unit(file_id, f"line {n}", line, "not a record_lookup line"))
             continue
         f["recorded_at"] = m.group(1)
-        register.observation(file_id, f, f"{f['service']}.record_lookup", f"line {n}", m.group(1), r)
+        register.observation(
+            file_id, f, f"{f['service']}.record_lookup", f"line {n}", m.group(1), r
+        )
     return r

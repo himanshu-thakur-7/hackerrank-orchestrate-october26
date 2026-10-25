@@ -8,6 +8,7 @@ Category precedence (ADR 0009) is the ordered table CATEGORY_SIGNALS: explicit t
 content (an uploaded file, a hash-keyed contact), then the deletion_worker event type (a claim about
 category, never about state), then weak message text, then the system default. DATA_FLOW is not a deletion_rules category: connectors get the data-flow operations.
 """
+
 import csv
 from dataclasses import dataclass
 from typing import Optional
@@ -15,9 +16,15 @@ from typing import Optional
 ABSENT = "ABSENT"
 
 SYSTEM_DEFAULT = {
-    "account_service": "USER_PROFILE", "search_service": "SEARCH_INDEX_ENTRY", "export_service": "USER_EXPORT",
-    "security_service": "SECURITY_AUDIT_LOG", "legal_service": "LEGAL_HOLD_RECORD", "backup_service": "BACKUP_ARCHIVE",
-    "identity_service": "ACCOUNT_TOMBSTONE", "analytics_platform": "ANALYTICS_PROFILE", "integration_service": "DATA_FLOW",
+    "account_service": "USER_PROFILE",
+    "search_service": "SEARCH_INDEX_ENTRY",
+    "export_service": "USER_EXPORT",
+    "security_service": "SECURITY_AUDIT_LOG",
+    "legal_service": "LEGAL_HOLD_RECORD",
+    "backup_service": "BACKUP_ARCHIVE",
+    "identity_service": "ACCOUNT_TOMBSTONE",
+    "analytics_platform": "ANALYTICS_PROFILE",
+    "integration_service": "DATA_FLOW",
 }
 # deletion_worker event type -> category, per system whose category depends on it (ADR 0009, docs/02 §7.2-7.5)
 ACTIVITY_CATEGORY = {
@@ -26,7 +33,12 @@ ACTIVITY_CATEGORY = {
     ("analytics_platform", "ANONYMIZE_RECORD"): "ANALYTICS_PROFILE",
     ("analytics_platform", "DELETE_RECORD"): "SECONDARY_IDENTIFIER",
 }
-UNOBSERVABLE = {"CACHE_ENTRY", "EMAIL_DELIVERY_LOG", "PRODUCT_TELEMETRY", "MARKETING_PROFILE"}   # ADR 0012
+UNOBSERVABLE = {
+    "CACHE_ENTRY",
+    "EMAIL_DELIVERY_LOG",
+    "PRODUCT_TELEMETRY",
+    "MARKETING_PROFILE",
+}  # ADR 0012
 
 
 def _content(system_id, o):
@@ -35,9 +47,11 @@ def _content(system_id, o):
     event = a.get("event", "")
     if system_id == "support_platform":
         if event.startswith("attachment_") or "file" in a or "attachment" in o.table:
-            return "SUPPORT_ATTACHMENT"                # an uploaded file (docs/02 §4.6 A9; ADR 0009 "artifact content")
+            return "SUPPORT_ATTACHMENT"  # an uploaded file (docs/02 §4.6 A9; ADR 0009 "artifact content")
     if system_id == "analytics_platform" and event == "contact_lookup_completed":
-        return "SECONDARY_IDENTIFIER"                  # a contact identifier keyed by email hash, not a profile (§7.3)
+        return (
+            "SECONDARY_IDENTIFIER"  # a contact identifier keyed by email hash, not a profile (§7.3)
+        )
     return None
 
 
@@ -45,7 +59,9 @@ def _message_content(o):
     """Weak content: message text. Ticket exports carry a templated message_excerpt on every ticket, so it only
     decides when no deletion_worker claim exists (silver audit, docs/SILVER_AUDIT.md: 12 eval records)."""
     a = dict(o.attrs)
-    return a.get("event", "").startswith("message_") or "message_text" in a or "message_excerpt" in a
+    return (
+        a.get("event", "").startswith("message_") or "message_text" in a or "message_excerpt" in a
+    )
 
 
 def _by_tag(system_id, observations, activity):
@@ -59,7 +75,11 @@ def _by_content(system_id, observations, activity):
 
 
 def _by_activity(system_id, observations, activity):
-    claims = [ACTIVITY_CATEGORY[(system_id, a.event_type)] for a in activity if (system_id, a.event_type) in ACTIVITY_CATEGORY]
+    claims = [
+        ACTIVITY_CATEGORY[(system_id, a.event_type)]
+        for a in activity
+        if (system_id, a.event_type) in ACTIVITY_CATEGORY
+    ]
     return claims[-1] if claims else None
 
 
@@ -73,8 +93,13 @@ def _by_system(system_id, observations, activity):
     return SYSTEM_DEFAULT.get(system_id)
 
 
-CATEGORY_SIGNALS = (("tag", _by_tag), ("content", _by_content), ("activity", _by_activity),
-                    ("message content", _by_message_content), ("system default", _by_system))
+CATEGORY_SIGNALS = (
+    ("tag", _by_tag),
+    ("content", _by_content),
+    ("activity", _by_activity),
+    ("message content", _by_message_content),
+    ("system default", _by_system),
+)
 
 
 def categorize(system_id, observations, activity):
@@ -101,7 +126,7 @@ class Rules:
 
 @dataclass(frozen=True)
 class Treatment:
-    kind: str                     # violation | compliant | unproven | none
+    kind: str  # violation | compliant | unproven | none
     finding: Optional[str] = None
     remediation: Optional[str] = None
     verification: Optional[str] = None
@@ -132,9 +157,11 @@ def treat(category, result, rules):
     else:
         rule_id, action = rules.action(category)
         if category == "BACKUP_ARCHIVE" and action == "RETAIN":
-            action = "BLOCK_RESTORE"               # rule_14: retain, and restore access must be blocked
+            action = "BLOCK_RESTORE"  # rule_14: retain, and restore access must be blocked
     if action not in PLANS:
-        return Treatment("none", rule_id=rule_id, action=action, reason=f"NO_PLAN({category}, {action})")
+        return Treatment(
+            "none", rule_id=rule_id, action=action, reason=f"NO_PLAN({category}, {action})"
+        )
     finding, remediation, verify = PLANS[action]
     mk = lambda kind, why, f=None, r=None: Treatment(kind, f, r, verify, rule_id, action, why)
     if result is None:
@@ -142,16 +169,24 @@ def treat(category, result, rules):
     s = result.state
     pii = result.observation.pii_fields if result.observation else ()
     if action == "DELETE":
-        return mk("compliant", "absent") if s == ABSENT else mk("violation", f"{s}, must be absent", finding, remediation)
+        return (
+            mk("compliant", "absent")
+            if s == ABSENT
+            else mk("violation", f"{s}, must be absent", finding, remediation)
+        )
     if action in ("REDACT", "ANONYMIZE"):
         if s == ABSENT:
-            return Treatment("none", rule_id=rule_id, action=action, reason="ABSENT, but policy keeps the record")
+            return Treatment(
+                "none", rule_id=rule_id, action=action, reason="ABSENT, but policy keeps the record"
+            )
         if pii:
             return mk("violation", f"exposes {', '.join(pii)}", finding, remediation)
         return mk("compliant", "present without direct identifiers")
     if action == "RETAIN":
         if s == ABSENT:
-            return Treatment("none", rule_id=rule_id, action=action, reason="RETAINED_RECORD_MISSING")
+            return Treatment(
+                "none", rule_id=rule_id, action=action, reason="RETAINED_RECORD_MISSING"
+            )
         return mk("compliant", "present, retained")
     if action == "BLOCK_RESTORE":
         if s == "RESTORABLE":

@@ -5,6 +5,7 @@ Data collections, including empty ones, emit Coverage (weak evidence, ADR 0014: 
 an empty customer_profiles list absent). Register-style collections (operational_record_history)
 are histories of checks and never emit Coverage.
 """
+
 import json
 
 from ghostaudit.loaders import datarow, register
@@ -23,9 +24,20 @@ def load(file_id, captured_at, text):
         store, coll = snap["data_store"], snap["collection"]
         if register.is_register(recs):
             for rec in recs:
-                register.observation(file_id, rec, f"{store}.{coll}", lines.get(id(rec), ""), cap, r)
+                register.observation(
+                    file_id, rec, f"{store}.{coll}", lines.get(id(rec), ""), cap, r
+                )
             continue
         for rec in recs:
-            datarow.observation(file_id, rec, store, coll, COLLECTION_CATEGORY.get(coll), cap, lines.get(id(rec), ""), r)
+            datarow.observation(
+                file_id,
+                rec,
+                store,
+                coll,
+                COLLECTION_CATEGORY.get(coll),
+                cap,
+                lines.get(id(rec), ""),
+                r,
+            )
         r.coverage.append(Coverage(file_id, cap, store, coll))
     return r
