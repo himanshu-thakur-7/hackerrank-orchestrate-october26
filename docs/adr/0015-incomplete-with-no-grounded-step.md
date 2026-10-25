@@ -1,6 +1,6 @@
 # ADR 0015 — A deletion with nothing grounded to report is INCOMPLETE with `[]`
 
-- **Status:** Proposed (needs owner ratification). Adopted provisionally in T09.
+- **Status:** Accepted (owner ratified 2026-10-25, relayed). The revert path is in `code/README.md` → Known risks.
 - **Amends:** the T01 L0 gate rule "only NOT_APPLICABLE may be []", which was my reading, not a quoted rule.
 
 ## Question

@@ -720,3 +720,24 @@ branch=claude/stoic-bell-1t82oq
 repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
+
+## [2026-10-25T01:50:41Z] T12 done: PDF loader + committed screenshot transcriptions; ADR 0015 ratified
+
+User Prompt (verbatim, secrets redacted):
+(relayed by peer session "Prompt playbook website publishing" for the user) T08/T09 verified; the owner ratifies ADR 0015 (keep the L0.empty_incomplete warning, add the one-line revert path to the README). Implement T12 then T10, test-first with tdd. T12: PDFs via pdftotext with a pypdf fallback, dispatched by content signature, into Observations; fix the pending case_07 support_001 gold check. Screenshots: a loader over committed transcriptions of the 11 PNGs (a generated data module, hashes and facts only), with provenance in the file header. T10: catalog links (pre-audit only), search source_resource_id, trace joins, activity account candidates (window as one named constant), global one-to-one, unique best only, ties logged as UNRESOLVED_LINK; ADR 0005 rejection (case_63 marketing_001 no step); log unresolved/rejected links; candidate-count distribution; investigate case_17 account_6523. Acceptance: board commands, tests, selftest, determinism; paste the score delta, account hit rate, eval tied count, empty_incomplete before/after, the 5 worst dev cases with --explain; commit and push after each; stop.
+
+Agent Response Summary:
+T12 test-first: 11 tests over the real PDFs/PNGs (red, then green). pdf.py extracts text (pdftotext, pypdf fallback, PdfTextUnavailable otherwise) and turns documents into observations or no-resource-id units. screens.py reads screens_data.py: transcriptions keyed by the PNG sha256, re-verified by viewing all 11 images this turn; no vision API, provenance in the header without naming a model. Binary signatures get raw bytes; a PNG without a transcription is an UnknownSignature. The engine now loads strictly (nothing pending). Loader check: facts match docs/02b, store check 0 contradictions / 0 pending (case_07 resolved). Dev proxy 0.720 -> 0.731, holdout 0.741; empty INCOMPLETE 10 -> 3. ADR 0015 marked accepted; revert path added to code/README.md.
+
+Actions:
+* Wrote code/ghostaudit/loaders/pdf.py, screens.py, screens_data.py; edited loaders/__init__.py (binary dispatch), engine.py (strict load), evaluation/loader_check.py (binary spot check, document/screen facts)
+* Wrote code/tests/test_loaders_t12.py; viewed all 11 PNGs; ran tests (105 + 46), loaders --kind pdf,png --spot, contract, score --split dev, determinism, selftest, audit
+* Updated code/README.md, docs/adr/0015 + README, docs/BOARD.md
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none

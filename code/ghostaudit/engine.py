@@ -58,7 +58,7 @@ class Engine:
             manifest = list(csv.DictReader(f))
         files, obs, cov, notes = [], [], [], []
         for row in manifest:
-            r = loaders.load_bytes(row["file_id"], row["captured_at"], (d / row["file_path"]).read_bytes(), strict=False)
+            r = loaders.load_bytes(row["file_id"], row["captured_at"], (d / row["file_path"]).read_bytes(), strict=True)
             if r.signature not in loaders.LOADERS:
                 notes.append(f"PENDING_LOADER({row['file_id']}, {r.signature}, {loaders.PENDING.get(r.signature, '?')})")
             files.append(EvidenceFile(row["file_id"], row["file_path"], row["origin"], row["captured_at"]))

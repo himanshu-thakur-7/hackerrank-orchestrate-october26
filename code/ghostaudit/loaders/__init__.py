@@ -6,7 +6,7 @@ Signatures whose adapter is not built yet raise LoaderPending (strict) so nothin
 import json
 from pathlib import Path
 
-from ghostaudit.loaders import bundle, handover, observability, readback, record_lookup, records, service_export, sql
+from ghostaudit.loaders import bundle, handover, observability, pdf, readback, record_lookup, records, screens, service_export, sql
 from ghostaudit.loaders.common import LoadResult, Unit  # noqa: F401  (re-exported)
 
 PENDING = {}            # signature -> board task that will implement it
@@ -29,8 +29,10 @@ LOADERS = {
     "json:records": records.load,
     "log:record_lookup": record_lookup.load,
     "log:observability": observability.load,
+    "pdf": pdf.load,
+    "png": screens.load,
 }
-PENDING.update({"pdf": "T12", "png": "T12"})
+BINARY = {"pdf", "png"}       # these adapters take the raw bytes
 
 
 def sniff(raw, file_id="?"):
@@ -76,6 +78,11 @@ def load_bytes(file_id, captured_at, raw, strict=True):
         if strict:
             raise LoaderPending(f"{file_id}: signature {sig} has no loader yet ({PENDING.get(sig, 'unplanned')})")
         return LoadResult(sig)
+    if sig in BINARY:
+        try:
+            return LOADERS[sig](file_id, captured_at, raw)
+        except screens.MissingTranscription as e:
+            raise UnknownSignature(str(e))
     return LOADERS[sig](file_id, captured_at, raw.decode("utf-8"))
 
 

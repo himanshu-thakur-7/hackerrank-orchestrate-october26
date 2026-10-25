@@ -167,13 +167,24 @@ def run(root, files=None, kinds=None, spot=False):
                 continue
             seen.add(r.signature)
             o = r.observations[0]
-            ln = int(o.locator.split()[1]) if o.locator.startswith("line ") else None
-            raw_lines = (data / manifest[fid]["file_path"]).read_text(encoding="utf-8").splitlines()
-            raw = raw_lines[ln - 1].strip() if ln else "?"
+            raw = _raw_unit(data / manifest[fid]["file_path"], r.signature, o.locator)
             print(f"  [{r.signature}] {fid} {manifest[fid]['file_path']} {o.locator}")
             print(f"     raw:    {raw[:200]}")
             print(f"     parsed: system={o.system_id} resource={o.resource_id} state={o.state} observed_at={o.observed_at} "
                   f"category={o.category} pii={list(o.pii_fields)} ids={list(o.identifiers)} attrs={dict(o.attrs)}")
+
+    doc_sel = [fid for fid in sorted(sel, key=lambda x: int(x.split("_")[1])) if fid in results and results[fid].signature in ("pdf", "png")]
+    if doc_sel:
+        print("DOCUMENT AND SCREEN FACTS (compare with docs/02b)")
+        for fid in doc_sel:
+            r = results[fid]
+            print(f"  {fid} {manifest[fid]['file_path']} [{r.signature}]")
+            for o in r.observations:
+                owners = sorted({resolver.owner_of(t) or "nobody" for t in o.identifiers}) or ["-"]
+                print(f"    {o.system_id}/{o.resource_id} {o.state} ids={list(o.identifiers)} -> {owners} pii={list(o.pii_fields)} attrs={dict(o.attrs)}")
+            for u in r.unattributed:
+                if u.reason == "no resource id":
+                    print(f"    (no resource id) {u.locator}: {u.raw[:150]}")
 
     print("UNATTRIBUTED (smallest 10 per built signature: no identifier, or no identifier that resolves to a known person)")
     for sig in sorted(s for s in by_sig if s in loaders.LOADERS):
@@ -191,3 +202,20 @@ def run(root, files=None, kinds=None, spot=False):
         for fid, loc, txt in lost[:10]:
             print(f"    {fid} {loc}: {txt}")
     return 0 if ok else 1
+
+
+def _raw_unit(path, signature, locator):
+    """The raw text behind a locator: a file line, a PDF text line, or a screen transcription region."""
+    if signature == "png":
+        return f"(screen transcription, {locator})"
+    if signature == "pdf":
+        from ghostaudit.loaders import pdf
+        lines = pdf.extract_text(path.read_bytes()).splitlines()
+        loc = locator.replace("text ", "")
+    else:
+        lines = path.read_text(encoding="utf-8").splitlines()
+        loc = locator
+    if not loc.startswith("line "):
+        return "?"
+    n = int(loc.split()[1])
+    return lines[n - 1].strip() if n <= len(lines) else "?"
