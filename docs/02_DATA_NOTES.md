@@ -696,7 +696,7 @@ Loading every SQL file into SQLite shows **11 snapshots with drift**. In every o
 4. Check **every** replica table in a SQL snapshot, not just the primary (5.2).
 5. Order observations by time **inside** files; the latest at or before `audit_at` wins (5.3, `evidence_30`).
 6. Drop every file whose manifest `captured_at` is after `audit_at`, even if its sub-snapshots are earlier (5.3, `evidence_02`; A23 open).
-7. Treat `reported_status`, `reported_result` and activity `details` as claims (2.4: reported status disagrees with the truth in 14 of 32 samples).
+7. Treat `reported_status`, `reported_result` and activity `details` as claims (2.4: whether reported_status is COMPLETE disagrees with the true status in 15 of 32 samples: case_02, 05, 07, 10, 11, 12, 14, 15, 18, 22, 24, 25, 26, 28, 30).
 8. Non-deletion detection must be negation-aware (5.5).
 9. The same user can appear in several cases with different audit windows (5.5, case_33/case_52).
 10. Some gold resources are unreachable (4.5). Do not hard-code them.
