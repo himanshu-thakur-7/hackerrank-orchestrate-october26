@@ -31,7 +31,7 @@ python3 code/main.py --data /path/to/dataset --out /tmp/output.csv
 ```text
 python3 code/evaluation/main.py final --matrix        # the final gate: every check + dependency matrix + clean room (below)
 python3 code/evaluation/main.py final                 # the same without the dependency matrix (about 3 min instead of 6)
-python3 code/package.py                               # builds ./code.zip (README.md + code/ only) and lists it
+python3 code/package.py                               # builds ./code.zip (README.md, code/, evaluation/ report copies) and lists it
 python3 code/evaluation/main.py report                # regenerates code/evaluation/evaluation_report.md
 python3 code/evaluation/main.py usage                 # regenerates code/evaluation/usage_report.md
 python3 code/evaluation/main.py score                 # scores the 32 labeled samples (dev / holdout split)
@@ -95,7 +95,8 @@ code/package.py              builds code.zip
 - **Further docs:** `docs/03_DESIGN.md` (design), `docs/LOSS_LEDGER.md` (accepted losses) and `docs/BOARD.md` (task history).
 - **Reports:**
   - `code/evaluation/evaluation_report.md` (accuracy, custom cases, failures and fixes);
-  - `code/evaluation/usage_report.md` (models, calls, tokens, cost).
+  - `code/evaluation/usage_report.md` (models, calls, tokens, cost);
+  - in code.zip, byte-identical copies of both also sit at `evaluation/evaluation_report.md` and `evaluation/usage_report.md`.
 
 ## Known risks
 
@@ -104,3 +105,9 @@ code/package.py              builds code.zip
 - **Unresolved account links (ADR 0004).** 136 eval cases have tied account candidates. These links are never guessed, so the account steps for those cases are omitted and logged. This is the largest accepted loss (`docs/LOSS_LEDGER.md`).
 - **Absence by omission (ADR 0014).** A record missing from a covering snapshot, captured at or before `audit_at`, counts as absent. It is weaker evidence than an explicit 404 or a deletion row.
 - **Screenshots** are read from committed transcriptions keyed by the PNG's sha256. A new or changed PNG stops the run instead of guessing.
+- **Derived dataset content ships in code.zip, `dataset/` itself does not.** code.zip contains fictional data derived from the dataset:
+  - the PDF text cache (`code/ghostaudit/loaders/pdf_text_cache.py`);
+  - the screenshot transcriptions (`code/ghostaudit/loaders/screens_data.py`);
+  - small evidence excerpts used as test fixtures (`code/tests/fixtures/`).
+
+  They let the run work with no PDF tool or vision model and keep the tests self-contained. All of it is fictional challenge data; no real personal data is included.

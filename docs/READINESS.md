@@ -12,11 +12,11 @@
 | 2 | Header `case_id,deletion_status,steps_json` (problem_statement, README) | ✅ | The first line is exactly that header. LF line endings, no BOM. |
 | 3 | Quoting and valid JSON arrays; `NOT_APPLICABLE` uses `[]` (README "Output") | ✅ | Standard CSV quoting (`"[{""step_no"":1,…}]"`). The stdlib csv round-trip and the optional pandas round-trip both pass. All 518 values are JSON arrays; the 10 NOT_APPLICABLE rows are `[]`. Statuses: INCOMPLETE 357, COMPLETE 151, NOT_APPLICABLE 10. |
 | 4 | Steps: consecutive `step_no`, phase order, evidence rules (problem_statement, README) | ✅ | Contract gate `CONTRACT OK (518 rows)`; invariants 9/9 on 518/518. One warning: `L0.empty_incomplete` on 3 rows (ADR 0015, see risk R1). |
-| 5 | `code.zip`: runnable solution, prompts, configuration, README (problem_statement "Submission") | ✅ | `python3 code/package.py` → `code.zip` with 120 files, 841,852 bytes uncompressed, 282,211 bytes zipped. Contents: `README.md` + `code/` (the solver `code/ghostaudit/`, `code/main.py`, prompts in `code/prompts/`, evaluation harness, tests). |
+| 5 | `code.zip`: runnable solution, prompts, configuration, README (problem_statement "Submission") | ✅ | `python3 code/package.py` → `code.zip` (listing and size in the final log entry). Contents: `README.md` + `code/` + the two `evaluation/` report copies (the solver `code/ghostaudit/`, `code/main.py`, prompts in `code/prompts/`, evaluation harness, tests). |
 | 6 | No `dataset/`, venvs, `__pycache__`, nested archives, keys (README "Packaging") | ✅ | `code/evaluation/tests/test_package.py` opens the zip and asserts this; the key-pattern scan of the zip and all tracked files finds 0. |
 | 7 | Evaluation report with case-level, step-level and field-level accuracy, sequence accuracy, ≥ 3 custom cases, failures and improvements (problem_statement "Evaluation") | ✅ | `code/evaluation/evaluation_report.md` (in the zip), generated from real runs. §3 metrics, §4 has 12 custom cases (all pass), §10 lists failures and fixes. |
 | 8 | `usage_report.md` for the final full-dataset run: providers and models, calls, input/output tokens, total and average per request, total and per-request cost, per-model and overall totals (problem_statement "Token Usage") | ✅ | `code/evaluation/usage_report.md` (in the zip), generated from a measured run whose output equals `output.csv`. That run made 0 live calls (12 cache hits). It also gives the cache origin (399 calls, $0.3642) and the evaluation-only Jev usage (11,450 calls, $0.3734). |
-| 9 | Report location | ⚠️ needs the owner | `problem_statement.md` says "`code.zip` must include `evaluation/evaluation_report.md`". The starter README says "Place `evaluation_report.md` and `usage_report.md` inside `code/evaluation/`". We follow the README: the zip has `code/evaluation/…`. If a top-level `evaluation/` folder is also wanted, that is a one-line change in `code/package.py`. |
+| 9 | Report location | ✅ (owner decision: both) | `problem_statement.md` names `evaluation/evaluation_report.md`, and the starter README names `code/evaluation/`. code.zip has both: `code/evaluation/{evaluation_report,usage_report}.md` and byte-identical copies at `evaluation/…`, added by `code/package.py` from the generated files. `test_package.py` asserts both paths exist and are identical. |
 | 10 | `chat_transcript` = root `log.txt` in the AGENTS.md turn format (README "Chat Transcript") | ✅ (upload: owner) | `log.txt` has 49 entries after this turn. Every entry has exactly one `tool=` and one `model=` line, and the key scan finds 0 secrets. The owner uploads it to the `chat_transcript` slot. |
 | 11 | Agent trace ZIP (`agent_trace_instructions.md`) | ❌ needs the owner | See section B. |
 | 12 | AI interview (problem_statement "Submission") | needs the owner | Material: `README.md` (architecture), `docs/03_DESIGN.md`, `docs/adr/`, `code/evaluation/evaluation_report.md`. |
@@ -76,15 +76,15 @@ What we can and cannot verify:
   - The solver reads only `--data` (default `dataset/`) and its own committed modules.
   - Environment variables read: the key presence checks, `GHOSTAUDIT_RUNS_DIR`, `GHOSTAUDIT_REVEAL_LOG`, and `GHOSTAUDIT_BLOCK_MODULES` (test matrix only).
 
-## E. Risks the owner should decide on
+## E. Risks (settled by the owner, 2026-10-25)
 
-- **R1. ADR 0015:** 3 rows are `INCOMPLETE,[]`. The one-line revert is in the README "Known risks".
-- **R2. Report path:** see row A9.
-- **R3. Derived dataset content in `code.zip` (all fictional):**
+- **R1. ADR 0015:** 3 rows are `INCOMPLETE,[]`. **Kept**, with the documented one-line revert in the README "Known risks".
+- **R2. Report path:** **both paths ship** (row A9).
+- **R3. Derived dataset content in `code.zip` (all fictional):** **kept**, since `dataset/` itself is not shipped; the README's "Known risks" says so plainly.
   - **What it is:**
     - the PDF text cache (4 PDFs, 5.3 KB);
     - screenshot transcriptions (11 PNGs, 9.7 KB);
     - 19 small evidence excerpts used as test fixtures (80 KB).
   - **Why it is there:** these let the run work with no PDF tool or vision model and keep the tests self-contained.
   - **Rule check:** `dataset/` itself is not included, and the data is fictional (AGENTS §7). If the judges read "no dataset" strictly, these would have to be dropped, which costs the no-tool reproducibility.
-- **R4. The 4 earliest log entries name `claude-haiku-5-5`.** This can't be verified now (row C2).
+- **R4. The 4 earliest log entries name `claude-haiku-5-5`.** **Left as recorded** (append-only, row C2).

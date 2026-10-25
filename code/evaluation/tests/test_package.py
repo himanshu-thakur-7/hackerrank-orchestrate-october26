@@ -18,9 +18,17 @@ class Zip(unittest.TestCase):
             cls.names = z.namelist()
             cls.text = {n: z.read(n) for n in cls.names}
 
-    def test_only_readme_and_code(self):
+    def test_only_readme_code_and_the_two_report_copies(self):
         self.assertIn("README.md", self.names)
-        self.assertTrue(all(n == "README.md" or n.startswith("code/") for n in self.names), self.names[:5])
+        extra = {"evaluation/evaluation_report.md", "evaluation/usage_report.md"}
+        self.assertTrue(all(n == "README.md" or n.startswith("code/") or n in extra for n in self.names), self.names[:5])
+
+    def test_reports_exist_at_both_paths_and_are_identical(self):
+        for r in ("evaluation_report.md", "usage_report.md"):
+            self.assertIn(f"code/evaluation/{r}", self.names)
+            self.assertIn(f"evaluation/{r}", self.names)
+            self.assertEqual(self.text[f"evaluation/{r}"], self.text[f"code/evaluation/{r}"])
+            self.assertEqual(self.text[f"evaluation/{r}"], (ROOT / "code" / "evaluation" / r).read_bytes())
 
     def test_required_files_are_inside(self):
         for n in ("code/main.py", "code/package.py", "code/evaluation/evaluation_report.md", "code/evaluation/usage_report.md",

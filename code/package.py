@@ -1,4 +1,4 @@
-"""Build code.zip for submission: README.md and code/ only.
+"""Build code.zip for submission: README.md and code/, plus evaluation/ holding copies of the two generated reports.
 
   python3 code/package.py              # writes ./code.zip and prints its listing and size
 
@@ -17,6 +17,7 @@ EXCLUDED_DIRS = {"dataset", "runs", "scratch", "__pycache__", ".venv", "venv", "
 EXCLUDED_NAMES = {".env", ".DS_Store"}
 EXCLUDED_SUFFIXES = (".zip", ".tar", ".gz", ".tgz", ".7z", ".rar", ".pyc", ".pyo")
 KEY_PATTERNS = (re.compile(r"(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{16,}"), re.compile(r"(?<![A-Za-z0-9])apikey_[A-Za-z0-9_-]{8,}"))
+REPORT_COPIES = ("evaluation_report.md", "usage_report.md")   # also at evaluation/<name>, for either reading of the brief
 FIXED_TIME = (2026, 10, 25, 0, 0, 0)      # constant timestamps keep the zip byte-stable across builds
 
 
@@ -41,6 +42,8 @@ def build(out=OUT):
         if hits:
             raise SystemExit(f"refusing to package: key-shaped string in {p.relative_to(ROOT)}")
         entries.append((p.relative_to(ROOT).as_posix(), b))
+    by_name = dict(entries)
+    entries += [(f"evaluation/{r}", by_name[f"code/evaluation/{r}"]) for r in REPORT_COPIES]
     out = Path(out)
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         for name, b in entries:
