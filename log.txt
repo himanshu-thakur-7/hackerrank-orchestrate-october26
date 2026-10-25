@@ -151,3 +151,39 @@ repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
 
+## [2026-10-25T00:07:06Z] /loop data discovery: pass 1 (CSVs)
+
+User Prompt (verbatim, secrets redacted):
+/loop Do one discovery pass over dataset/ per iteration, append findings to docs/02_DATA_NOTES.md,
+and stop after 5 passes or when a pass adds nothing new. Passes:
+ 1. CSVs: row counts, columns, value distributions; how request emails resolve to users
+    (current vs historical, case sensitivity); verify how email_hash is computed.
+ 2. sample_output.csv: pretty-print every case; infer which steps appear for COMPLETE vs
+    INCOMPLETE, how verification is chosen, and the exact ordering — test your sort-key hypothesis
+    against all 32 rows programmatically.
+ 3. Evidence formats: one representative file per shape (sql, json, log, txt, pdf, png). For each,
+    how does a record identify its owner and its state? Note any timestamps INSIDE files.
+ 4. Cross-checks: for every evidence_id cited in sample_output.csv, does that file actually name the
+    resource? When it doesn't, how is the state proven? Is the cited file captured before audit_at?
+ 5. Traps: look for look-alike emails, later snapshots that contradict earlier ones, replica-vs-primary
+    differences, files captured after audit_at, and requests that are not actually deletions.
+Rules for every pass: show evidence (file_id + line/record) for each claim; treat statuses and
+activity results as claims; write scripts to scratch/ (gitignored), not code/.
+
+Agent Response Summary:
+Started a self-paced loop and ran pass 1 over the CSVs. Eval case_ids are unpadded (case_33..case_550), and the input is in numeric order, so ambiguity A1 is real. email_hash is sha256 of the lowercase email (850/850 users and 107/107 audit pairs). Every request email resolves to exactly one user: 403 current, 95 historical, and 20 that only match case-insensitively. The 10 non-deletion requests are case_533..case_542, and the sample has no NOT_APPLICABLE example. The rules split SUPPORT_MESSAGE (REDACT) from SUPPORT_ATTACHMENT (DELETE) and set BACKUP_ARCHIVE to RETAIN+block. Added .gitignore with scratch/.
+
+Actions:
+* Created .gitignore (scratch/, __pycache__/, .venv/, .env)
+* Wrote scratch/pass1_csvs.py and scratch/pass1b.py and ran them with python3 -I
+* Wrote docs/02_DATA_NOTES.md (pass 1)
+* Committed and pushed to claude/stoic-bell-1t82oq; scheduled the next loop iteration
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+
