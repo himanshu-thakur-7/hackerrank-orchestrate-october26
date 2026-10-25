@@ -504,3 +504,24 @@ repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
 
+## [2026-10-25T01:04:40Z] Fix 2/2 for T01: selftest asserts the specific check id; pandas-blocked selftest test
+
+User Prompt (verbatim, secrets redacted):
+(same relayed prompt as the previous entry: T01 fix (a)(b)(c), then T02 and T03)
+
+Agent Response Summary:
+Fix 2 of 2, test-first. Red: two CLI tests running the selftest as a subprocess, with pandas available and with the pandas import blocked; each requires "FAILS on L0.csv / L0.evidence / L0.order" and SELFTEST OK. Green: each broken copy now declares the check id it targets, and the selftest passes only if a violation with exactly that id is reported. 39 tests pass. Re-ran the selftest in both situations: both SELFTEST OK, and the blocked run prints WARNING L0.pandas SKIPPED.
+
+Actions:
+* Added SelftestTargetsSpecificChecks to code/evaluation/tests/test_cli.py; edited code/evaluation/main.py
+* Ran selftest with pandas available and blocked
+* Committed and pushed
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+

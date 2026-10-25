@@ -57,3 +57,31 @@ class Cli(unittest.TestCase):
         code, out = run("selftest", env_extra=self.env)
         self.assertEqual(code, 0, out)
         self.assertIn("SELFTEST OK", out)
+
+
+BLOCK_PANDAS = ("import sys, runpy; sys.modules['pandas'] = None; sys.argv = ['main.py', 'selftest']; "
+                "runpy.run_path(%r, run_name='__main__')")
+
+
+class SelftestTargetsSpecificChecks(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.env = dict(os.environ, GHOSTAUDIT_RUNS_DIR=str(self.tmp / "runs"))
+
+    def _assert_specific(self, out):
+        self.assertIn("bad quoting    -> FAILS on L0.csv", out)
+        self.assertIn("null evidence  -> FAILS on L0.evidence", out)
+        self.assertIn("wrong order    -> FAILS on L0.order", out)
+        self.assertIn("SELFTEST OK", out)
+
+    def test_selftest_with_pandas_available(self):
+        p = subprocess.run([sys.executable, str(MAIN), "selftest"], capture_output=True, text=True, cwd=ROOT, env=self.env)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        self._assert_specific(p.stdout)
+
+    def test_selftest_with_pandas_import_blocked(self):
+        p = subprocess.run([sys.executable, "-c", BLOCK_PANDAS % str(MAIN)], capture_output=True, text=True, cwd=ROOT, env=self.env)
+        out = p.stdout + p.stderr
+        self.assertEqual(p.returncode, 0, out)
+        self.assertIn("WARNING L0.pandas SKIPPED", out)
+        self._assert_specific(out)

@@ -155,7 +155,8 @@ def _broken_copies(tmp):
     ro = [list(r) for r in rows]; ro[3], ro[4] = ro[4], ro[3]
     with open(wrong_order, "w", newline="", encoding="utf-8") as f:
         csv.writer(f, lineterminator="\n").writerows(ro)
-    return [("bad quoting", bad_quote), ("null evidence", null_ev), ("wrong order", wrong_order)]
+    # each broken copy names the ONE check id it targets, so it cannot "fail as expected" for another reason
+    return [("bad quoting", bad_quote, "L0.csv"), ("null evidence", null_ev, "L0.evidence"), ("wrong order", wrong_order, "L0.order")]
 
 
 def cmd_selftest(_):
@@ -181,10 +182,14 @@ def cmd_selftest(_):
 
     tmp = Path(tempfile.mkdtemp(prefix="ghostaudit_selftest_"))
     print("[3] deliberately broken copies must fail the gate:")
-    for label, p in _broken_copies(tmp):
-        bv = gate.check(p, SAMPLE_REQ, MANIFEST)
-        print(f"    {label:14} -> {'FAILS as expected' if bv else 'PASSED (BAD)'}: {bv[0] if bv else ''}")
-        ok &= bool(bv)
+    for label, p, code in _broken_copies(tmp):
+        bv = gate.check(p, SAMPLE_REQ, MANIFEST, warnings=[])
+        hit = next((x for x in bv if x.startswith(code + ":")), None)
+        if hit:
+            print(f"    {label:14} -> FAILS on {code}: {hit}")
+        else:
+            print(f"    {label:14} -> WRONG: expected a {code} violation, got {bv[:1] or 'no violation'}")
+        ok &= hit is not None
 
     hits = audit.scan(ROOT / "code")
     print(f"[4] literal audit on code/: {len(hits)} hit(s)")
