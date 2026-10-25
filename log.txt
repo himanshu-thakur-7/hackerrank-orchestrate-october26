@@ -762,3 +762,23 @@ branch=claude/stoic-bell-1t82oq
 repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
+
+## [2026-10-25T02:07:12Z] T15 done: metamorphic suite, 13/13 relations hold; ADR 0016 ratified
+
+User Prompt (verbatim, secrets redacted):
+(relayed by peer session "Prompt playbook website publishing" for the user) T10/T12 verified; the owner ratifies ADR 0016. Implement T15 then T16 test-first with tdd. T15: a dataset overlay helper and relations M1-M13 (shuffle, rename, email case, .jr decoy, post-audit mention, post-audit contradiction, earlier audit_at, replica-only copy, remove a file, duplicate request text, break a tie, contradict a catalog link, PYTHONHASHSEED). Report hold/fail; fix real failures with a regression test without weakening a relation. T16: invariants over the real output, a loss ledger for every eval case (unknown must be zero) with a step-level ceiling, and a silver-label audit plan with 20 stratified cases (do the first 5 by hand). Commit and push after each; stop.
+
+Agent Response Summary:
+T15 test-first: overlay helper tests (red, then green; one test fixed: case_12 is a sample, not an eval case) and relation registration/CLI tests. evaluation/overlay.py makes a full temporary copy of dataset/ (4.1 MB) and runs code/main.py over it; evaluation/metamorphic.py implements M1-M13 with targets chosen from the baseline (no literals). First run 12/13: M8 failed because its target broke the relation's own precondition (the injected copy was older than an explicit 404 at audit_at); the pipeline was right. I fixed the target selection, not the prediction. Final: 13/13 hold. ADR 0016 marked accepted.
+
+Actions:
+* Wrote code/evaluation/overlay.py, code/evaluation/metamorphic.py, code/evaluation/tests/test_overlay.py; edited evaluation/main.py (metamorphic subcommand)
+* Ran metamorphic (13/13), unit tests, audit, selftest, determinism; updated docs/BOARD.md, docs/adr/0016 + README
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none

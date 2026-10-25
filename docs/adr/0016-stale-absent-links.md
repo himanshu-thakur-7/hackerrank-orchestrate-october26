@@ -1,6 +1,6 @@
 # ADR 0016 — A resource seen only absent before the request belongs to an earlier lifecycle
 
-- **Status:** Proposed (T10); adopted provisionally.
+- **Status:** Accepted (owner ratified 2026-10-25, relayed).
 - **Related:** ADR 0003 (activity is a linkage key), ADR 0004 (no guessing), ADR 0006 (unproven end states).
 
 ## Question

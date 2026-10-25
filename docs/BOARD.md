@@ -2,7 +2,7 @@
 
 - **Board backend:** this file. The `kanban-init` skill needs the `sqlite3` CLI, which is not installed in this cloud container (checked at session start), so the SQLite board was not created and this Markdown board is the source of truth.
 - **Update this file whenever a task moves.**
-- **Log:** T01 doing → done 2026-10-25 (selftest green, 34 unit tests). T01 fixes: optional pandas + specific check ids (39 tests). T02 doing → done (12 tests; acceptance green). Baseline run exposed 3 T01 bugs, fixed test-first (43 evaluation tests). T03 doing → done (10 store tests). T04 doing → done (loaders, 52/52 gold pairs). T05 doing → done (SQL, 10/10 gold pairs). T06 doing → done (bundles/registers/record_lookup, 42/42; ADR 0014 proposed). T07 doing → done (observability logs, 7 dialects, 15/15; store state check 0 contradictions, 1 pending on T12). T08 doing → done (states --split dev 51/51 on discovered resources; ADR 0014 risk 2 resources / 1 violation in eval). T09 doing → done (dev proxy 0.720, status 0.909; ADR 0015 proposed, then ratified). T12 doing → done (4 PDFs + 11 PNGs, store check 0 pending; empty INCOMPLETE 10 → 3). T10 doing → done (accounts 19/32 exact, 0 wrong; 136 eval ties logged; activity_4008 rejected; dev proxy 0.798).
+- **Log:** T01 doing → done 2026-10-25 (selftest green, 34 unit tests). T01 fixes: optional pandas + specific check ids (39 tests). T02 doing → done (12 tests; acceptance green). Baseline run exposed 3 T01 bugs, fixed test-first (43 evaluation tests). T03 doing → done (10 store tests). T04 doing → done (loaders, 52/52 gold pairs). T05 doing → done (SQL, 10/10 gold pairs). T06 doing → done (bundles/registers/record_lookup, 42/42; ADR 0014 proposed). T07 doing → done (observability logs, 7 dialects, 15/15; store state check 0 contradictions, 1 pending on T12). T08 doing → done (states --split dev 51/51 on discovered resources; ADR 0014 risk 2 resources / 1 violation in eval). T09 doing → done (dev proxy 0.720, status 0.909; ADR 0015 proposed, then ratified). T12 doing → done (4 PDFs + 11 PNGs, store check 0 pending; empty INCOMPLETE 10 → 3). T10 doing → done (accounts 19/32 exact, 0 wrong; 136 eval ties logged; activity_4008 rejected; dev proxy 0.798). T15 doing → done (13/13 metamorphic relations hold).
 - **Statuses:** `todo` → `doing` → `review` → `done` (plus `blocked`).
 - **Priorities:** P0 (must ship), P1 (should ship), P2 (only if time and gates allow).
 - **Build slice** refers to `docs/03_DESIGN.md` §9. ADRs are in `docs/adr/`.
@@ -25,7 +25,7 @@
 | T12 | PDFs (pdftotext) + screenshot facts: committed transcriptions first, cached live vision second | P1 (vision part P2) | 8 | T03 | `python3 code/evaluation/main.py loaders --kind pdf,png` | 4 PDFs and 11 PNGs give the facts in docs/02b; evidence_60 visible identity = sj.park@naver.com | done |
 | T13 | Custom evaluation cases (≥ 6 fixtures) + evaluation_report.md generator | P1 | 10 | T09, T15 | `python3 code/evaluation/main.py custom && python3 code/evaluation/main.py report` | 6/6 fixtures pass (replica-only account, DELETION_PENDING, contradicted screenshot, legal hold, uppercase historical email, post-cutoff resurrection); report written with every required section | todo |
 | T14 | usage_report.md, README, packaging script, final validation | P0 | 10 | T09, T11, T13, T16 | `python3 code/package.py && python3 code/evaluation/main.py final` | code.zip contains README.md + code/ only (no dataset/, .env, *.zip, __pycache__); final gates green; output.csv 518 rows | todo |
-| T15 | Metamorphic suite: dataset overlay helper + relations | P0 | 10 | T02 (helper), T09 (relations) | `python3 code/evaluation/main.py metamorphic` | All relations hold: shuffled rows, renamed case IDs, uppercase emails, injected post-cutoff file, added `.jr` decoy, contradicted screenshot, earlier audit_at | todo |
+| T15 | Metamorphic suite: dataset overlay helper + relations | P0 | 10 | T02 (helper), T09 (relations) | `python3 code/evaluation/main.py metamorphic` | All relations hold: shuffled rows, renamed case IDs, uppercase emails, injected post-cutoff file, added `.jr` decoy, contradicted screenshot, earlier audit_at | done |
 | T16 | Invariants on all 518 + blind silver-label audit + score band with per-case loss ledger | P1 | 10 | T09, T10 | `python3 code/evaluation/main.py invariants && python3 code/evaluation/main.py lossledger` | Invariants 518/518; every cited evidence_id exists and is ≤ audit_at; the loss ledger lists unresolved, not-observable, unproven and unlabeled cases with counts | todo |
 | T17 | TypeSafe Jev judge (typesafe-sdk, pinned jev-1.14.0, disk-cached, advisory only) behind a spike gate | P2 | 9 | T01, T11 | `python3 code/evaluation/main.py judge-spike` | Spike reports AUROC ≥ 0.90 and repeat-stability ≤ 0.05, otherwise the judge stays disabled; output.csv hash unchanged with the judge on or off | todo |
 
@@ -95,6 +95,28 @@ $ python3 code/evaluation/main.py score --pred <scratch>/sample_pred.csv
 - Search `source_resource_id` links the source account (case_06 account_006). Citations follow docs/02 §4.3: the latest file **naming** the resource; a covering file only for absence by omission (fixed: case_21/27 now cite evidence_92, not evidence_51).
 - case_17 account_6523: a prior-lifecycle 404 (evidence_67, the March readback for the same subject's case_46); the id is deleted again on 09-15 inside case_03's window. **ADR 0016 (proposed):** a resource seen only ABSENT before `requested_at` is dropped (`STALE_LINK`); 1 sample, 0 eval rows affected.
 - Score: dev proxy 0.731 → **0.798** (finding F1 1.000, evidence 0.846, strict step F1 0.792, sequence exact 0.364); holdout aggregate 0.741 → **0.805**; status dev 0.909, holdout 0.900. `states --split dev`: 59/59 discovered resources agree, 0 extras. `L0.empty_incomplete` eval: 3 (case_55 unproven backup, case_61 unconfirmed catalog claim, case_63 rejected claim).
+
+## T15 result
+
+`python3 code/evaluation/main.py metamorphic` (overlay = a full temporary copy of dataset/, never edited; the real `code/main.py` runs over it; targets are picked from the baseline at run time). **13/13 hold**, about 63 s:
+
+| Id | Transformation | Predicted effect | Result |
+| --- | --- | --- | --- |
+| M1 | shuffle rows of every input CSV | identical | holds |
+| M2 | rename every evidence file, upper-case extension | identical, evidence_ids included (they are manifest file_ids; dispatch is by content) | holds |
+| M3 | upper/lower-case request emails | identical | holds |
+| M4 | `.jr` look-alike of a subject's email, pre-audit | identical; no step on the decoy resource | holds |
+| M5 | post-audit file naming a subject | identical (ADR 0002) | holds |
+| M6 | post-audit file contradicting an absent account | identical | holds |
+| M7 | audit_at moved 1 s before the latest cited file | that file no longer cited; all citations ≤ new audit_at; others unchanged | holds |
+| M8 | replica-only copy of an account at audit_at | COMPLETE → INCOMPLETE with REPORT_REMAINING_RECORD citing the new snapshot | holds |
+| M9 | remove the most-cited file (evidence_08, 10 rows) | only dependent cases change (10/10 within dependents) | holds |
+| M10 | duplicate a non-deletion and a deletion text under new ids | identical intent | holds |
+| M11 | delete one candidate of a tie whose other candidate is not shared | the other becomes the unique linked account | holds |
+| M12 | re-point a confirmed catalog claim to another subject | REJECTED_LINK (the screen shows the real owner), no step, nothing else changes | holds |
+| M13 | PYTHONHASHSEED 0 / 4242 / random | byte-identical output | holds |
+
+The first run had M8 failing. The cause was the **relation's target**, not the pipeline: the injected copy (audit − 1 min) was older than an explicit 404 at exactly audit_at, so the latest-observation rule correctly kept the account absent. The target selection now enforces the precondition (the copy is the newest sighting); the prediction is unchanged.
 
 ## Where this board deviates from the relayed list (and why)
 

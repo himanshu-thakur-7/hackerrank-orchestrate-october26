@@ -7,6 +7,7 @@
   python3 code/evaluation/main.py loaders [--files ID,ID] [--kind sql,json,log,...] [--spot]
   python3 code/evaluation/main.py states [--split dev|holdout|all] [--risk]
   python3 code/evaluation/main.py linking
+  python3 code/evaluation/main.py metamorphic [--only M1,M7]
   python3 code/evaluation/main.py audit
   python3 code/evaluation/main.py selftest
 
@@ -159,6 +160,11 @@ def cmd_linking(_):
     return linking_check.run(ROOT)
 
 
+def cmd_metamorphic(a):
+    from evaluation import metamorphic
+    return metamorphic.run([x.strip().upper() for x in a.only.split(",") if x.strip()] or None)
+
+
 def cmd_audit(_):
     hits = audit.scan(ROOT / "code")
     print(f"LITERAL AUDIT: {len(hits)} hit(s)")
@@ -244,12 +250,13 @@ def main(argv=None):
     lo = sub.add_parser("loaders"); lo.add_argument("--files", default=""); lo.add_argument("--kind", default=""); lo.add_argument("--spot", action="store_true")
     st = sub.add_parser("states"); st.add_argument("--split", default="dev", choices=("dev", "holdout", "all")); st.add_argument("--risk", action="store_true")
     sub.add_parser("linking")
+    mm = sub.add_parser("metamorphic"); mm.add_argument("--only", default="", help="e.g. M1,M7")
     sub.add_parser("audit")
     sub.add_parser("selftest")
     a = p.parse_args(argv)
     os.chdir(ROOT)
     return {"contract": cmd_contract, "score": cmd_score, "determinism": cmd_determinism,
-            "audit": cmd_audit, "selftest": cmd_selftest, "loaders": cmd_loaders, "states": cmd_states, "linking": cmd_linking}[a.command](a)
+            "audit": cmd_audit, "selftest": cmd_selftest, "loaders": cmd_loaders, "states": cmd_states, "linking": cmd_linking, "metamorphic": cmd_metamorphic}[a.command](a)
 
 
 if __name__ == "__main__":
