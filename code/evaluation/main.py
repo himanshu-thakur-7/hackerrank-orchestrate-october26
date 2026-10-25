@@ -35,6 +35,7 @@ Unit tests: python3 -m unittest discover -s code/evaluation/tests -t code
 import argparse
 import csv
 import io
+import json
 import os
 import shlex
 import subprocess
@@ -123,39 +124,24 @@ def cmd_contract(a):
     return 0
 
 
-def cmd_score(a):
-    if not a.pred:  # run the solver on the 32 labeled samples into the run directory
-        out = Path(tempfile.mkdtemp(prefix="ghostaudit_score_")) / "sample_pred.csv"
-        subprocess.run(
-            [
-                sys.executable,
-                str(ROOT / "code" / "main.py"),
-                "--requests",
-                str(SAMPLE_REQ),
-                "--out",
-                str(out),
-            ],
-            check=True,
-            cwd=ROOT,
-            stdout=subprocess.DEVNULL,
-        )
-        a.pred = str(out)
-    w = []
-    v = gate.check(a.pred, SAMPLE_REQ, MANIFEST, warnings=w)
-    _print_warnings(w)
-    if v:
-        print(f"CONTRACT FAILED ({Path(a.pred).name}) — not scored")
-        for x in v[:50]:
-            print("  " + x)
-        return 1
-    gold = scorer.load(GOLD)
-    pred = scorer.load(a.pred)
-    dev, hold, _ = split.load_frozen()
-    m = {
-        "dev": scorer.score(pred, gold, dev),
-        "holdout": scorer.score(pred, gold, hold),
-        "all": scorer.score(pred, gold, dev + hold),
-    }
+def _sample_prediction():
+    """Run the solver on the 32 labeled samples into a temp file and return its path."""
+    out = Path(tempfile.mkdtemp(prefix="ghostaudit_score_")) / "sample_pred.csv"
+    cmd = [
+        sys.executable,
+        str(ROOT / "code" / "main.py"),
+        "--requests",
+        str(SAMPLE_REQ),
+        "--out",
+        str(out),
+    ]
+    subprocess.run(cmd, check=True, cwd=ROOT, stdout=subprocess.DEVNULL)
+    return str(out)
+
+
+def _print_scores(a, m, pred, gold, dev, hold):
+    """DEV in full with its failures, HOLDOUT aggregate only (failures only on --reveal-holdout,
+    which is logged), then ALL."""
     _table("DEV", m["dev"])
     print("DEV failures:")
     detail = [entry for c in dev for entry in scorer.case_diff(pred, gold, c)]
@@ -172,19 +158,13 @@ def cmd_score(a):
         with open(REVEAL_LOG, "a", encoding="utf-8") as f:
             f.write(f"- {stamp} commit {_commit()} --reveal-holdout on {Path(a.pred).name}\n")
         print(f"HOLDOUT failures (revealed; logged to {REVEAL_LOG.name}):")
-        print(
-            "\n".join("  " + entry for c in hold for entry in scorer.case_diff(pred, gold, c))
-            or "  none"
-        )
+        revealed = [entry for c in hold for entry in scorer.case_diff(pred, gold, c)]
+        print("\n".join("  " + entry for entry in revealed) or "  none")
     _table("ALL", m["all"])
 
-    runs = RUNS / "score"  # selftest runs live in RUNS/selftest and never feed this gate
-    run_dir = history.record(runs, a.pred, m, _commit())
-    prev = history.previous(runs, run_dir)
-    print(f"RUN recorded: {run_dir}")
-    if prev is None:
-        print("DIFF vs previous run: (first run)")
-        return 0
+
+def _diff_gate(a, m, dev, prev, run_dir):
+    """Row diff against the previous run (holdout rows hidden) and the dev regression gate."""
     lines = history.diff(prev / "output.csv", run_dir / "output.csv")
     dev_set = set(dev)
     shown = [entry for entry in lines if entry.split(":", 1)[0] in dev_set or a.reveal_holdout]
@@ -194,8 +174,6 @@ def cmd_score(a):
         + (f" ({hidden} on holdout cases hidden)" if hidden else "")
     )
     print("\n".join("  " + entry for entry in shown) or "  none")
-    import json
-
     old = json.loads((prev / "metrics.json").read_text()).get("dev", {})
     drops = [
         f"{k} {old[k]:.3f} -> {m['dev'][k]:.3f}"
@@ -209,6 +187,35 @@ def cmd_score(a):
     if drops:
         print(f"DIFF GATE: regression accepted: {a.accept_regression}")
     return 0
+
+
+def cmd_score(a):
+    if not a.pred:
+        a.pred = _sample_prediction()
+    w = []
+    v = gate.check(a.pred, SAMPLE_REQ, MANIFEST, warnings=w)
+    _print_warnings(w)
+    if v:
+        print(f"CONTRACT FAILED ({Path(a.pred).name}) — not scored")
+        for x in v[:50]:
+            print("  " + x)
+        return 1
+    gold, pred = scorer.load(GOLD), scorer.load(a.pred)
+    dev, hold, _ = split.load_frozen()
+    m = {
+        "dev": scorer.score(pred, gold, dev),
+        "holdout": scorer.score(pred, gold, hold),
+        "all": scorer.score(pred, gold, dev + hold),
+    }
+    _print_scores(a, m, pred, gold, dev, hold)
+    runs = RUNS / "score"  # selftest runs live in RUNS/selftest and never feed this gate
+    run_dir = history.record(runs, a.pred, m, _commit())
+    prev = history.previous(runs, run_dir)
+    print(f"RUN recorded: {run_dir}")
+    if prev is None:
+        print("DIFF vs previous run: (first run)")
+        return 0
+    return _diff_gate(a, m, dev, prev, run_dir)
 
 
 def cmd_determinism(a):
