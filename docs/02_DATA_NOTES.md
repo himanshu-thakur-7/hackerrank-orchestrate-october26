@@ -480,3 +480,115 @@ From `scratch/pass3_ts.py`:
   - vision or manual transcription for the 11 PNGs.
 - Normalise every observation to the shape `(file_id, observed_at, system_id, resource_id, category?, state, identifiers{user_id, emails, hashes, phones, names})`.
 - The category comes from explicit `record_type` / CATEGORY fields where present, otherwise from the system and collection: support_platform splits into message vs attachment, analytics, and so on.
+
+---
+
+## Pass 4 — Cross-checks of sample citations
+
+Script: `scratch/pass4_cites.py`, with output in `scratch/pass4_out.txt`. For every step in `sample_output.csv`, it greps the resource_id (word-bounded) in the cited file and in every other evidence file (PDFs via pdftotext), and lists the `system_activity` rows for that resource. PNGs were checked by viewing them.
+
+### 4.1 Is the cited resource named in the cited file?
+
+**Yes for 85 of 89 cited steps.** Examples with line numbers:
+
+| Case | Resource | Cited file and line |
+| --- | --- | --- |
+| case_05 | account_005 | `evidence_54` line 13 |
+| case_06 | search_001 | `evidence_57` line 9 |
+| case_09 | backup_4978 | `evidence_93` line 24 |
+| case_11 | search_052 / analytics_2034 / support_864 / data_flow_9522 | `evidence_03` lines 26, 16, 46, 25 |
+| case_12 | analytics_9914 | `evidence_01` line 92 |
+| case_26 | all six steps | `evidence_92` lines 40, 309, 349, 78, 194, 121 |
+| case_32 | tombstone_9178 | `evidence_51` line 26 |
+
+**The 4 exceptions are all `VERIFY_RECORD_ABSENT` on `account_service` in COMPLETE cases.** Each cites a file that covers the account store but does **not contain** the account:
+
+| Case | Resource | Cited file | How absence is shown |
+| --- | --- | --- | --- |
+| case_01 | account_001 | `evidence_54` | Neither `customer_profiles_primary` (lines 20–22) nor `customer_profiles_failover_replica` (lines 13–17) lists it. |
+| case_02 | account_002 | `evidence_54` | same |
+| case_04 | account_004 | `evidence_54` | same; **account_004 appears in no file and no activity row at all** |
+| case_31 | account_4857 | `evidence_51` | The account_service `customer_profiles` snapshot is `records: []` (lines 4–8). |
+
+- **Rule:** absence can be proven by a snapshot that covers the system or table and omits the resource. That is a *closed-world* proof.
+- Positive absence evidence also exists and is cited when available:
+  - 404 lookups: `evidence_92` line 10 `account_3136 … status_code 404`;
+  - `rows=0 http_status=404` in `evidence_94` lines 18–19 for account_7566;
+  - `NOT_FOUND` rows in `evidence_03` line 9 for account_3677.
+
+### 4.2 How each state is proven (the observed state field per operation)
+
+| Step | Proving field in the cited file |
+| --- | --- |
+| VERIFY_RECORD_ABSENT | `status_code 404` / `rows=0` / `NOT_FOUND`, or omission from a covering snapshot (4.1) |
+| REPORT_REMAINING_RECORD | the row exists with the user's identifiers. Examples: `evidence_54` line 13 "Leila Haddad, +212 6 48 27 15 93"; `evidence_57` line 9 jonas.berg; `evidence_03` line 43 `support_4218 FOUND` |
+| REPORT_EXPOSED_PII | the record exists **and** still holds an identifier that policy says to remove. Examples: `evidence_03` line 16 `analytics_2034 IDENTIFIABLE novak.tomasz@…`; `evidence_51` line 26 tombstone_9178 with name, email, phone and hash |
+| VERIFY_RECORD_ANONYMIZED / _REDACTED | the record exists with all PII fields null. Examples: `evidence_92` line 60 analytics_1895; `evidence_51` line 17 tombstone_440 |
+| VERIFY_RECORD_PRESENT (audit_record) | the record exists, e.g. `evidence_92` line 309 audit_record_5416 with `retention_until` |
+| REPORT_ACTIVE_DATA_FLOW | `enabled=true` / `ACTIVE`, e.g. `evidence_03` line 25 data_flow_9522 ACTIVE |
+| VERIFY_DATA_FLOW_DISABLED | `enabled=false`, `stopped`, e.g. `evidence_92` line 194 data_flow_6244 |
+| REPORT_RESTORE_RISK | `restore_allowed=1` / `ACTIVE`, e.g. `evidence_93` line 24 backup_4978; `evidence_03` line 19 backup_3870 |
+| VERIFY_RESTORE_BLOCKED | `restore_allowed=false` / `BLOCKED`, e.g. `evidence_92` line 121 backup_3120 |
+
+### 4.3 Is the cited file captured at or before `audit_at`? Is it the latest?
+
+- **It is always at or before** (see 2.6 for the 7 equal-time cases).
+- **The cited file is always the latest file at or before `audit_at` that names the resource.** Later files exist and are skipped:
+  - case_09 (audit 09-16T09:00): backup_4978 is also in `evidence_06` line 83, captured **09-18**, which is after the audit. The sample cites `evidence_93` (09-16T08:37).
+  - case_21 to case_30 (audit 09-15T12:00): every resource is also in `evidence_02` (`customer_data_snapshot_bundle_20260917.json`, captured **09-17**). Examples: line 43 account_5334, line 299 data_flow_6244, line 251 backup_3120. The sample cites `evidence_92` (09-15T11:44:55).
+  - **`evidence_02` is the main "later evidence" trap;** it is checked against `evidence_92` for contradictions in pass 5.
+- In case_12, case_15, case_17 and case_19 (audit 09-15T12:00), the cited file is `evidence_01` (09-15T11:59:39), not `evidence_92`, because these users' resources are only in `evidence_01`. **The rule is "the latest file naming that resource", not "the latest file overall".**
+
+### 4.4 How a resource is tied to the user (the hard part)
+
+On the cited line itself, the user's identifier is **often absent**:
+
+| Linkage | Where the identifier lives | Examples |
+| --- | --- | --- |
+| Same line names the user | The cited line carries the email, name, phone, hash or user_N. | `evidence_03` (all), `evidence_05` (case_16, case_22), `evidence_54` (case_05) |
+| Hash only | The cited line carries the user's **email_hash**. | `evidence_01` line 92 for case_12 `analytics_9914`: `44a65154…`, which is sha256 of a user_12 email (current or historical) |
+| Paired log lines | The *started* line (identifier) and *completed* line (resource) share a `trace_id`. | `evidence_94`: case_03 account_7566 lines 18–19 via `l.fontaine46@yahoo.com`; case_18 lines 10–11, 22–25, 52–53 via `mori.ren@gmail.com` |
+| **Not on the line** | `evidence_92` rows for 404 accounts, null-PII analytics and support, and audit_records carry **no user identifier**. Some entries carry `customer_reference=user_N` (backup_3120 → user_26, data_flow_2295 → user_27). | case_21, case_25 to case_28 |
+| Different file | `evidence_58` names "Priya Raman / priya.raman@gmail.com" on a different line from `support_001`. | case_07: lines 2/9 vs 12–14 |
+
+**How null-identifier resources still get attributed**, from the evidence in this pass:
+
+- **(a) Earlier observations.** A resource seen *before* deletion in an earlier file can carry the identifier. That will be tested in the build phase by indexing every file.
+- **(b) `customer_reference` siblings in the same export.**
+- **(c) Deletion-worker activity bursts.**
+  - Each user's workflow appears as a run of `deletion_worker` activity rows within roughly 1–3 hours, starting with `DELETE_RECORD account_N`.
+  - Example for case_26 / user_26: `activity_3600` (11:08, account_5684), `3603` analytics_4566, `3605` support_4715, `3606` data_flow_6244, `3607` backup_3120 (11:52).
+  - **Bursts of different users interleave on the same day.** On 2026-09-02, `activity_3597` (account_3136, case_25), `3599` (account_5334, case_24) and `3601` (account_7225, an unrelated or eval user) fall in the same 30 minutes. A burst alone does not determine ownership; it needs an anchor resource that *is* linked, such as backup_3120 → user_26.
+  - **The activity `details` never name the user**, except the 12 `LINK_RESOURCE_IDENTITY` rows.
+- **(d) PNG consoles give explicit links.**
+  - `evidence_04` (`account_admin_console_20260926.png`) shows "Haruka Sato · user_11 · account_5762", email haruka.s1838@zoho.com, support `CS-8538 · support_9538`. This is eval case_34 (haruka.s1838@zoho.com).
+  - `evidence_37` (`security_audit_explorer_20260905.png`) shows Subject filter `user_03` with audit_record_001 to 006 and the detail for audit_record_003 (`account_closure_recorded`, recorded 2026-08-25T04:03:00Z). That matches `evidence_55` (PDF) for audit_record_003.
+
+### 4.5 Gold verification resources with no visible source (unreachable)
+
+Some INCOMPLETE verification steps use `evidence_id = ""`, so they need no citation. But the **resource_id** still has to come from somewhere:
+
+| Case | Resource | Where it appears |
+| --- | --- | --- |
+| case_18 | `audit_record_6645` | **nowhere**: no evidence file (PDF text included), no activity row |
+| case_20 | `audit_record_5569` | **nowhere** |
+| case_18 | `account_5521` | only `activity_3732` (2026-09-09T09:52, DELETE_RECORD SUCCESS, no user named) |
+| case_20 | `account_5037` | only `activity_3734` |
+| case_22 | `account_4990` | only `activity_3573` |
+| case_23 | `account_410` | only `activity_3662` |
+| case_29 | `account_7012` | only `activity_3532` |
+| case_30 | `account_4163` | only `activity_3465` |
+| case_32 | `account_8858` | only `activity_3685` |
+| case_04 | `account_004` | nowhere at all, yet COMPLETE cites `evidence_54` for its absence |
+
+- user_50 (case_18) and user_48 (case_20) are not named in **any** evidence file. Their links exist only through email `lookup_key`s in `evidence_94`.
+- **Implication.** Some gold resource IDs, especially the primary `account_N` and the retained `audit_record_N`, can only be derived from activity-burst membership. A few cannot be derived at all. Expect a ceiling below 100% on step-level accuracy, and **do not overfit** heuristics to reach them.
+- The best available approach is to attach to the user the `DELETE_RECORD account_service` row in the same burst as the user's linked resources (case_18: `activity_3732` 09:52, then `3744` support_5569 11:43, `3747` search_4013, `3751` analytics_037, `3753` data_flow_4890). That needs disambiguation where bursts interleave (`activity_3734` account_5037 at 10:14 belongs to case_20).
+
+### 4.6 Answers to the carried-forward questions
+
+- **case_12, analytics DELETE vs ANONYMIZE.** `evidence_01` line 92 shows `analytics_9914` identified only by an **email_hash of user_12**. Combined with the user changing email, the record is keyed by an old identifier. It is still REPORT_REMAINING_RECORD → DELETE in the sample, so the category is probably SECONDARY_IDENTIFIER (rule_02 DELETE). The exact category text is still to be confirmed in the build phase.
+- **case_05, the cited file.** `evidence_54` (09-02) is the latest file at or before audit (09-08T13:40) that names `account_005`. It is cited because it is the **latest file naming the resource**, which confirms the rule in 4.3.
+- **A9, message vs attachment.** The category comes from explicit labels where they exist (`evidence_03` CATEGORY column), and otherwise from content:
+  - `evidence_58` is an uploaded PDF file with "uploader customer" and "file delivery_address_correction.pdf", i.e. an attachment.
+  - `evidence_28` (PNG) is a conversation including an agent, i.e. a message with shared context.
