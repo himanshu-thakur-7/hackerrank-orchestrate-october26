@@ -22,6 +22,10 @@ class Identity:
     phones: set = field(default_factory=set)
     names: set = field(default_factory=set)
 
+    def tokens(self):
+        """Every exact identifier of the subject, as Evidence Store index keys (phones as 'tel:<digits>')."""
+        return sorted({self.user_id} | self.emails | self.email_hashes | {"tel:" + p for p in self.phones})
+
     def matches(self, token):
         """True if token is exactly one of the subject's identifiers (case-insensitive for text)."""
         t = (token or "").strip()

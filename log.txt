@@ -677,3 +677,24 @@ branch=claude/stoic-bell-1t82oq
 repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
+
+## [2026-10-25T01:39:34Z] T08 done: state reconstruction + policy; states --split dev 51/51
+
+User Prompt (verbatim, secrets redacted):
+(relayed by peer session "Prompt playbook website publishing" for the user) Implement T08 then T09 test-first with tdd (mark doing, then done in docs/BOARD.md). Run the T08 acceptance, commit, and only then start T09. T08: per-resource latest explicit observation at or before audit_at (ADR 0002, 0014, replica rule); deletion_rules.csv as data; ordered, unit-tested category table tag > content > activity > system default (ADR 0009); DELETION_PENDING present (ADR 0010); legal hold VERIFY_RECORD_PRESENT (ADR 0011); unobservable categories nothing (ADR 0012); tombstone REDACT. Report on the ADR 0014 risk for eval cases with 5 examples. T09: verdict + planner per ADR 0006 amended, evidence selection, sort, --explain, edge-case tests; acceptance commands, scores (holdout aggregates only), 5 worst dev cases with --explain, determinism; commit and push after T08 and T09; then stop.
+
+Agent Response Summary:
+T08 done test-first. policy.py loads deletion_rules.csv and holds the ordered category-signal table and the treatment table (16 tests). Engine.assess does identity, discovery by exact identifier (store index now normalises phones) and state via CaseView.state, plus policy (12 engine edge-case tests). The new states evaluator gives 51/51 state and operation agreement on the dev resources it discovers; 26 of 77 need T10/T12 linking. ADR 0014 risk on eval: 2 of 1,123 non-absent resources (case_34), 1 a violation. main.py still writes the placeholder until the T09 planner lands.
+
+Actions:
+* Wrote code/ghostaudit/policy.py, code/ghostaudit/engine.py (Engine, assessments), code/evaluation/states.py; edited store.py (token_key, linking_observations, later_omissions), identity.py (Identity.tokens), evaluation/main.py (states subcommand)
+* Wrote code/tests/test_policy_t08.py, test_engine_t08.py, _world.py
+* Ran unit tests (84 + 45), states --split dev --risk, audit, selftest, contract; updated docs/BOARD.md
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none

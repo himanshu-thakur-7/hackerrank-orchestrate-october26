@@ -4,6 +4,7 @@
   python3 code/evaluation/main.py score --pred PRED.csv [--reveal-holdout] [--accept-regression REASON]
   python3 code/evaluation/main.py determinism [--cmd "python3 code/main.py"] [--file output.csv]
   python3 code/evaluation/main.py loaders [--files ID,ID] [--kind sql,json,log,...] [--spot]
+  python3 code/evaluation/main.py states [--split dev|holdout|all] [--risk]
   python3 code/evaluation/main.py audit
   python3 code/evaluation/main.py selftest
 
@@ -138,6 +139,11 @@ def cmd_loaders(a):
     return loader_check.run(ROOT, files, kinds, a.spot)
 
 
+def cmd_states(a):
+    from evaluation import states
+    return states.run(ROOT, a.split, a.risk)
+
+
 def cmd_audit(_):
     hits = audit.scan(ROOT / "code")
     print(f"LITERAL AUDIT: {len(hits)} hit(s)")
@@ -221,12 +227,13 @@ def main(argv=None):
     s = sub.add_parser("score"); s.add_argument("--pred", required=True); s.add_argument("--reveal-holdout", action="store_true"); s.add_argument("--accept-regression", default="")
     d = sub.add_parser("determinism"); d.add_argument("--cmd", default=f"{shlex.quote(sys.executable)} code/main.py"); d.add_argument("--file", default=str(ROOT / "output.csv"))
     lo = sub.add_parser("loaders"); lo.add_argument("--files", default=""); lo.add_argument("--kind", default=""); lo.add_argument("--spot", action="store_true")
+    st = sub.add_parser("states"); st.add_argument("--split", default="dev", choices=("dev", "holdout", "all")); st.add_argument("--risk", action="store_true")
     sub.add_parser("audit")
     sub.add_parser("selftest")
     a = p.parse_args(argv)
     os.chdir(ROOT)
     return {"contract": cmd_contract, "score": cmd_score, "determinism": cmd_determinism,
-            "audit": cmd_audit, "selftest": cmd_selftest, "loaders": cmd_loaders}[a.command](a)
+            "audit": cmd_audit, "selftest": cmd_selftest, "loaders": cmd_loaders, "states": cmd_states}[a.command](a)
 
 
 if __name__ == "__main__":

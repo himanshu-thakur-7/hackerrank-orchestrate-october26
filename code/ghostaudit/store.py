@@ -6,11 +6,21 @@ evidence captured after audit_at cannot leak in (ADR 0002: file-level, inclusive
 State comes only from evidence (Observation, Coverage). ActivityEvent rows are claims: they are
 exposed for linkage and category hints, never used to set a state (ADR 0003, 0006).
 """
+import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Optional
 
 ABSENT = "ABSENT"
+
+
+def token_key(t):
+    """Index key for an identifier: phones by digits ('tel:<digits>'), everything else lowercased."""
+    t = str(t).strip()
+    digits = re.sub(r"\D", "", t)
+    if len(digits) >= 9 and not re.search(r"[A-Za-z@]", t):
+        return "tel:" + digits
+    return t.lower()
 
 
 @dataclass(frozen=True)
@@ -88,7 +98,7 @@ class EvidenceStore:
         for o in self.observations:
             self._by_resource[o.resource_id].append(o)
             for t in o.identifiers:
-                self._by_identifier[str(t).strip().lower()].add(o)
+                self._by_identifier[token_key(t)].add(o)
         self._coverage_by_system = defaultdict(list)
         for c in self.coverage:
             self._coverage_by_system[c.system_id].append(c)
@@ -119,13 +129,24 @@ class CaseView:
         obs = [o for o in self._s._by_resource.get(resource_id, ()) if self._visible(o.file_id)]
         return sorted(obs, key=lambda o: (o.observed_at, self._s.captured_at(o.file_id), o.file_id, o.locator))
 
-    def resources_with_identifier(self, tokens):
-        out = set()
+    def linking_observations(self, tokens):
+        """Visible observations whose identifiers contain any token exactly -> {(system_id, resource_id): [obs]}."""
+        out = defaultdict(set)
         for t in tokens:
-            for o in self._s._by_identifier.get(str(t).strip().lower(), ()):
+            for o in self._s._by_identifier.get(token_key(t), ()):
                 if self._visible(o.file_id):
-                    out.add((o.system_id, o.resource_id))
-        return out
+                    out[(o.system_id, o.resource_id)].add(o)
+        key = lambda o: (o.observed_at, o.file_id, o.locator)
+        return {k: sorted(v, key=key) for k, v in out.items()}
+
+    def resources_with_identifier(self, tokens):
+        return set(self.linking_observations(tokens))
+
+    def later_omissions(self, system_id, resource_id, after):
+        """Visible covering files captured after `after` that do not list the resource (ADR 0014 risk)."""
+        named = {o.file_id for o in self.observations(resource_id) if o.system_id == system_id}
+        return tuple(sorted({c.file_id for c in self._s._coverage_by_system.get(system_id, ())
+                             if self._visible(c.file_id) and c.captured_at > after and c.file_id not in named}))
 
     def state(self, system_id, resource_id):
         """Latest evidence-backed state of a resource, or None when nothing visible proves anything (UNPROVEN)."""
