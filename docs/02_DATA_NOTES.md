@@ -322,3 +322,161 @@ Other findings from the INCOMPLETE cases:
 - case_12: why analytics gets DELETE rather than ANONYMIZE.
 - case_05: whether the cited file is the latest one.
 - The support category signal (A9) has to come from evidence content.
+
+---
+
+## Pass 3 — Evidence formats
+
+Scripts: `scratch/pass3_ts.py`, which compares the ISO timestamps inside each file with the manifest `captured_at`. Representative files were also read directly. PDFs were read with `pdftotext -layout`, and PNGs were viewed as images. **`tesseract` is not installed**, so PNG text needs a vision model or manual transcription.
+
+There are 94 files: sql 24, json 28 (27 in `records/` plus 1 elsewhere), log 26, txt 1, pdf 4, png 11. **Each file holds many users**, mostly unrelated decoys, so case membership comes only from the identifiers inside.
+
+### 3.1 How a record identifies its owner (across all shapes)
+
+An owner is named by **one or more** of the fields below. Coverage varies by record; many records carry just one identifier and leave the rest `null`.
+
+| Identifier | Example |
+| --- | --- |
+| `user_id` / `customer_reference` / `subject_reference` / `subject_selector` = `user_N` | `evidence_93` line 23: `backup_3933 … 'user_62'` |
+| current or **historical** email, sometimes **UPPERCASE** | `evidence_93` line 29: `search_684 … 'JULES-LAURENT@PROTON.ME'` |
+| `email_hash` (sha256) | `evidence_51` tombstone_9178 `email_hash 4f4b9c98…` |
+| phone, current or old | `evidence_54` line 14 `+212 6 48 27 15 93` |
+| full name | the PDFs and PNGs, e.g. `evidence_58` "Priya Raman" |
+| a `subject_reference` that holds an **email instead of a user_id** | `evidence_29` line 29: `backup_4935 … "subject_reference":"j.castillo4893@gmail.com"` |
+| `lookup_key`, `match_key` or `subject_key` on a log *started* line, joined to the *completed* line by `trace_id` | `evidence_94` lines 2–3: `trace_id=rb-074950-001 … lookup_key=charlotte.wright@outlook.com` then `… resource_id=account_2064 rows=0 http_status=404` |
+
+**Some records carry no identifier at all.** Anonymized analytics rows and 404 account lookups name only the `resource_id`. Examples:
+
+- `evidence_92` analytics_1895: every PII field is null.
+- `evidence_92` account_3136: `status_code 404, profile null`.
+
+Yet sample case_25 cites exactly these to verify ANONYMIZED and ABSENT. So **the resource → user link must come from elsewhere**: earlier evidence, `system_activity` rows for that resource_id, or `LINK_RESOURCE_IDENTITY`. Pass 4 will establish how.
+
+### 3.2 Per shape
+
+#### SQL (`databases/`, 24 files): SQLite-compatible, loadable with `sqlite3`
+
+There are three layouts:
+
+1. **Typed tables per system**, as in `customer_data_inventory_*` (e.g. `evidence_93`).
+   - Tables: `customer_profiles`, `customer_search_documents`, `customer_analytics_profiles`, `support_records`, `customer_exports`, `connector_subscriptions`, `backup_restore_entries`, `security_audit_records`, plus `snapshot_scope(origin_system, captured_at)`.
+   - The `snapshot_scope` table **declares which systems the snapshot covers**. That supports a closed-world absence claim, but only for the systems listed.
+   - State columns:
+     - `account_status`, e.g. `'DELETION_PENDING'` at line 20;
+     - `enabled` 0/1 (line 26 `data_flow_2406 … '1'`);
+     - `restore_allowed` 0/1 (line 24 `backup_4978 … '1'`, which is the case_09 restore risk);
+     - `retention_until` on audit records.
+   - A null PII column means the field has been removed.
+2. **Primary vs replica tables**, as in `customer_accounts_failover_replica_*` (`evidence_54`), `*_read_replica_*`, `*_regional_replicas_*` and `*_reporting_replica_*`.
+   - The same schema is repeated per topology: `customer_profiles_primary` vs `customer_profiles_failover_replica`.
+   - In some files it is a generic `customer_data_primary(resource_id, system, collection, <json blob>, ts)`, with `customer_data_replica_ap_south`, `customer_data_replica_eu_west` or `customer_data_read_replica` alongside.
+   - **Replication drift is the signal.** In `evidence_54`, `account_005` / `user_05` "Leila Haddad" appears **only** in `customer_profiles_failover_replica` (line 14) and not in `_primary` (lines 20–22). That makes it the case_05 REMAINING finding, because the replica still holds the deleted account.
+3. **Single-system primary**, e.g. `customer_search_primary_20260910` (`evidence_57`): `search_documents_primary(resource_id, display_name, email, source_resource_id, indexed_at …)`.
+
+There is also a header comment, `-- Captured at: …` / `-- Database topology: …` (`evidence_54` lines 3–4), or a trailing `-- snapshot_completed_at=…` (`evidence_93` line 43).
+
+#### JSON (27 files in `records/`): several schemas
+
+- **`service_resource_export_*`** (12 files, e.g. `evidence_92`).
+  - Layout: `service_exports.<system>.<collection>[]`, one entry per probed resource, each with `observed_at`.
+  - Collections and their state fields:
+
+    | Collection | State fields |
+    | --- | --- |
+    | account `profile_lookups` | `status_code` 404/200 and `profile` |
+    | analytics `profiles` | PII fields nullable |
+    | backup `restore_entries` | `restore_allowed` bool |
+    | export `exports` | — |
+    | integration `connectors` | `enabled` bool, `last_delivery_status` |
+    | search `index_queries` | `query` plus `hits.documents[]`, `hits.total` |
+    | security `audit_records` | `retention_until` |
+    | support `tickets` | requester_* fields, `message_excerpt` |
+
+- **`customer_data_snapshot_bundle_*`** (12 files, e.g. `evidence_51`).
+  - Layout: `snapshots[] {captured_at, data_store, collection, records[]}`.
+  - An **empty `records` list** is evidence of absence for that collection. For example, `evidence_51` account_service `customer_profiles` has `records: []`.
+  - Tombstones live in `identity_service.deleted_customer_references`, with `subject_reference`, PII fields and `account_status: DELETED`. Examples: `tombstone_440` is all-null, so it is REDACTED; `tombstone_9178` still has name, email, phone and hash, so its PII is EXPOSED (case_32).
+  - The per-snapshot `captured_at` can be **earlier** than `exported_at`. In `evidence_12` they range 2026-08-11 to 2026-08-19, so the observation time for a record is the snapshot's time, not the file's.
+- **Flat result registers** (`connector_configurations_*` `evidence_13`, `customer_export_manifest_*`, `customer_export_jobs_*` `evidence_59`, `customer_analytics_report_*` `evidence_56`, `security_audit_ledger_*` `evidence_50`).
+  - `records[] {recorded_at, system, resource_id, record_type, result, subject_reference}`.
+  - **`record_type` gives the data category directly** (USER_PROFILE, …), and **`result` gives the state** (NOT_FOUND, …).
+  - Export jobs carry `created_at`, `expires_at` and `download_available` (`evidence_59` lines 10–12).
+
+#### LOG (`logs/`, 26 files): about 7 dialects of the same events
+
+| Dialect | Example |
+| --- | --- |
+| logfmt | `evidence_01`, `evidence_94`, `evidence_93`-style |
+| bracketed `[LEVEL] [service]` | `evidence_16`, `evidence_44` |
+| cloud-runtime with escaped `message="…"` | `evidence_25`, `evidence_53` |
+| pipe-delimited | `evidence_21`, `evidence_48` |
+| timestamp + JSON object | `evidence_06`, `evidence_34` |
+| RFC5424 syslog `<15>1 node-N …` | `evidence_11`, `evidence_39` |
+| key=value record dumps with `record_type` | `notification_delivery` `evidence_41`, `search_index_diagnostic` `evidence_08` |
+
+- **Readback traces** (`resource_lookup_trace_*`, e.g. `evidence_94`):
+  - The `*_started` line carries `lookup_key` (an email or user_N).
+  - The `*_completed` line carries the resource and its state: `rows=0 http_status=404`, `enabled=false`, `restore_allowed=false`, `result=hit total_hits=1`, `requester_email=…`.
+  - The two lines are joined on `trace_id`.
+- **Service-event logs** (`evidence_01`) mix relevant traces with noise (`dns_cache`, `secret_agent`, `webhook_delivery`).
+  - The identifier appears as `match_key="…"` or `subject_key="…"` on the started line. The `resource_id` only appears on the completed line of the **same `trace_id`**. Example: `evidence_01` lines 2 and 6, `tr-5887496` `g.silva76.jr@gmail.com` → `search_1874 result=hit`.
+  - The intervening `dependency_retry` and `dependency_recovered route=primary` lines are noise. They may also signal *which store* answered (`pool=search_service_replica`).
+  - Note the look-alike `g.silva76.jr@gmail.com` vs `g.silva76@gmail.com`, which is the identity `activity_4001` links to user_13.
+
+#### TXT (1 file): `customer_account_handover_20261001.txt` (`evidence_03`)
+
+- Pipe-delimited shift handover rows: `time | system | resource_id | CATEGORY | STATE | identifier`.
+- **The category is explicit**, which settles A9 where it is present:
+  - line 43: `support_4218 | SUPPORT_ATTACHMENT | FOUND | noor-khalil@proton.me` → DELETE (sample case_13);
+  - line 46: `support_864 | SUPPORT_MESSAGE | IDENTIFIABLE | novak.tomasz@icloud.com` → REDACT (sample case_11).
+- State vocabulary: NOT_FOUND, FOUND, IDENTIFIABLE, ANONYMIZED, REDACTED, ACTIVE, DISABLED, BLOCKED.
+- **Some rows carry no identifier**, e.g. line 17 `analytics_6830 | ANONYMIZED | no direct identifier`.
+- Identifiers mix lowercase, UPPERCASE and user_N.
+
+#### PDF (4 files in `documents/`): business documents with no verdict
+
+- `delivery_correction_attachment.pdf` (`evidence_58`) is a support attachment `support_001` / CS-4827 for "Priya Raman, priya.raman@gmail.com, +91 98765 73142", uploaded 18 Jun 2026. It is the case_07 REMAINING finding, as a SUPPORT_ATTACHMENT.
+  - **Look-alike:** `evidence_54` line 17 has "Priya Ramanathan, p.ramanathan@gmail.com", a different user.
+- `account_history_report_20260718.pdf` (`evidence_18`) is a customer statement naming "Ingrid Dahl, user_18, ingrid.dahl@outlook.com", order ORD-20261260. That is the repeated subject from eval case_33 and case_52. It has **no `resource_id`**, so it is unclear which system or resource it evidences.
+- `legal_retention_register_20260529.pdf` (`evidence_27`) is a disputed-order register: `ORD-… | user_08 | Card dispute | … | Retain until 04 May 2033`. It is the supplied "legal hold" for rule_13. There is no `legal_hold_N` resource_id in the text, so the mapping to resources is open.
+- `security_retention_extract.pdf` (`evidence_55`): `audit_record_003`, subject user_03, retain until 25 Aug 2027. This is the "supplied retention period" for rule_12.
+- Dates inside PDFs are human-format ("18 Jun 2026", "05 Sep 2026 06 30 UTC") and need custom parsing.
+
+#### PNG (11 files in `images/`): admin-console screenshots
+
+- `backup_restore_console_20260429.png` (`evidence_32`) is a Vault Recovery Manager table of archives (backup_9286, 9287, 9288, 9291) with Account emails. The detail pane shows `backup_9287 · areed1433@gmail.com`, Created 26 Apr 2026, Retention end 26 Jul 2026.
+  - There is **no explicit restore_allowed field**; the activity pane shows "backup_9286 restored · Completed".
+  - It ties to `activity_4006` (backup_9287 → user_16) and `activity_3387` (RESTORE_BACKUP backup_9287 repopulated search_4882).
+  - It also contains decoy rows (`miller.logistics@company.com`, etc.).
+- `support_ticket_console_20260524.png` (`evidence_28`) is the Helpline Console for ticket CS-5034, `support_1034`, "Kofi Agyeman, kagyeman8947@fastmail.com".
+  - The conversation includes agent **Maya Chen** and an order, which is the *shared agent/order context* in rule_05. So this is a SUPPORT_MESSAGE → REDACT, not DELETE.
+  - It ties to `activity_4005`, which links support_1034 → user_22.
+- Times in screenshots are partial ("26 Apr 02:00", "09:12") or human dates. **The year is often implied.**
+- Other screens (from file names; full transcription comes in pass 4 where cited): account admin console, search index inspector, connector management, analytics profile view, customer export console, security audit explorer, deleted-account reference (tombstone), object storage browser, marketing profile console.
+
+### 3.3 Timestamps inside files vs manifest `captured_at`
+
+From `scratch/pass3_ts.py`:
+
+- **In-file event times usually run *up to* `captured_at`.** For example, `evidence_06` spans 2026-09-10 to 2026-09-18 with capture 09-18T11:55:24Z, and `evidence_94` starts 07:49:50, about 3 hours before its 10:38:56 capture.
+  - So a single file can hold several observations of the same resource at different times, and **the latest one at or before `audit_at` wins**.
+  - For a file captured before `audit_at` this is moot, but the order inside the file still matters.
+- **Stamps after `captured_at` are all legitimate future-dated fields, not later observations.**
+  - `retention_until` / "Retain until": 2031–2034, e.g. `evidence_93` line 31.
+  - Export `expires_at`: `evidence_59` line 11 `2026-10-04T16:11:00Z`.
+  - `evidence_29` line 31: `export_9860 … "expires_at":"2026-06-18T06:00:00Z"`.
+  - No file contains an *observation* timestamp later than its manifest `captured_at`, so the manifest time is a safe upper bound for "when this was known".
+- **Possible trap:** an export with `expires_at` before `audit_at` but `download_available: true`. It is unclear whether the expiry means it is gone (absent) or still a remaining record. Pass 5 will look at this.
+- `snapshot_bundle` internal `captured_at` values can be **days earlier** than the file's `exported_at` / manifest time (`evidence_12`: 08-11 and 08-17 vs 08-19). When judging "state at `audit_at`", use the per-snapshot time.
+
+### 3.4 Implications for the parser
+
+- Per-shape adapters are needed:
+  - 3 SQL layouts (load each with `sqlite3`);
+  - about 5 JSON schemas;
+  - about 7 log dialects, normalised to `(ts, service, trace_id, event, k=v…)` and then joined by `trace_id`;
+  - the txt handover;
+  - `pdftotext` for PDFs;
+  - vision or manual transcription for the 11 PNGs.
+- Normalise every observation to the shape `(file_id, observed_at, system_id, resource_id, category?, state, identifiers{user_id, emails, hashes, phones, names})`.
+- The category comes from explicit `record_type` / CATEGORY fields where present, otherwise from the system and collection: support_platform splits into message vs attachment, analytics, and so on.

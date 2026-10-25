@@ -208,3 +208,25 @@ repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
 
+## [2026-10-25T00:14:18Z] /loop data discovery: pass 3 (evidence formats)
+
+User Prompt (verbatim, secrets redacted):
+/loop (scheduled iteration; same prompt as the pass-1 entry above — one discovery pass per iteration, passes 1-5, append to docs/02_DATA_NOTES.md)
+
+Agent Response Summary:
+Ran pass 3 on evidence formats. Read representative SQL (evidence_54, evidence_93), JSON (evidence_92, evidence_51, evidence_13), logs (evidence_94, evidence_01), TXT (evidence_03), all 4 PDFs via pdftotext, and 2 PNGs by viewing them; tesseract is not installed. Owners appear as user_N, current/historical/UPPERCASE email, sha256 hash, phone or name, and log lines need a trace_id join. Anonymized and 404 records have no identifier, so the resource-to-user link must come from elsewhere (pass 4). The txt and register formats carry explicit categories (SUPPORT_MESSAGE vs SUPPORT_ATTACHMENT). Every in-file timestamp after captured_at is a retention or expiry field, never an observation.
+
+Actions:
+* Read evidence_54/93/92/51/13/94/01/03 and all PDFs (pdftotext); viewed evidence_32 and evidence_28 PNGs
+* Wrote and ran scratch/pass3_ts.py
+* Appended a Pass 3 section to docs/02_DATA_NOTES.md
+* Committed and pushed; scheduled the next iteration
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+
