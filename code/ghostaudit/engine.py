@@ -63,6 +63,73 @@ def load_activity(path):
         ]
 
 
+def _incomplete_plan(violations, planned):
+    """Findings (cited) and remediation for each violation, then a future, uncited check for
+    every planned resource, unproven ones included (ADR 0006 §1)."""
+    steps = []
+    for r in violations:
+        steps.append(contract.step(r.treatment.finding, r.system_id, r.resource_id, r.evidence))
+        steps.append(contract.step(r.treatment.remediation, r.system_id, r.resource_id))
+    for r in planned:
+        steps.append(contract.step(r.treatment.verification, r.system_id, r.resource_id))
+    return contract.ordered(steps)
+
+
+def _complete_plan(a, planned):
+    """Cited verifications only. An unproven resource cannot be cited, so it is omitted and
+    logged (ADR 0006 edge case)."""
+    steps = []
+    for r in planned:
+        if r.treatment.kind == "unproven":
+            a.log.append(f"UNPROVEN({r.system_id}/{r.resource_id})")
+            continue
+        steps.append(
+            contract.step(r.treatment.verification, r.system_id, r.resource_id, r.evidence)
+        )
+    return contract.ordered(steps) if steps else []
+
+
+def _drop_stale_links(a, request, found):
+    """ADR 0016: a resource whose every link predates requested_at and shows it absent belongs to
+    an earlier lifecycle of the id, not to this request."""
+    for key, (links, _) in sorted(found.items()):
+        if links and all(
+            o.observed_at < request["requested_at"] and o.state == "ABSENT" for o in links
+        ):
+            last = links[-1]
+            del found[key]
+            a.log.append(
+                f"STALE_LINK({key[0]}/{key[1]}: every link predates requested_at and shows it "
+                f"absent; latest {last.file_id} {last.locator} at {last.observed_at}; ADR 0016)"
+            )
+
+
+def _add_source_refs(a, found):
+    """A record naming its source (source_resource_id) brings that source into scope."""
+    for (_system_id, resource_id), (links, _) in sorted(found.items()):
+        for o in links:
+            src = dict(o.attrs).get("source_resource_id")
+            if src and system_of(src) and (system_of(src), src) not in found:
+                found[(system_of(src), src)] = ([], "SOURCE_REF")
+                a.log.append(f"SOURCE_REF({src} from {resource_id} {o.file_id} {o.locator})")
+
+
+def _apply_catalog_link(a, c, found):
+    """A confirmed catalog claim links the resource; a contradicted one removes it (ADR 0005); an
+    unconfirmed one is only logged."""
+    key = (c.system_id, c.resource_id)
+    if c.status == "CONFIRMED":
+        found.setdefault(key, ([], "CATALOG"))
+    elif c.status == "CONTRADICTED":
+        found.pop(key, None)
+        a.log.append(f"REJECTED_LINK({c.activity_id} {c.resource_id}: {c.reason}; ADR 0005)")
+    else:
+        a.log.append(
+            f"UNRESOLVED_LINK({c.activity_id} {c.resource_id}: catalog claim not confirmed, "
+            f"{c.reason})"
+        )
+
+
 class Engine:
     def __init__(self, store, resolver, rules, notes=(), linker=None):
         self.store, self.resolver, self.rules, self.linker = store, resolver, rules, linker
@@ -139,66 +206,23 @@ class Engine:
         every step."""
         planned = [r for r in a.resources if r.treatment.kind != "none"]
         violations = [r for r in planned if r.treatment.kind == "violation"]
-        steps = []
         if violations:
-            for r in violations:
-                steps.append(
-                    contract.step(r.treatment.finding, r.system_id, r.resource_id, r.evidence)
-                )
-                steps.append(contract.step(r.treatment.remediation, r.system_id, r.resource_id))
-            for r in planned:  # future checks, uncited; unproven ones included (ADR 0006 §1)
-                steps.append(contract.step(r.treatment.verification, r.system_id, r.resource_id))
-            return "INCOMPLETE", contract.ordered(steps)
-        for r in planned:
-            if r.treatment.kind == "unproven":  # cannot be cited, so omitted (ADR 0006 edge case)
-                a.log.append(f"UNPROVEN({r.system_id}/{r.resource_id})")
-                continue
-            steps.append(
-                contract.step(r.treatment.verification, r.system_id, r.resource_id, r.evidence)
-            )
+            return "INCOMPLETE", _incomplete_plan(violations, planned)
+        steps = _complete_plan(a, planned)
         if not steps:
             a.log.append("NO_GROUNDED_STEP")
             return "INCOMPLETE", []
-        return "COMPLETE", contract.ordered(steps)
+        return "COMPLETE", steps
 
     def _link(self, a, view, subject, request, found):
         """Stage 4 (T10): stale links out, source references, catalog claims checked against
         artifacts, the activity account."""
-        for key, (links, _) in sorted(found.items()):
-            if links and all(
-                o.observed_at < request["requested_at"] and o.state == "ABSENT" for o in links
-            ):
-                last = links[
-                    -1
-                ]  # ADR 0016: an earlier lifecycle of the id, not this request's data
-                del found[key]
-                a.log.append(
-                    f"STALE_LINK({key[0]}/{key[1]}: every link predates requested_at and shows it "
-                    f"absent; "
-                    f"latest {last.file_id} {last.locator} at {last.observed_at}; ADR 0016)"
-                )
-        for (_system_id, resource_id), (links, _) in sorted(found.items()):
-            for o in links:
-                src = dict(o.attrs).get("source_resource_id")
-                if src and system_of(src) and (system_of(src), src) not in found:
-                    found[(system_of(src), src)] = ([], "SOURCE_REF")
-                    a.log.append(f"SOURCE_REF({src} from {resource_id} {o.file_id} {o.locator})")
+        _drop_stale_links(a, request, found)
+        _add_source_refs(a, found)
         if self.linker is None:
             return
         for c in self.linker.catalog(view, subject):
-            key = (c.system_id, c.resource_id)
-            if c.status == "CONFIRMED":
-                found.setdefault(key, ([], "CATALOG"))
-            elif c.status == "CONTRADICTED":
-                found.pop(key, None)
-                a.log.append(
-                    f"REJECTED_LINK({c.activity_id} {c.resource_id}: {c.reason}; ADR 0005)"
-                )
-            else:
-                a.log.append(
-                    f"UNRESOLVED_LINK({c.activity_id} {c.resource_id}: catalog claim not "
-                    f"confirmed, {c.reason})"
-                )
+            _apply_catalog_link(a, c, found)
         acc = self.linker.account(request["case_id"])
         if acc.status == "LINKED":
             found.setdefault(("account_service", acc.resource_id), ([], "ACTIVITY_ACCOUNT"))
