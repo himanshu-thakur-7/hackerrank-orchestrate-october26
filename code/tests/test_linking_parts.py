@@ -1,4 +1,4 @@
-"""Account-link pieces in isolation: one-to-one elimination and the final status (ADR 0003, 0004)."""
+"""Account-link pieces in isolation: one-to-one elimination and final status (ADR 0003, 0004)."""
 
 import unittest
 

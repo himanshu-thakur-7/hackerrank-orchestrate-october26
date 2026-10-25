@@ -1,4 +1,4 @@
-"""Policy tables: each action's judge and the action chosen per category (values from deletion_rules)."""
+"""Policy tables: each action's judge and the action chosen per category (deletion_rules)."""
 
 import unittest
 

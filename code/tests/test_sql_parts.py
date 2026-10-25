@@ -35,7 +35,11 @@ class Rows(unittest.TestCase):
         )
 
     def test_insert_lines_map_each_resource_to_its_first_insert(self):
-        text = "CREATE TABLE t (x);\nINSERT INTO t VALUES ('account_1', 1);\nINSERT INTO t VALUES ('account_1', 2);"
+        text = (
+            "CREATE TABLE t (x);\n"
+            "INSERT INTO t VALUES ('account_1', 1);\n"
+            "INSERT INTO t VALUES ('account_1', 2);"
+        )
         self.assertEqual(sql._insert_lines(text), {("t", "account_1"): 2})
 
 
