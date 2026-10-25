@@ -10,6 +10,8 @@
   python3 code/evaluation/main.py invariants [--file output.csv]
   python3 code/evaluation/main.py lossledger                 # writes docs/LOSS_LEDGER.md
   python3 code/evaluation/main.py intent                     # rules vs model on every unique request text
+  python3 code/evaluation/main.py custom                     # hand-written custom cases over a dataset overlay
+  python3 code/evaluation/main.py report                     # regenerates code/evaluation/evaluation_report.md
   python3 code/evaluation/main.py metamorphic [--only M1,M7]
   python3 code/evaluation/main.py audit
   python3 code/evaluation/main.py selftest
@@ -183,6 +185,16 @@ def cmd_intent(_):
     return intent_review.run(ROOT)
 
 
+def cmd_custom(_):
+    from evaluation import custom
+    return custom.run()
+
+
+def cmd_report(_):
+    from evaluation import report
+    return report.run()
+
+
 def cmd_audit(_):
     hits = audit.scan(ROOT / "code")
     print(f"LITERAL AUDIT: {len(hits)} hit(s)")
@@ -271,13 +283,15 @@ def main(argv=None):
     iv = sub.add_parser("invariants"); iv.add_argument("--file", default=str(ROOT / "output.csv"))
     sub.add_parser("lossledger")
     sub.add_parser("intent")
+    sub.add_parser("custom")
+    sub.add_parser("report")
     mm = sub.add_parser("metamorphic"); mm.add_argument("--only", default="", help="e.g. M1,M7")
     sub.add_parser("audit")
     sub.add_parser("selftest")
     a = p.parse_args(argv)
     os.chdir(ROOT)
     return {"contract": cmd_contract, "score": cmd_score, "determinism": cmd_determinism,
-            "audit": cmd_audit, "selftest": cmd_selftest, "loaders": cmd_loaders, "states": cmd_states, "linking": cmd_linking, "metamorphic": cmd_metamorphic, "invariants": cmd_invariants, "lossledger": cmd_lossledger, "intent": cmd_intent}[a.command](a)
+            "audit": cmd_audit, "selftest": cmd_selftest, "loaders": cmd_loaders, "states": cmd_states, "linking": cmd_linking, "metamorphic": cmd_metamorphic, "invariants": cmd_invariants, "lossledger": cmd_lossledger, "intent": cmd_intent, "custom": cmd_custom, "report": cmd_report}[a.command](a)
 
 
 if __name__ == "__main__":

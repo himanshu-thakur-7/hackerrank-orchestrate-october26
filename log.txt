@@ -946,3 +946,23 @@ branch=claude/stoic-bell-1t82oq
 repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
+
+## [2026-10-25T02:37:09Z] T13 done: 12 custom cases over an overlay; evaluation_report.md generator
+
+User Prompt (verbatim, secrets redacted):
+(relayed by peer session "Prompt playbook website publishing" for the user) T13: >=8 custom fixtures via the overlay with hand-written expected output (replica-only, DELETION_PENDING, contradicted link, legal hold, uppercase historical email, post-cutoff resurrection, redacted vs exposed tombstone, marketing-only trap, tied candidates, attempted-but-unproven delete) and an evaluation_report.md generator built from real runs with the listed sections. Then T17 Jev spike behind a gate (prototype skill, scratch only; check network reach first; pinned jev-1.14.0; AUROC >= 0.90 and repeat diff <= 0.05). Commit and push after each; stop.
+
+Agent Response Summary:
+T13 with tests: custom-case tests (requirements coverage, every row vs its hand-written expectation, real rows untouched, a wrong expectation is reported), report render tests, and an audit test exempting generated reports by name. 11 fixtures give 12 rows; all pass on the first run, and the 518 real rows are unchanged. The report generator runs every check live (scores, history, metamorphic, invariants, ledger, custom, intent, linking) and writes code/evaluation/evaluation_report.md. lossledger.ceiling() is factored out. All gates are green.
+
+Actions:
+* Wrote code/evaluation/fixtures/custom_cases.py, custom.py, report.py, tests/test_custom.py, tests/test_report.py; edited audit.py (+test), lossledger.py, evaluation/main.py (custom, report); generated evaluation_report.md; 1 cache entry added
+* Ran custom, report, all tests (130 + 67), audit, selftest, contract, determinism, invariants; updated docs/BOARD.md
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none

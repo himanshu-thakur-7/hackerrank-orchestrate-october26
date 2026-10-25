@@ -50,6 +50,14 @@ def reasons(a, linker_status):
     return sorted(set(out))
 
 
+def ceiling(counts, n_cases, emitted):
+    """Step-recall ceiling estimate from ledger counts (rates measured on the samples, see module constants)."""
+    deletion = n_cases - counts.get("resolved:non-deletion", 0)
+    unres = counts.get("unresolved:tied", 0) + counts.get("unresolved:window", 0)
+    missing = unres * STEPS_PER_UNRESOLVED_ACCOUNT + counts.get("unresolved:catalog", 0) + 0.22 * deletion + 0.09 * deletion
+    return {"emitted": emitted, "missing": missing, "recall": emitted / (emitted + missing) if emitted + missing else 1.0}
+
+
 def run(root=ROOT, write=None):
     sys.path.insert(0, str(root / "code"))
     from ghostaudit import data, intent
