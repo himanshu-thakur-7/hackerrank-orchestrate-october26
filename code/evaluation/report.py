@@ -49,25 +49,18 @@ def _quiet(fn, *a, **k):
         return fn(*a, **k)
 
 
-def collect():
-    sys.path.insert(0, str(ROOT / "code"))
-    from ghostaudit import data as gdata
-    from ghostaudit import llm_intent
-    from ghostaudit.intent import classify_rules
+def _commit():
+    out = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, cwd=ROOT
+    ).stdout.strip()
+    return out or "unknown"
 
-    from evaluation import custom, invariants, lossledger, metamorphic, scorer, split
-    from evaluation.fixtures.custom_cases import CASES
+
+def _collect_samples(d, tmp):
+    """Scores on the labeled samples (dev, holdout aggregate, all) and the dev differences."""
+    from evaluation import scorer, split
     from evaluation.overlay import run_pipeline
 
-    d = {"generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")}
-    d["commit"] = (
-        subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, cwd=ROOT
-        ).stdout.strip()
-        or "unknown"
-    )
-    tmp = Path(tempfile.mkdtemp(prefix="ghostaudit_report_"))
-    # labeled samples
     run_pipeline(DATA, tmp / "sample_pred.csv", DATA / "sample_deletion_requests.csv")
     gold, pred = scorer.load(DATA / "sample_output.csv"), scorer.load(tmp / "sample_pred.csv")
     dev, hold, _ = split.load_frozen()
@@ -77,13 +70,17 @@ def collect():
         "all": scorer.score(pred, gold, dev + hold),
     }
     d["dev_failures"] = [entry for c in dev for entry in scorer.case_diff(pred, gold, c)]
-    # run history (runs/ is git-ignored: present only in the checkout that produced it)
-    d["history"] = []
+    return gold
+
+
+def _collect_history():
+    """Recorded score runs (runs/ is git-ignored: present only in the checkout that produced it)."""
+    history = []
     rdir = ROOT / "runs" / "score"
     if rdir.exists():
         for p in sorted(x for x in rdir.iterdir() if (x / "metrics.json").exists()):
             m = json.loads((p / "metrics.json").read_text())
-            d["history"].append(
+            history.append(
                 {
                     "run": p.name[:15] + "Z",
                     "commit": (p / "commit").read_text().strip(),
@@ -91,7 +88,14 @@ def collect():
                     "holdout_proxy": m["holdout"]["proxy"],
                 }
             )
-    # full evaluation output
+    return history
+
+
+def _collect_full_run(d, tmp):
+    """The full evaluation output: status counts, invariants, loss ledger and ceiling."""
+    from evaluation import invariants, lossledger
+    from evaluation.overlay import run_pipeline
+
     run_pipeline(DATA, tmp / "output.csv")
     rows = read_csv(tmp / "output.csv")
     d["rows"] = len(rows)
@@ -102,18 +106,29 @@ def collect():
     d["invariants"] = [
         {"id": k, "desc": invariants.NAMES[k], "violations": len(v)} for k, v in inv.items()
     ]
-    code, ledger = _quiet(lossledger.run)
+    _code, ledger = _quiet(lossledger.run)
     counts = Counter(x for rs in ledger.values() for x in rs)
     d["ledger"] = dict(counts)
     d["ledger"]["unknown"] = counts.get("unknown", 0)
     d["ceiling"] = lossledger.ceiling(counts, len(ledger), emitted)
-    d["metamorphic"] = []
+    return rows
+
+
+def _collect_metamorphic():
+    from evaluation import metamorphic
+
     ctx = _quiet(metamorphic.Context)
+    out = []
     for rel in metamorphic.RELATIONS:
         r = _quiet(rel, ctx)
-        d["metamorphic"].append(
-            {"rid": r.rid, "name": r.name, "expect": r.expect, "holds": r.holds}
-        )
+        out.append({"rid": r.rid, "name": r.name, "expect": r.expect, "holds": r.holds})
+    return out
+
+
+def _collect_custom(d):
+    from evaluation import custom
+    from evaluation.fixtures.custom_cases import CASES
+
     rep = _quiet(custom.run_cases, CASES)
     why = {cid: c["why"] for c in CASES for cid in c["expect"]}
     d["custom"] = [
@@ -121,7 +136,14 @@ def collect():
         for r in rep.results
     ]
     d["custom_real_rows_changed"] = rep.real_rows_changed
-    # intent: rules vs cached model verdicts (no live call needed once the cache is committed)
+
+
+def _collect_intent(d):
+    """Rules vs cached model verdicts (no live call needed once the cache is committed)."""
+    from ghostaudit import data as gdata
+    from ghostaudit import llm_intent
+    from ghostaudit.intent import classify_rules
+
     reqs = [
         q
         for f in ("sample_deletion_requests.csv", "deletion_requests.csv")
@@ -133,39 +155,53 @@ def collect():
     for t in texts:
         v = clf.cache.get(llm_intent.cache_key(t, clf.prompt))
         conf[f"{classify_rules(t).label}/{v['label'] if v else 'NO_VERDICT'}"] += 1
+    disagreements = sum(
+        v for k, v in conf.items() if k.split("/")[0] != k.split("/")[1] and "NO_VERDICT" not in k
+    )
     d["intent"] = {
         "texts": len(texts),
         "requests": len(reqs),
         "confusion": dict(conf),
-        "disagreements": sum(
-            v
-            for k, v in conf.items()
-            if k.split("/")[0] != k.split("/")[1] and "NO_VERDICT" not in k
-        ),
+        "disagreements": disagreements,
         "not_deletion_cases": d["status_counts"].get("NOT_APPLICABLE", 0),
     }
-    # linking
+
+
+def _collect_linking(gold, rows):
+    from ghostaudit import data as gdata
     from ghostaudit.engine import Engine
 
-    eng = Engine.from_dataset(DATA)
-    lk = eng.linker
+    lk = Engine.from_dataset(DATA).linker
     exact = wrong = 0
     for q in gdata.load_requests(DATA / "sample_deletion_requests.csv"):
-        g = sorted(
-            {s["resource_id"] for s in gold[q["case_id"]][1] if s["system_id"] == "account_service"}
-        )
+        steps = gold[q["case_id"]][1]
+        g = sorted({s["resource_id"] for s in steps if s["system_id"] == "account_service"})
         acct = lk.account(q["case_id"])
         if acct.status == "LINKED":
             exact += [acct.resource_id] == g
             wrong += acct.resource_id not in g
     st = Counter(lk.account(r["case_id"]).status for r in rows)
-    d["linking"] = {
+    return {
         "samples_exact": exact,
         "samples_wrong": wrong,
         "eval_linked": st["LINKED"],
         "eval_tied": st["TIED"],
         "eval_none": st["NO_CANDIDATE"],
     }
+
+
+def collect():
+    """Every number the report shows, recomputed from the code and the dataset."""
+    sys.path.insert(0, str(ROOT / "code"))
+    d = {"generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), "commit": _commit()}
+    tmp = Path(tempfile.mkdtemp(prefix="ghostaudit_report_"))
+    gold = _collect_samples(d, tmp)
+    d["history"] = _collect_history()
+    rows = _collect_full_run(d, tmp)
+    d["metamorphic"] = _collect_metamorphic()
+    _collect_custom(d)
+    _collect_intent(d)
+    d["linking"] = _collect_linking(gold, rows)
     return d
 
 
@@ -173,21 +209,8 @@ def _f(x):
     return f"{x:.3f}"
 
 
-def render(d):
-    s = d["scores"]
-    L = [
-        "# Evaluation report: Ghost Data Still Exists",
-        "",
-        f"Generated by `python3 code/evaluation/main.py report` at {d['generated_at']} from commit "
-        f"`{d['commit']}`. "
-        "Every number below is recomputed from the code and the dataset at generation time.",
-        "",
-        "> **Scores on the 32 labeled samples do not predict the hidden score.** 22 dev + 10 "
-        "holdout cases are too few, and the "
-        f"samples over-represent hand-written situations. The best gold-free estimate is the "
-        f"step-recall ceiling in §7 (~{d['ceiling']['recall']:.2f}).",
-        "",
-    ]
+def _section_approach(d, s):
+    L = []
     L += [
         "## 1. Approach",
         "",
@@ -214,6 +237,11 @@ def render(d):
         "model the rest (ADR 0008).",
         "",
     ]
+    return L
+
+
+def _section_pipeline(d, s):
+    L = []
     L += [
         "## 2. Evaluation pipeline and what each layer protects against",
         "",
@@ -240,6 +268,11 @@ def render(d):
         "from raw evidence |",
         "",
     ]
+    return L
+
+
+def _section_sample_results(d, s):
+    L = []
     L += [
         "## 3. Results on the labeled samples",
         "",
@@ -285,6 +318,11 @@ def render(d):
         f"{d['intent']['not_deletion_cases']} eval rows NOT_APPLICABLE.",
         "",
     ]
+    return L
+
+
+def _section_custom_cases(d, s):
+    L = []
     ok = sum(c["ok"] for c in d["custom"])
     L += [
         "## 4. Custom evaluation cases",
@@ -302,6 +340,11 @@ def render(d):
         f"| {c['case_id']} | {c['title']} | {'pass' if c['ok'] else 'FAIL'} | {c['why']} |"
         for c in d["custom"]
     ]
+    return L
+
+
+def _section_metamorphic(d, s):
+    L = []
     held = sum(m["holds"] for m in d["metamorphic"])
     L += [
         "",
@@ -316,6 +359,11 @@ def render(d):
         f"| {m['rid']} | {m['name']} | {m['expect']} | {'holds' if m['holds'] else 'FAILS'} |"
         for m in d["metamorphic"]
     ]
+    return L
+
+
+def _section_invariants(d, s):
+    L = []
     L += [
         "",
         "## 6. Invariants",
@@ -326,6 +374,11 @@ def render(d):
         "| --- | --- | --- |",
     ]
     L += [f"| {i['id']} | {i['desc']} | {i['violations']} |" for i in d["invariants"]]
+    return L
+
+
+def _section_loss_ledger(d, s):
+    L = []
     L += [
         "",
         "## 7. Loss ledger",
@@ -346,6 +399,11 @@ def render(d):
         "Per-case lists: `docs/LOSS_LEDGER.md`.",
         "",
     ]
+    return L
+
+
+def _section_silver_audit(d, s):
+    L = []
     L += [
         "## 8. Silver-label audit",
         "",
@@ -361,6 +419,11 @@ def render(d):
         "and the auditors share the engine's model family.",
         "",
     ]
+    return L
+
+
+def _section_unlabeled_rules(d, s):
+    L = []
     L += [
         "## 9. Assumptions decided by unlabeled rules",
         "",
@@ -382,6 +445,11 @@ def render(d):
         ("unlabeled:stale link (ADR 0016)", "0016", "only-absent pre-request link -> dropped"),
     ):
         L.append(f"| {label} | {adr} | {d['ledger'].get(k, 0)} |")
+    return L
+
+
+def _section_failures(d, s):
+    L = []
     L += [
         "",
         "## 10. Failures found and improvements made",
@@ -413,6 +481,11 @@ def render(d):
         "test that compiles code/ on 3.11 (T14).",
         "",
     ]
+    return L
+
+
+def _section_limitations(d, s):
+    L = []
     L += [
         "## 11. Known limitations and their estimated cost",
         "",
@@ -428,6 +501,11 @@ def render(d):
         "- **Unlabeled rules** (§9) may disagree with the hidden labels.",
         "",
     ]
+    return L
+
+
+def _section_reproduce(d, s):
+    L = []
     L += [
         "## 12. Reproduce",
         "",
@@ -445,6 +523,43 @@ def render(d):
         "```",
         "",
     ]
+    return L
+
+
+SECTIONS = (
+    _section_approach,
+    _section_pipeline,
+    _section_sample_results,
+    _section_custom_cases,
+    _section_metamorphic,
+    _section_invariants,
+    _section_loss_ledger,
+    _section_silver_audit,
+    _section_unlabeled_rules,
+    _section_failures,
+    _section_limitations,
+    _section_reproduce,
+)
+
+
+def render(d):
+    """The report as Markdown, section by section, from the data collect() produced."""
+    s = d["scores"]
+    L = [
+        "# Evaluation report: Ghost Data Still Exists",
+        "",
+        f"Generated by `python3 code/evaluation/main.py report` at {d['generated_at']} from commit "
+        f"`{d['commit']}`. "
+        "Every number below is recomputed from the code and the dataset at generation time.",
+        "",
+        "> **Scores on the 32 labeled samples do not predict the hidden score.** 22 dev + 10 "
+        "holdout cases are too few, and the "
+        f"samples over-represent hand-written situations. The best gold-free estimate is the "
+        f"step-recall ceiling in §7 (~{d['ceiling']['recall']:.2f}).",
+        "",
+    ]
+    for section in SECTIONS:
+        L += section(d, s)
     return "\n".join(L)
 
 
