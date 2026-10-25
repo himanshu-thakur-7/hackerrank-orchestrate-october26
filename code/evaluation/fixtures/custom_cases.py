@@ -1,10 +1,12 @@
-"""Custom evaluation cases (T13): synthetic people, evidence and requests, applied to a dataset
+"""Custom evaluation cases: synthetic people, evidence and requests, applied to a dataset
 overlay.
 
 Every person, identifier and text here is invented. All dates are in 2027, after every real
 audit_at, so the cases cannot change the 518 real rows (the runner checks that). Each case has a
 HAND-WRITTEN expected row (status + ordered steps) and, where the point is an omission, the log line
 that must explain it.
+
+Decisions: ADR 0002 (all dates are in 2027, after every real audit_at).
 """
 
 import hashlib
@@ -23,6 +25,7 @@ def L(ts, svc, trace, event, extra):
 
 
 def lookup(ts, email, account, found=False, trace="tr-c"):
+    """Observability lines of one account lookup: the started line, then found or not found."""
     return [
         L(
             ts,
@@ -44,6 +47,7 @@ def lookup(ts, email, account, found=False, trace="tr-c"):
 
 
 def search(ts, key, doc, trace="tr-s"):
+    """Observability lines of one search-index query that hits document `doc`."""
     return [
         L(ts, "search_service", trace, "index_query_started", f'match_key="{key}" attempt=1'),
         L(
@@ -57,6 +61,7 @@ def search(ts, key, doc, trace="tr-s"):
 
 
 def person(uid, name, email, phone):
+    """A user_identities.csv row for an invented person (the email hash is computed)."""
     return {
         "user_id": uid,
         "name": name,
@@ -76,6 +81,7 @@ def request(
     audit,
     text="Please delete my account and all personal data you hold about me.",
 ):
+    """A deletion_requests.csv row for a custom case."""
     return {
         "case_id": cid,
         "email": email,
@@ -88,6 +94,7 @@ def request(
 
 
 def delete(aid, at, account, result):
+    """A DELETE_RECORD system_activity.csv row for an account."""
     return {
         "activity_id": aid,
         "event_time": at,
@@ -101,6 +108,7 @@ def delete(aid, at, account, result):
 
 
 def step(phase, op, sys_, res, state, ev=""):
+    """One expected step, written by hand (step_no is set by the runner)."""
     return {
         "phase": phase,
         "system_id": sys_,
@@ -119,6 +127,7 @@ SQL_COLS = (
 
 
 def sql(captured, primary=(), replica=()):
+    """A SQLite snapshot with a primary and a replica customer_profiles table."""
     out = [
         "-- Ghost Data Still Exists: point-in-time database snapshot",
         "-- Dialect: SQLite-compatible SQL",
@@ -137,6 +146,7 @@ def sql(captured, primary=(), replica=()):
 
 
 def bundle(captured, tombstones):
+    """A JSON snapshot bundle holding one deleted_customer_references collection."""
     import json
 
     return (
@@ -166,6 +176,7 @@ def bundle(captured, tombstones):
 
 
 def tomb(rid, uid, name=None, email=None, phone=None):
+    """One account tombstone record, with the direct identifiers that are still set."""
     return {
         "resource_id": rid,
         "subject_reference": uid,

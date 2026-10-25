@@ -8,6 +8,8 @@ Strata: (gold status, evidence format), where the format is the sorted set of fi
 extensions the gold row cites. The holdout count per status is proportional and rounded
 (INCOMPLETE 22 -> 7, COMPLETE 10 -> 3). Within a status, the holdout slots go to formats by
 largest remainder, and cases are drawn with random.Random(seed) after natural-order sorting.
+
+Decisions: ADR: none (evaluation only; gold labels are read here, never by the solver).
 """
 
 import csv
@@ -19,6 +21,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 FROZEN = HERE / "fixtures" / "sample_split.txt"
 HOLDOUT_SIZE = 10
+SEED = 20261025  # the seed the frozen split was made with (recorded in the split file)
 
 
 def _natural(c):
@@ -27,6 +30,7 @@ def _natural(c):
 
 
 def formats(gold, manifest_path):
+    """case_id -> the evidence format of its gold row (sorted cited extensions, or 'none')."""
     with open(manifest_path, newline="", encoding="utf-8") as f:
         ext = {r["file_id"]: Path(r["file_path"]).suffix.lstrip(".") for r in csv.DictReader(f)}
     out = {}
@@ -47,6 +51,8 @@ def _largest_remainder(sizes, total):
 
 
 def make_split(gold, manifest_path, seed):
+    """(dev, holdout) case ids: HOLDOUT_SIZE cases stratified by (gold status, format)
+    with largest-remainder allocation, drawn with random.Random(seed)."""
     rng = random.Random(seed)
     fmt = formats(gold, manifest_path)
     by_status = defaultdict(list)
@@ -69,6 +75,7 @@ def make_split(gold, manifest_path, seed):
 
 
 def load_frozen(path=FROZEN):
+    """(dev, holdout, seed) from the frozen split file."""
     dev, hold, seed = [], [], None
     for line in Path(path).read_text(encoding="utf-8").splitlines():
         if line.startswith("seed="):
@@ -80,7 +87,8 @@ def load_frozen(path=FROZEN):
     return dev, hold, seed
 
 
-def freeze(seed=20261025):
+def freeze(seed=SEED):
+    """Make and write the split once; refuses to overwrite an existing frozen split."""
     sys.path.insert(0, str(HERE.parent))
     from evaluation import scorer
 

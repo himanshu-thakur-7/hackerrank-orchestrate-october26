@@ -1,6 +1,8 @@
-"""T10 acceptance: primary-account linking vs the labeled samples, eval tie counts, and every
+"""Linking acceptance: primary-account linking vs the labeled samples, eval tie counts, and every
 rejected or unresolved link with its reason. Gold is used here only to EVALUATE; the solver never
-imports this."""
+imports this.
+
+Decisions: ADR 0003-0005 (evaluation only; gold labels are read here, never by the solver)."""
 
 import json
 import sys
@@ -92,6 +94,7 @@ def _link_log(eng, evals, intent):
 
 
 def run(root):
+    """`main.py linking`: account links vs the samples, eval tie counts, every unresolved link."""
     sys.path.insert(0, str(root / "code"))
     from ghostaudit import data, intent
     from ghostaudit.engine import Engine

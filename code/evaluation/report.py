@@ -1,10 +1,12 @@
-"""T13 evaluation report generator: collect() runs the real checks, render(data) writes the
+"""Evaluation report generator: collect() runs the real checks, render(data) writes the
 Markdown.
 
   python3 code/evaluation/main.py report    -> code/evaluation/evaluation_report.md
 
 Every number in the report comes from collect() at generation time, so it cannot drift from the
 code.
+
+Decisions: ADR 0013 (Jev results are reported as advisory only).
 """
 
 import contextlib
@@ -564,6 +566,7 @@ def render(d):
 
 
 def run():
+    """`main.py report`: collect every number, write evaluation_report.md and print a summary."""
     d = collect()
     OUT.write_text(render(d), encoding="utf-8")
     print(

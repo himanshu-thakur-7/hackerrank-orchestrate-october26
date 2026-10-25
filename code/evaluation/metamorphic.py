@@ -1,8 +1,10 @@
-"""T15 metamorphic relations: transformations of dataset/ with a PREDICTED effect on output.csv.
+"""Metamorphic relations: transformations of dataset/ with a PREDICTED effect on output.csv.
 
 Each relation edits an Overlay (a temporary copy; dataset/ is never written), runs the real
 pipeline, and compares with the baseline. Targets are chosen from the baseline at run time, never
 hard-coded. A failing relation is a bug in the pipeline, not in the relation.
+
+Decisions: ADR 0002 (M5, M6, M7), ADR 0004 (M11), ADR 0005 (M12), ADR 0014 (M8).
 """
 
 import random
@@ -24,11 +26,14 @@ INPUT_CSVS = (
     "deletion_rules.csv",
     "evidence_files.csv",
 )
+SEED = 20261025  # M1 row shuffles; fixed so a failing relation can be replayed
 LATE = "2026-12-31T00:00:00Z"  # after every audit_at in the dataset
 
 
 @dataclass
 class Result:
+    """One relation's outcome: id, what was changed, whether the prediction held, and why not."""
+
     rid: str
     name: str
     holds: bool
@@ -67,6 +72,7 @@ class Context:
             self.base_bytes = (ov.root.parent / "out.csv").read_bytes()
 
     def cases(self, status=None):
+        """Evaluation case ids in natural order, optionally only those with `status`."""
         return [
             c
             for c in sorted(self.assess, key=lambda c: (len(c), c))
@@ -86,8 +92,9 @@ def _identical(ctx, out, rid, name, expect, extra=()):
 
 
 def m1_shuffle(ctx):
+    """M1: shuffling the rows of every input CSV leaves output.csv identical."""
     with Overlay(ctx.data) as ov:
-        rng = random.Random(20261025)
+        rng = random.Random(SEED)
         for name in INPUT_CSVS:
             rows = ov.rows(name)
             rng.shuffle(rows)
@@ -103,6 +110,7 @@ def m1_shuffle(ctx):
 
 
 def m2_rename(ctx):
+    """M2: renaming every evidence file leaves output.csv identical, citations included."""
     with Overlay(ctx.data) as ov:
         m = ov.rows("evidence_files.csv")
         for r in m:
@@ -126,6 +134,7 @@ def m2_rename(ctx):
 
 
 def m3_email_case(ctx):
+    """M3: changing the letter case of request emails leaves output.csv identical."""
     with Overlay(ctx.data) as ov:
         for name in ("deletion_requests.csv", "sample_deletion_requests.csv"):
             rows = ov.rows(name)
@@ -152,6 +161,7 @@ def _log(ts, service, trace, event, extra):
 
 
 def m4_decoy(ctx):
+    """M4: a look-alike decoy of a subject gets no step anywhere."""
     c, a = _subject_case(ctx)
     local, dom = sorted(a.subject.emails)[0].split("@")
     decoy = f"{local}.jr@{dom}"
@@ -192,6 +202,7 @@ def m4_decoy(ctx):
 
 
 def m5_post_audit_mention(ctx):
+    """M5: a file captured after every audit_at changes nothing (ADR 0002)."""
     c, a = _subject_case(ctx)
     email = sorted(a.subject.emails)[0]
     raw = _log(
@@ -228,6 +239,7 @@ def _complete_with(ctx, op):
 
 
 def m6_post_audit_contradiction(ctx):
+    """M6: a post-audit file contradicting a cited state changes nothing (ADR 0002)."""
     c, s = _complete_with(ctx, "VERIFY_RECORD_ABSENT")
     email = sorted(ctx.assess[c].subject.emails)[0]
     raw = _log(
@@ -277,6 +289,8 @@ def _cites_nothing_after(steps, target, files, new_audit):
 
 
 def m7_earlier_audit(ctx):
+    """M7: moving a case's audit_at before its latest cited file drops that citation,
+    and every citation stays at or before the new audit_at."""
     files = {f.file_id: f for f in ctx.engine.store.files.values()}
     c, target, new_audit = _m7_target(ctx, files)
     with Overlay(ctx.data) as ov:
@@ -341,6 +355,7 @@ def _replica_snapshot(cap, resource_id, user_id, name, email):
 
 
 def m8_replica_only(ctx):
+    """M8: a replica-only copy of a deleted record makes the case INCOMPLETE, citing it."""
     c, s = _m8_target(ctx)
     q, subj = ctx.req[c], ctx.assess[c].subject
     ident = next(r for r in ctx.engine.resolver._by_user.values() if r.user_id == subj.user_id)
@@ -406,6 +421,7 @@ def dependents(ctx, file_id):
 
 
 def m9_remove_file(ctx):
+    """M9: removing a cited file changes only the cases that read it."""
     cites = {}
     for c, a in ctx.assess.items():
         for s in a.steps:
@@ -433,6 +449,7 @@ def m9_remove_file(ctx):
 
 
 def m10_duplicate_text(ctx):
+    """M10: a request text under a new case id gets the same intent."""
     na = next(c for c in ctx.cases("NOT_APPLICABLE"))
     de = next(c for c in ctx.cases("COMPLETE"))
     n = max(int(c.split("_")[1]) for c in ctx.req) + 1
@@ -487,6 +504,8 @@ def _pick_tie(tied, holders):
 
 
 def m11_break_tie(ctx):
+    """M11: deleting one tied candidate links the survivor when no other request
+    shares it; otherwise the case stays unresolved (ADR 0004)."""
     lk = ctx.engine.linker
     lk.account(ctx.cases()[0])
     tied = {c: acct for c, acct in lk._accounts.items() if acct.status == "TIED" and c in ctx.req}
@@ -552,6 +571,7 @@ def _m12_target(ctx):
 
 
 def m12_catalog_contradiction(ctx):
+    """M12: a catalog claim the screen contradicts is rejected (ADR 0005)."""
     link, victim = _m12_target(ctx)
     subj = ctx.assess[victim].subject
     claim = (
@@ -588,6 +608,7 @@ def m12_catalog_contradiction(ctx):
 
 
 def m13_determinism(ctx):
+    """M13: three more runs with different hash seeds give a byte-identical output.csv."""
     outs = []
     with Overlay(ctx.data) as ov:
         for seed in ("0", "4242", "random"):
@@ -626,6 +647,7 @@ RELATIONS = (
 
 
 def run(only=None):
+    """`main.py metamorphic`: run the relations (an error is a failure); exit 0 when all hold."""
     ctx = Context()
     results = []
     for rel in RELATIONS:

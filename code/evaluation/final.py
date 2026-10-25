@@ -1,4 +1,4 @@
-"""T14 final validation: every gate in one command, then a clean-room run of the packaged code.
+"""Final validation: every gate in one command, then a clean-room run of the packaged code.
 
   python3 code/evaluation/main.py final
 
@@ -8,6 +8,9 @@ scores, the usage report (its measured run must equal output.csv), the package b
 and the clean room: unzip code.zip into an empty temp directory and run it there against dataset/
 with OPENAI_API_KEY and TYPESAFE_API_KEY removed from the environment; output.csv must have the same
 sha256.
+
+Decisions: ADR 0008 and 0013 (every optional dependency is blocked in turn and the run
+must still pass).
 """
 
 import contextlib
@@ -22,6 +25,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "dataset"
 KEYS = ("OPENAI_API_KEY", "TYPESAFE_API_KEY")
+MATRIX_WORKERS = 4  # blocked-dependency suites run in parallel, each in its own temp dir
 EVAL = [sys.executable, str(ROOT / "code" / "evaluation" / "main.py")]
 STEPS = [
     (
@@ -69,10 +73,9 @@ except ImportError:
 
 
 def blocked_env(block, base=None):
-    """An environment in which the given optional modules fail to import (also in child processes)
-    and the
-    given executables are not on PATH. Keys are removed as well, so the unit tests see a no-key
-    machine."""
+    """An environment in which the given optional modules fail to import (also in child
+    processes) and the given executables are not on PATH. Keys are removed as well, so the unit
+    tests see a no-key machine."""
     env = dict(os.environ if base is None else base)
     for k in KEYS:
         env.pop(k, None)
@@ -97,13 +100,14 @@ def blocked_env(block, base=None):
 
 
 def matrix_configs():
+    """The dependency sets the matrix blocks: each optional module alone, then all of them."""
     return [(m,) for m in OPTIONAL] + [OPTIONAL]
 
 
-def matrix(workers=4):
-    """Both unit-test suites once per config (each optional dependency blocked alone, then all), in
-    parallel.
-    The suites write only to their own temp dirs, so concurrent configs cannot interfere."""
+def matrix(workers=MATRIX_WORKERS):
+    """Both unit-test suites once per config (each optional dependency blocked alone, then all),
+    in parallel. The suites write only to their own temp dirs, so concurrent configs cannot
+    interfere."""
     from concurrent.futures import ThreadPoolExecutor
 
     jobs = [(block, name, cmd) for block in matrix_configs() for name, cmd in STEPS[:2]]
@@ -175,6 +179,7 @@ def clean_room(data_dir=DATA):
 
 
 def summarize(results):
+    """(all passed, [(step, PASS or FAIL, last output line)]) for the printed summary table."""
     rows = [(name, "PASS" if code == 0 else "FAIL", last) for name, code, last in results]
     return all(code == 0 for _, code, _ in results), rows
 
@@ -213,6 +218,10 @@ def scores():
 
 
 def run(with_matrix=False):
+    """`main.py final`: run every gate, then the clean-room run of code.zip.
+
+    With with_matrix, the unit tests also run once per blocked-dependency set. Returns 0 only
+    when every step passes and the clean-room output.csv has the committed sha256."""
     results = []
     for name, cmd in STEPS:
         p = subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT)

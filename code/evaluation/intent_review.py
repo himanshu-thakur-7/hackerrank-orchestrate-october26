@@ -1,4 +1,4 @@
-"""T11 acceptance: rules vs model on every unique request text (samples + evaluation).
+"""Intent acceptance: rules vs model on every unique request text (samples + evaluation).
 
 Prints the confusion between the rules and the model's atomic answers, every text either side calls
 non-deletion (with the model rationale), and every disagreement with how ADR 0008 resolves it;
@@ -84,6 +84,10 @@ def _write_disagreements(dis):
 
 
 def run(root=ROOT):
+    """`main.py intent`: rules vs model on every unique request text of both request files.
+
+    Writes code/evaluation/intent_disagreements.md and prints the confusion table; live calls
+    happen only for cache misses with OPENAI_API_KEY set."""
     sys.path.insert(0, str(root / "code"))
     from ghostaudit import data, llm_intent, usage
     from ghostaudit.intent import classify_rules

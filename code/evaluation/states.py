@@ -1,4 +1,4 @@
-"""T08 acceptance: per-resource state + treatment vs the state that the gold steps imply.
+"""State acceptance: per-resource state + treatment vs the state that the gold steps imply.
 
 Gold is used here only to EVALUATE; nothing in this module is imported by the solver.
 
@@ -7,6 +7,8 @@ gold-implied state of a resource (from its steps in sample_output.csv):
   REPORT_ACTIVE_DATA_FLOW -> ACTIVE, REPORT_RESTORE_RISK -> RESTORABLE;
   otherwise its verification op: cited (COMPLETE) -> that compliant state;
   uncited (INCOMPLETE, no finding) -> "compliant or unproven".
+
+Decisions: ADR 0006 and 0014 (evaluation only; gold labels are read here, never by the solver).
 """
 
 import json
@@ -15,6 +17,8 @@ from collections import Counter
 
 from ghostaudit.data import read_csv
 
+# `states` passes when at least this share of the found resources agree with gold
+STATE_AGREEMENT_FLOOR = 0.95
 FINDING_STATE = {
     "REPORT_REMAINING_RECORD": "PRESENT",
     "REPORT_EXPOSED_PII": "EXPOSED",
@@ -32,6 +36,7 @@ VERIFY_STATE = {
 
 
 def gold_implied(steps):
+    """{(system_id, resource_id): (gold-implied state, verification op)} of one gold row."""
     out = {}
     for key in sorted({(s["system_id"], s["resource_id"]) for s in steps}):
         mine = [s for s in steps if (s["system_id"], s["resource_id"]) == key]
@@ -47,6 +52,7 @@ def gold_implied(steps):
 
 
 def ours(r):
+    """The state our treatment implies for one resource (PRESENT, EXPOSED, ..., UNPROVEN, NONE)."""
     t = r.treatment
     if t.kind == "violation":
         return FINDING_STATE[t.finding]
@@ -56,6 +62,7 @@ def ours(r):
 
 
 def agree(gold_state, mine):
+    """Whether our state agrees with gold; an uncited gold check accepts compliant or unproven."""
     if gold_state == "COMPLIANT_OR_UNPROVEN":
         return mine in set(VERIFY_STATE.values()) | {"UNPROVEN"}
     return gold_state == mine
@@ -125,6 +132,8 @@ def _print_states(split_name, ids, t):
 
 
 def run(root, split_name="dev", risk=False, limit=5):
+    """`main.py states`: compare per-resource states on a split; exit 0 when at least
+    STATE_AGREEMENT_FLOOR of the found resources agree."""
     sys.path.insert(0, str(root / "code"))
     from ghostaudit import data, intent
     from ghostaudit.engine import Engine
@@ -148,7 +157,7 @@ def run(root, split_name="dev", risk=False, limit=5):
     if risk:
         risk_report(eng, d, limit)
     found = t["found"]
-    return 0 if (not found or t["ok"] / found >= 0.95) else 1
+    return 0 if (not found or t["ok"] / found >= STATE_AGREEMENT_FLOOR) else 1
 
 
 def _line(d, file_path, locator):

@@ -1,4 +1,4 @@
-"""T16 invariants that must hold on every output row, with no labels needed.
+"""Invariants that must hold on every output row, with no labels needed.
 
 check(output_path, data_dir) -> {invariant id: [violation, ...]}
 
@@ -115,6 +115,7 @@ def _check_row(c, st, steps, v):
 
 
 def check(output_path, data_dir):
+    """{invariant id: [violations]} over every row of `output_path`; 'rows' holds the count."""
     sys.path.insert(0, str(ROOT / "code"))
     from ghostaudit.loaders.common import system_of
 
@@ -134,6 +135,7 @@ def check(output_path, data_dir):
 
 
 def run(output_path, data_dir):
+    """`main.py invariants`: print each invariant and its violations; exit 0 when none fail."""
     v = check(output_path, data_dir)
     n = v.pop("rows")
     print(f"INVARIANTS over {n} rows of {Path(output_path).name}")

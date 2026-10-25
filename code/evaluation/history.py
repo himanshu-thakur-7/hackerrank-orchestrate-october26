@@ -1,5 +1,7 @@
 """Run history: every evaluated run is kept under runs/<UTC timestamp>/ with
 metrics.json, output.csv and commit (the git HEAD at run time), so regressions can be diffed.
+
+Decisions: ADR: none (bookkeeping for the diff gate in `main.py score`).
 """
 
 import json
@@ -11,6 +13,7 @@ from evaluation import scorer
 
 
 def record(runs_dir, output_path, metrics, commit, ts=None):
+    """Keep one run under runs_dir/<UTC timestamp>/ (never overwritten) and return it."""
     ts = ts or datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
     d = Path(runs_dir) / ts
     d.mkdir(parents=True, exist_ok=False)
@@ -23,6 +26,7 @@ def record(runs_dir, output_path, metrics, commit, ts=None):
 
 
 def previous(runs_dir, run_dir):
+    """The run recorded just before `run_dir`, or None for the first run."""
     older = sorted(
         p for p in Path(runs_dir).iterdir() if p.is_dir() and p.name < Path(run_dir).name
     )
@@ -30,6 +34,8 @@ def previous(runs_dir, run_dir):
 
 
 def diff(prev_output, cur_output):
+    """Per-case changes between two output files, in case order: status changes, then
+    removed (-) and added (+) steps, compared without step_no."""
     a, b = scorer.load(prev_output), scorer.load(cur_output)
 
     def key(s):

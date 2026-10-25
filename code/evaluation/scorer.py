@@ -23,6 +23,8 @@ Metric definitions (all micro-averaged over the given cases unless stated):
   empty row_exact           share of cases with identical status and identical step list
   (pessimistic bound) proxy               equal-weight mean of the nine headline metrics listed in
   PROXY
+
+Decisions: ADR: none (evaluation only; gold labels are read here, never by the solver).
 """
 
 import csv
@@ -68,6 +70,7 @@ def _unordered_steps(steps):
 
 
 def load(path):
+    """{case_id: (status, steps)} of an output or label file."""
     with open(path, newline="", encoding="utf-8") as f:
         return {
             r["case_id"]: (r["deletion_status"], json.loads(r["steps_json"]))

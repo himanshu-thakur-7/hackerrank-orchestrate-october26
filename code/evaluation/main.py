@@ -25,11 +25,13 @@ Run as `python3 code/evaluation/main.py <command>`:
                           metamorphic relations over a modified dataset copy
   audit                   literal audit of code/
   selftest                gate, scorer, split, audit and history self-check
-  final [--matrix]        every gate and a clean-room run of code.zip (T14); --matrix also
+  final [--matrix]        every gate and a clean-room run of code.zip; --matrix also
                           reruns the unit tests with each optional dependency blocked
 
 Exit codes: 0 ok, 1 contract/audit/determinism failure, 2 diff gate (dev regression).
 Unit tests: python3 -m unittest discover -s code/evaluation/tests -t code
+
+Decisions: ADR 0013 (Jev is evaluation-only), ADR 0001 and 0015 (enforced by the gate).
 """
 
 import argparse
@@ -103,6 +105,7 @@ def _print_warnings(w):
 
 
 def cmd_contract(a):
+    """`contract`: the L0 gate on a prediction file; exit 1 on any violation."""
     w = []
     v = gate.check(a.file, a.requests, MANIFEST, warnings=w)
     _print_warnings(w)
@@ -190,6 +193,10 @@ def _diff_gate(a, m, dev, prev, run_dir):
 
 
 def cmd_score(a):
+    """`score`: gate, then score the sample prediction on dev, holdout and all.
+
+    The run is recorded under runs/score; a dev headline metric that drops by more than
+    GATE_TOLERANCE against the previous run exits 2 unless --accept-regression gives a reason."""
     if not a.pred:
         a.pred = _sample_prediction()
     w = []
@@ -219,12 +226,14 @@ def cmd_score(a):
 
 
 def cmd_determinism(a):
+    """`determinism`: two runs of --cmd must write byte-identical files."""
     ok, _, msg = gate.determinism(shlex.split(a.cmd), Path(a.file))
     print(msg)
     return 0 if ok else 1
 
 
 def cmd_loaders(a):
+    """`loaders`: loader coverage, drift and gold checks (loader_check.run)."""
     from evaluation import loader_check
 
     files = [x for x in a.files.split(",") if x] if a.files else None
@@ -233,66 +242,77 @@ def cmd_loaders(a):
 
 
 def cmd_states(a):
+    """`states`: reconstructed state vs the state the gold steps imply (states.run)."""
     from evaluation import states
 
     return states.run(ROOT, a.split, a.risk)
 
 
 def cmd_linking(_):
+    """`linking`: account and catalog links (linking_check.run)."""
     from evaluation import linking_check
 
     return linking_check.run(ROOT)
 
 
 def cmd_metamorphic(a):
+    """`metamorphic`: the relations, optionally only those named by --only."""
     from evaluation import metamorphic
 
     return metamorphic.run([x.strip().upper() for x in a.only.split(",") if x.strip()] or None)
 
 
 def cmd_invariants(a):
+    """`invariants`: the invariants on every row of --file."""
     from evaluation import invariants
 
     return invariants.run(a.file, DATA)
 
 
 def cmd_lossledger(_):
+    """`lossledger`: write docs/LOSS_LEDGER.md and return its exit code."""
     from evaluation import lossledger
 
     return lossledger.run(ROOT, write=ROOT / "docs" / "LOSS_LEDGER.md")[0]
 
 
 def cmd_intent(_):
+    """`intent`: rules vs model on every unique request text."""
     from evaluation import intent_review
 
     return intent_review.run(ROOT)
 
 
 def cmd_custom(_):
+    """`custom`: the hand-written custom cases over a dataset overlay."""
     from evaluation import custom
 
     return custom.run()
 
 
 def cmd_report(_):
+    """`report`: regenerate code/evaluation/evaluation_report.md."""
     from evaluation import report
 
     return report.run()
 
 
 def cmd_final(a):
+    """`final`: every gate and the clean-room run; --matrix adds the dependency matrix."""
     from evaluation import final
 
     return final.run(with_matrix=a.matrix)
 
 
 def cmd_usage(_):
+    """`usage`: regenerate code/evaluation/usage_report.md from a measured full run."""
     from evaluation import usage_report
 
     usage_report.run()
 
 
 def cmd_jev_rank(_):
+    """`jev-rank`: advisory Jev scores and docs/JEV_REVIEW_QUEUE.md (ADR 0013)."""
     from evaluation import jev_ranker
 
     jev_ranker.run(samples=True)
@@ -300,6 +320,7 @@ def cmd_jev_rank(_):
 
 
 def cmd_audit(_):
+    """`audit`: the literal audit of code/; exit 1 on any hit."""
     hits = audit.scan(ROOT / "code")
     print(f"LITERAL AUDIT: {len(hits)} hit(s)")
     for h in hits:
@@ -340,6 +361,9 @@ def _broken_copies(tmp):
 
 
 def cmd_selftest(_):
+    """`selftest`: the gate passes gold, the scorer gives gold 1.0 on every metric,
+    three deliberately broken copies fail on their own check, the audit is clean and the run
+    history records a run."""
     ok = True
     w = []
     v = gate.check(GOLD, SAMPLE_REQ, MANIFEST, warnings=w)
@@ -405,6 +429,7 @@ def cmd_selftest(_):
 
 
 def main(argv=None):
+    """Parse the command line and run one command; returns its exit code."""
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )

@@ -1,4 +1,4 @@
-"""Dataset overlay for metamorphic testing (T15): a full temporary copy of dataset/ that a relation
+"""Dataset overlay for metamorphic testing: a full temporary copy of dataset/ that a relation
 edits, then the real pipeline (`code/main.py`, as a subprocess) runs over it. dataset/ itself is
 never written.
 
@@ -6,6 +6,8 @@ never written.
       rows = ov.rows("deletion_requests.csv"); ...; ov.write_rows("deletion_requests.csv", rows)
       ov.add_evidence(file_id, rel_path, origin, captured_at, raw)   # also adds the manifest row
       out = ov.run()                                                 # {case_id: (status, steps)}
+
+Decisions: ADR: none (test scaffolding; dataset/ is never written).
 """
 
 import csv
@@ -23,6 +25,7 @@ MAIN = ROOT / "code" / "main.py"
 
 
 def read_output(path):
+    """{case_id: (status, steps)} of an output file."""
     with open(path, newline="", encoding="utf-8") as f:
         return {
             r["case_id"]: (r["deletion_status"], json.loads(r["steps_json"]))
@@ -31,6 +34,7 @@ def read_output(path):
 
 
 def run_pipeline(data_dir, out_path, requests=None, env=None):
+    """Run code/main.py over `data_dir` and return its rows; raises RuntimeError on failure."""
     cmd = [sys.executable, str(MAIN), "--data", str(data_dir), "--out", str(out_path)]
     if requests:
         cmd += ["--requests", str(requests)]
@@ -49,6 +53,8 @@ def changed(a, b):
 
 
 class Overlay:
+    """A temporary copy of a dataset directory, removed when the `with` block ends."""
+
     def __init__(self, data_dir):
         self.src = Path(data_dir)
         self.root = None
@@ -64,10 +70,12 @@ class Overlay:
         return False
 
     def rows(self, name):
+        """Every row of the overlay's CSV file `name`."""
         with open(self.root / name, newline="", encoding="utf-8") as f:
             return list(csv.DictReader(f))
 
     def write_rows(self, name, rows, fieldnames=None):
+        """Replace the rows of CSV file `name`, keeping its header and line endings."""
         path = self.root / name
         raw = path.read_bytes()
         term = "\r\n" if b"\r\n" in raw[:4096] else "\n"
@@ -79,6 +87,7 @@ class Overlay:
         path.write_text(buf.getvalue(), encoding="utf-8", newline="")
 
     def add_evidence(self, file_id, rel_path, origin, captured_at, raw):
+        """Write one evidence file and append its manifest row."""
         p = self.root / rel_path
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(raw)
@@ -94,6 +103,7 @@ class Overlay:
         self.write_rows("evidence_files.csv", m)
 
     def remove_evidence(self, file_id):
+        """Delete one evidence file and its manifest row; returns the removed row."""
         m = self.rows("evidence_files.csv")
         row = next(r for r in m if r["file_id"] == file_id)
         (self.root / row["file_path"]).unlink()
@@ -101,4 +111,5 @@ class Overlay:
         return row
 
     def run(self, requests="deletion_requests.csv", env=None):
+        """Run the real pipeline over the overlay; {case_id: (status, steps)}."""
         return run_pipeline(self.root, Path(self._tmp) / "out.csv", self.root / requests, env)

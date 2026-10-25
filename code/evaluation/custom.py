@@ -1,7 +1,8 @@
-"""T13 custom evaluation cases: apply the synthetic fixtures to a dataset overlay, run the real
+"""Custom evaluation cases: apply the synthetic fixtures to a dataset overlay, run the real
 pipeline, and compare each custom row with its hand-written expectation (and required log lines).
-Also checks that the
-518 real rows are unchanged by the additions."""
+Also checks that the 518 real rows are unchanged by the additions.
+
+Decisions: ADR 0002 (every fixture is dated after the real audits, so real rows cannot move)."""
 
 import sys
 from dataclasses import dataclass, field
@@ -15,6 +16,8 @@ DATA = ROOT / "dataset"
 
 @dataclass
 class CaseResult:
+    """The outcome of one custom row: whether it matched, and each mismatch found."""
+
     case_id: str
     title: str
     ok: bool
@@ -23,11 +26,17 @@ class CaseResult:
 
 @dataclass
 class Report:
+    """Every custom row's result, plus the real case ids whose rows the additions changed."""
+
     results: list
     real_rows_changed: list
 
 
 def apply(ov, cases):
+    """Add the fixtures' people, audit rows, requests, activity and evidence to the overlay.
+
+    Rows are appended to the overlay's CSV files; each evidence file is also added to the
+    manifest. The real dataset/ is never written."""
     adds = {
         "user_identities.csv": "people",
         "user_audit_log.csv": "audit",
@@ -66,6 +75,10 @@ def _compare(cid, got, want):
 
 
 def run_cases(cases, check_real=True):
+    """Run the real pipeline over an overlay holding `cases` and compare every custom row.
+
+    Each row is checked against its hand-written status and ordered steps, and against the log
+    lines it must contain. With check_real, the 518 real rows must be unchanged."""
     sys.path.insert(0, str(ROOT / "code"))
     from ghostaudit import llm_intent
     from ghostaudit.engine import Engine
@@ -100,6 +113,7 @@ def run_cases(cases, check_real=True):
 
 
 def run():
+    """`main.py custom`: print every custom row's result; exit 0 only when all pass."""
     from evaluation.fixtures.custom_cases import CASES
 
     rep = run_cases(CASES)

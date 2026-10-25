@@ -1,4 +1,4 @@
-"""T17 Jev ranker: an ADVISORY per-step risk score and review queue (evaluation only; output.csv is
+"""Jev ranker: an ADVISORY per-step risk score and review queue (evaluation only; output.csv is
 never touched).
 
   python3 code/evaluation/main.py jev-rank
@@ -32,8 +32,10 @@ from ghostaudit.data import read_csv
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "dataset"
 MODEL = "jev-1.14.0"
-K = 10
-WORKERS = 8
+K = 10  # Jev calls per step (each call answers both questions)
+WORKERS = 8  # parallel live calls
+MAX_RETRIES = 2  # SDK retries per call
+TIMEOUT_SECONDS = 60  # one Jev call
 PRICE_IN_PER_MTOK = 0.042  # aggregator listings (docs/JEV_SPIKE.md); output tokens free
 CACHE_PATH = Path(__file__).resolve().parent / "jev_cache.py"
 QUEUE_PATH = ROOT / "docs" / "JEV_REVIEW_QUEUE.md"
@@ -215,13 +217,15 @@ def build_items(data_dir, output_path):
 
 
 def default_client():
+    """(TypeSafe client, "") when TYPESAFE_API_KEY is set and typesafe-sdk imports;
+    otherwise (None, why), and only cached steps are scored. The key is read by the SDK."""
     if not os.environ.get("TYPESAFE_API_KEY"):
         return None, "TYPESAFE_API_KEY not set: only cached steps are scored"
     try:
         from typesafe_sdk import RetryPolicy, TypeSafeClient
     except ImportError:
         return None, "typesafe-sdk not installed: only cached steps are scored"
-    return TypeSafeClient(retry=RetryPolicy(max_retries=2), timeout=60), ""
+    return TypeSafeClient(retry=RetryPolicy(max_retries=MAX_RETRIES), timeout=TIMEOUT_SECONDS), ""
 
 
 def _unscored(source):
@@ -310,6 +314,7 @@ def score_items(items, client, cache, workers=WORKERS, k=K, usage=None):
 
 
 def read_cache(path=CACHE_PATH):
+    """Cached Jev answers by step key; {} when there is no cache file."""
     if not Path(path).exists():
         return {}
     spec = importlib.util.spec_from_file_location("ghostaudit_jev_cache", path)
@@ -347,6 +352,9 @@ def write_cache(path, cache, origin=None):
 
 
 def auroc(scores, labels):
+    """Area under the ROC curve of `scores` against boolean `labels` (ties count one half).
+
+    None when one class is empty, because the area is undefined then."""
     pos = [s for s, label in zip(scores, labels, strict=True) if label]
     neg = [s for s, label in zip(scores, labels, strict=True) if not label]
     if not pos or not neg:
@@ -355,6 +363,8 @@ def auroc(scores, labels):
 
 
 def write_queue(path, items, scores, extra_sections=(), n_cases=40):
+    """Write the review queue: cases ordered by their lowest step score (riskiest first),
+    with each step's score and source; n_cases bounds the list."""
     scored = [
         (scores[i["key"]]["score"], i)
         for i in items
@@ -427,6 +437,8 @@ def run(
     samples=False,
     data_dir=DATA,
 ):
+    """Score every step of `output` with Jev (cache first; live only with a client) and
+    write the review queue. Advisory only (ADR 0013): nothing here feeds output.csv."""
     note = ""
     if client == "default":
         client, note = default_client()

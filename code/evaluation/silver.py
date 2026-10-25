@@ -1,7 +1,9 @@
-"""T16 silver-label audit sample: 20 eval cases stratified by loss-ledger reason, drawn with a fixed
-seed.
+"""Silver-label audit sample: 20 eval cases stratified by loss-ledger reason, with a fixed seed.
+
 Strata sizes are fixed below; inside a stratum, cases are shuffled with random.Random(SEED) after
-natural sorting."""
+natural sorting.
+
+Decisions: ADR: none (evaluation only; silver labels are checked by hand)."""
 
 import random
 
@@ -22,6 +24,7 @@ STRATA = (
 
 
 def sample(ledger, status):
+    """The audit sample: STRATA sizes per ledger reason, drawn with random.Random(SEED)."""
     rng = random.Random(SEED)
     picked, used = [], set()
 

@@ -1,4 +1,4 @@
-"""T16 loss ledger: for EVERY evaluation case, why its row may not be the full answer.
+"""Loss ledger: for EVERY evaluation case, why its row may not be the full answer.
 
 A case is "fully grounded" when it has a linked primary account and no loss reason; every other case
 gets one or more reasons. "unknown" (no account step and no logged reason) must stay at zero.
@@ -27,9 +27,10 @@ ROOT = Path(__file__).resolve().parents[2]
 # bursts, and audit records that appear in no file (about 3 of 32 samples)
 ANALYTICS_MISSING_PER_CASE = 0.22
 AUDIT_RECORD_MISSING_PER_CASE = 0.09
-STEPS_PER_UNRESOLVED_ACCOUNT = (
-    1 + 2 * 0.14
-)  # VERIFY_ABSENT, plus finding+remediation when still present (3/22)
+# share of unresolved primary accounts still present at audit_at (3 of 22 dev samples)
+UNRESOLVED_STILL_PRESENT_RATE = 0.14
+# VERIFY_ABSENT, plus finding + remediation when the account is still present
+STEPS_PER_UNRESOLVED_ACCOUNT = 1 + 2 * UNRESOLVED_STILL_PRESENT_RATE
 
 
 def _account_link_reason(line):
@@ -104,6 +105,10 @@ def ceiling(counts, n_cases, emitted):
 
 
 def run(root=ROOT, write=None):
+    """`main.py lossledger`: the reason behind every evaluation row, and the expected recall.
+
+    Returns (0 when no row has an unknown reason, else 1; the ledger); with `write`, the ledger
+    is also written as Markdown."""
     sys.path.insert(0, str(root / "code"))
     from ghostaudit import data, intent
     from ghostaudit.engine import Engine
@@ -135,19 +140,17 @@ def run(root=ROOT, write=None):
     missing = (
         unres * STEPS_PER_UNRESOLVED_ACCOUNT
         + counts["unresolved:catalog"]
-        + counts["contradicted"] * 0
-        + 0.22
-        * (
-            len(ledger) - counts["resolved:non-deletion"]
-        )  # unlinked anonymized analytics (7/32 samples)
-        + 0.09 * (len(ledger) - counts["resolved:non-deletion"])
-    )  # unreachable audit records (3/32 samples)
+        # a contradicted link loses no gold-style step: the claim was never the subject's
+        + ANALYTICS_MISSING_PER_CASE * (len(ledger) - counts["resolved:non-deletion"])
+        + AUDIT_RECORD_MISSING_PER_CASE * (len(ledger) - counts["resolved:non-deletion"])
+    )
     print(
         f"STEP CEILING (estimate): {emitted} steps emitted; ~{missing:.0f} gold-style steps "
         f"expected missing "
         f"({unres} unresolved accounts x {STEPS_PER_UNRESOLVED_ACCOUNT:.2f}, + unlinked anonymized "
-        f"analytics ~0.22/case, "
-        f"+ unreachable audit records ~0.09/case, + {counts['unresolved:catalog']} catalog) -> "
+        f"analytics ~{ANALYTICS_MISSING_PER_CASE}/case, "
+        f"+ unreachable audit records ~{AUDIT_RECORD_MISSING_PER_CASE}/case, "
+        f"+ {counts['unresolved:catalog']} catalog) -> "
         f"step recall ceiling "
         f"~{emitted / (emitted + missing):.2f}"
     )

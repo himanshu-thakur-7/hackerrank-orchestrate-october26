@@ -2,6 +2,9 @@
 spot checks against raw text, and the smallest records that cannot be attributed to anyone.
 
 Gold is used here only to EVALUATE loaders; nothing in this module is imported by the solver.
+
+Decisions: ADR 0014 (which formats emit Coverage); evaluation only, gold labels are read here,
+never by the solver.
 """
 
 import json
@@ -321,6 +324,8 @@ def _print_unattributed(results, by_sig, resolver, loaders):
 
 
 def run(root, files=None, kinds=None, spot=False):
+    """`main.py loaders`: whole-dataset loader summary, SQL replica drift, gold and store
+    checks, optional spot checks; exit 0 only when no check fails."""
     sys.path.insert(0, str(root / "code"))
     from ghostaudit import identity, loaders
 

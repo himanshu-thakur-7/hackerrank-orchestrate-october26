@@ -2,6 +2,9 @@
 
 check(output_path, requests_path, manifest_path) -> list[str]
 An empty list means the file passes. Each violation starts with a stable code (e.g. "L0.header").
+
+Decisions: ADR 0001 (L0.order: rows sorted by case_id, numerically), ADR 0015
+(INCOMPLETE with [] is valid).
 """
 
 import csv
@@ -252,6 +255,9 @@ def _pairing(case_id, steps):
 
 
 def natural_key(case_id):
+    """Numeric case_id order (ADR 0001), kept independent of the solver's writer.
+
+    The gate re-implements it on purpose, so a bug in the writer cannot hide from the check."""
     prefix, _, num = case_id.rpartition("_")
     return (prefix, int(num)) if num.isdigit() else (case_id, -1)
 

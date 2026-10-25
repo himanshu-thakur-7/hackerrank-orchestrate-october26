@@ -1,4 +1,4 @@
-"""T14 usage report generator: final_run() measures the full-dataset run, render(data) writes the
+"""Usage report generator: final_run() measures the full-dataset run, render(data) writes the
 Markdown.
 
   python3 code/evaluation/main.py usage    -> code/evaluation/usage_report.md
@@ -7,6 +7,8 @@ final_run() runs code/main.py on all 518 requests into a temp file with --usage-
 its output is byte-identical to the committed output.csv, so the report describes the run that
 produced it. Cache origins come from the ORIGIN records inside the generated cache modules (calls
 and tokens only).
+
+Decisions: ADR 0008 (cached intent calls), ADR 0013 (Jev usage is evaluation-only).
 """
 
 import hashlib
@@ -24,6 +26,10 @@ OUT = Path(__file__).resolve().parent / "usage_report.md"
 
 
 def final_run(data_dir=DATA, env=None):
+    """Run code/main.py on all requests with --usage-json and return its usage summary.
+
+    The summary also holds the output's sha256, whether it is byte-identical to the committed
+    output.csv, and whether a key was set. Raises RuntimeError when the run fails."""
     tmp = Path(tempfile.mkdtemp(prefix="ghostaudit_usage_"))
     p = subprocess.run(
         [
@@ -56,6 +62,7 @@ def final_run(data_dir=DATA, env=None):
 
 
 def collect(env=None):
+    """Every number of the usage report: the measured run, cache origins and entry counts."""
     sys.path.insert(0, str(ROOT / "code"))
     from ghostaudit import llm_intent
 
@@ -83,6 +90,7 @@ def _cost(model, tin, tout):
 
 
 def render(d):
+    """The usage report Markdown for `d` (as returned by collect)."""
     sys.path.insert(0, str(ROOT / "code"))
     from ghostaudit.llm_intent import MODEL as OPENAI
     from ghostaudit.usage import PRICE_PER_MTOK
@@ -264,6 +272,7 @@ def render(d):
 
 
 def run(out=OUT):
+    """`main.py usage`: collect, write usage_report.md, print a summary; returns the data."""
     d = collect()
     Path(out).write_text(render(d), encoding="utf-8")
     t = d["final"]["totals"]
