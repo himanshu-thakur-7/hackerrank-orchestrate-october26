@@ -116,3 +116,38 @@ repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
 
+## [2026-10-25T00:01:17Z] Write docs/01_CONTRACT.md (contract + ambiguity list)
+
+User Prompt (verbatim, secrets redacted):
+GOAL: understand the challenge contract before touching data.
+
+Read problem_statement.md, README.md and agent_trace_instructions.md. Then write
+docs/01_CONTRACT.md containing:
+- the exact output contract (columns, step schema, the 15 allowed phase/operation/state triples)
+- the ordering rule written as a precise sort key
+- what COMPLETE / INCOMPLETE / NOT_APPLICABLE require, quoting the rule text
+- every deliverable (output.csv, code.zip contents, evaluation_report.md, usage_report.md,
+  log.txt, agent trace) and every "must not" (secrets, dataset in zip, organizer files, hardcoding)
+- a list of ambiguities you notice in the spec (don't resolve them yet)
+
+CONSTRAINTS: quote, don't paraphrase, where precision matters. No code.
+CHECKPOINT: show me the ambiguity list.
+Check: the ambiguity list includes the unpadded case_id sort, which evidence to cite, and support message vs attachment. If it misses one, use the follow-up in the playbook (4.1).
+
+Agent Response Summary:
+Read problem_statement.md, README.md, agent_trace_instructions.md and AGENTS.md, and listed only the code/ starter files; no dataset files were read. Wrote docs/01_CONTRACT.md with the output contract, the 15 ranked triples, a sort key of (phase_rank, op_rank, system_id, resource_id) with step_no assigned after sorting, the status rules quoted with line refs, deliverables and must-nots, and 22 unresolved ambiguities. The list covers all three items in your check: A1 (unpadded case_id sort), A5/A6 (which evidence to cite) and A9 (support message vs attachment). It also flags the evaluation/ vs code/evaluation/ path conflict, the dependency-order vs alphabetical-sort conflict, and the wwww. URL typo.
+
+Actions:
+* cat -n problem_statement.md README.md agent_trace_instructions.md
+* find code -type f
+* Wrote docs/01_CONTRACT.md
+* Appended this entry to log.txt; committed and pushed to claude/stoic-bell-1t82oq
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+
