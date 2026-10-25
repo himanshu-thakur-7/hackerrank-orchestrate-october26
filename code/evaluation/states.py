@@ -61,6 +61,69 @@ def agree(gold_state, mine):
     return gold_state == mine
 
 
+def _disagreement(c, key, gs, gop, m, r):
+    st = r.state
+    where = (st.basis + " " + st.file_id + " " + st.locator) if st else ""
+    return (
+        f"  {c} {key[0]}/{key[1]}: gold {gs} ({gop}); ours {m} "
+        f"({r.treatment.verification}) "
+        f"category={r.category} [{r.category_source}] state={st.state if st else None} "
+        f"{where} "
+        f"reason={r.treatment.reason}"
+    )
+
+
+def _extra(c, key, r):
+    return (
+        f"  {c} {key[0]}/{key[1]}: ours {ours(r)} ({r.treatment.verification}) "
+        f"category={r.category} "
+        f"[{r.category_source}] via {r.links[0].file_id} {r.links[0].locator}"
+    )
+
+
+def _compare_case(c, mine, g, t):
+    """Count one case's gold-implied resources against ours into `t`."""
+    for key, (gs, gop) in g.items():
+        t["n_gold"] += 1
+        r = mine.get(key)
+        if r is None:
+            t["misses"][key[0]] += 1
+            continue
+        t["found"] += 1
+        m = ours(r)
+        good = agree(gs, m)
+        t["ok"] += good
+        t["op_ok"] += r.treatment.verification == gop
+        if not good or r.treatment.verification != gop:
+            t["bad"].append(_disagreement(c, key, gs, gop, m, r))
+    for key, r in mine.items():
+        if key not in g and r.treatment.kind != "none":
+            t["extra"] += 1
+            t["extras"].append(_extra(c, key, r))
+
+
+def _print_states(split_name, ids, t):
+    found = t["found"]
+    print(f"STATES ({split_name}, {len(ids)} cases; gold-implied per-resource state vs ours)")
+    print(
+        f"  gold resources: {t['n_gold']}; discovered by grounded identifiers: {found}; not "
+        f"discovered "
+        f"(need T10 linking or T12 images/PDFs): {t['n_gold'] - found} {dict(t['misses'])}"
+    )
+    print(
+        f"  state agreement on discovered: {t['ok']}/{found} = "
+        f"{t['ok'] / found if found else 1:.3f}"
+    )
+    print(
+        f"  end-state operation (verification op) agreement on discovered: {t['op_ok']}/{found} = "
+        f"{t['op_ok'] / found if found else 1:.3f}"
+    )
+    print(f"  extra resources we would emit steps for (not in gold): {t['extra']}")
+    print("\n".join(t["bad"]) or "  no disagreements")
+    for x in t["extras"][:20]:
+        print(x)
+
+
 def run(root, split_name="dev", risk=False, limit=5):
     sys.path.insert(0, str(root / "code"))
     from ghostaudit import data, intent
@@ -74,58 +137,18 @@ def run(root, split_name="dev", risk=False, limit=5):
     ids = {"dev": dev, "holdout": hold, "all": dev + hold}[split_name]
     gold = {r["case_id"]: json.loads(r["steps_json"]) for r in read_csv(d / "sample_output.csv")}
     reqs = {q["case_id"]: q for q in data.load_requests(d / "sample_deletion_requests.csv")}
-    n_gold = found = ok = op_ok = extra = 0
-    misses, bad, extras = Counter(), [], []
+    t = {"n_gold": 0, "found": 0, "ok": 0, "op_ok": 0, "extra": 0}
+    t.update(misses=Counter(), bad=[], extras=[])
     for c in ids:
         q = reqs[c]
         a = eng.assess(q, intent.classify_rules(q["request_text"]))
         mine = {(r.system_id, r.resource_id): r for r in a.resources}
-        g = gold_implied(gold[c])
-        for key, (gs, gop) in g.items():
-            n_gold += 1
-            r = mine.get(key)
-            if r is None:
-                misses[key[0]] += 1
-                continue
-            found += 1
-            m = ours(r)
-            good = agree(gs, m)
-            ok += good
-            op_ok += r.treatment.verification == gop
-            if not good or r.treatment.verification != gop:
-                st = r.state
-                bad.append(
-                    f"  {c} {key[0]}/{key[1]}: gold {gs} ({gop}); ours {m} "
-                    f"({r.treatment.verification}) "
-                    f"category={r.category} [{r.category_source}] state={st.state if st else None} "
-                    f"{(st.basis + ' ' + st.file_id + ' ' + st.locator) if st else ''} "
-                    f"reason={r.treatment.reason}"
-                )
-        for key, r in mine.items():
-            if key not in g and r.treatment.kind != "none":
-                extra += 1
-                extras.append(
-                    f"  {c} {key[0]}/{key[1]}: ours {ours(r)} ({r.treatment.verification}) "
-                    f"category={r.category} "
-                    f"[{r.category_source}] via {r.links[0].file_id} {r.links[0].locator}"
-                )
-    print(f"STATES ({split_name}, {len(ids)} cases; gold-implied per-resource state vs ours)")
-    print(
-        f"  gold resources: {n_gold}; discovered by grounded identifiers: {found}; not discovered "
-        f"(need T10 linking or T12 images/PDFs): {n_gold - found} {dict(misses)}"
-    )
-    print(f"  state agreement on discovered: {ok}/{found} = {ok / found if found else 1:.3f}")
-    print(
-        f"  end-state operation (verification op) agreement on discovered: {op_ok}/{found} = "
-        f"{op_ok / found if found else 1:.3f}"
-    )
-    print(f"  extra resources we would emit steps for (not in gold): {extra}")
-    print("\n".join(bad) or "  no disagreements")
-    for x in extras[:20]:
-        print(x)
+        _compare_case(c, mine, gold_implied(gold[c]), t)
+    _print_states(split_name, ids, t)
     if risk:
         risk_report(eng, d, limit)
-    return 0 if (not found or ok / found >= 0.95) else 1
+    found = t["found"]
+    return 0 if (not found or t["ok"] / found >= 0.95) else 1
 
 
 def _line(d, file_path, locator):
