@@ -11,6 +11,7 @@
 
 - The rule names no collation (ambiguity A1).
 - Measured (`docs/02_DATA_NOTES.md` §1.2): 518 unique eval IDs, 67 with two digits and 451 with three. The input file is already in **numeric** order; lexical order differs (`case_100` < `case_33`).
+- Measured (correction, 2026-10-25): a lexical sort moves **all 518** ids to a different position than in the input file, because the 451 three-digit ids sort ahead of the 67 two-digit ones. In the input order there is exactly 1 adjacent lexical inversion (`case_99` → `case_100`).
 - The sample IDs (`case_01` … `case_32`) are padded, so the sample cannot tell the two apart.
 
 ## Recommendation
@@ -28,5 +29,5 @@ Numeric. It matches the order of the input file, and it is the reading a human w
 
 ## Rejected alternatives
 
-- **Lexical string sort:** contradicts the input order for 451 of 518 IDs.
+- **Lexical string sort:** moves all 518 IDs away from their input position (the 451 three-digit ids sort ahead of the 67 two-digit ones).
 - **Zero-padding the IDs:** that would change the `case_id` values themselves, which are keys.

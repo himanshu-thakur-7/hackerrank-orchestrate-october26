@@ -12,6 +12,7 @@ A `LINK_RESOURCE_IDENTITY` activity claims a resource belongs to a person, but t
 - All 12 link rows land exactly 7 minutes after a screenshot or PDF capture (`docs/02b` §3).
 - 9 are consistent with the artifact. **activity_4008** claims `marketing_001 → kwame-mensah@proton.me / user_09`, but `evidence_60` shows "Soo-jin Park, sj.park@naver.com, +82 10-5837-9451", who is no known user (eval case_63).
 - activity_4007 (case_61) is unverifiable: the screen shows a file name and no person.
+- Engine check (T10, `python3 code/evaluation/main.py linking`): of the 12 link rows, 8 CONFIRMED, 1 CONTRADICTED (activity_4008), 3 UNCONFIRMED (no visible artifact names the resource with an identifier). The hand reading above counted one weakly supported row as consistent; the engine does not.
 
 ## Recommendation
 

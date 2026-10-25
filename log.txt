@@ -1183,3 +1183,23 @@ branch=claude/stoic-bell-1t82oq
 repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
+
+## [2026-10-25T06:05:08Z] README/ADR number corrections, each now computed or defined
+
+User Prompt (verbatim, secrets redacted):
+(relayed by peer session "Prompt playbook website publishing" for the user) One factual correction as a small separate commit (docs only): README section 8 (ADR 0001 row) and docs/adr/0001 say lexical sorting "contradicts the input order for 451 of 518 IDs"; recomputed, a lexical sort moves all 518 ids and there is exactly 1 adjacent lexical inversion in the input; 451 is the count of three-digit ids. Replace the claim with the precise one, add a test_readme check computed from the dataset, then scan the README and ADRs for any other number whose definition is not stated and tighten it or compute it in test_readme. Report which you changed. Then continue with the code-quality pass; commit, push, log as usual.
+
+Agent Response Summary:
+Confirmed the peer's numbers and corrected ADR 0001 and the README row; test_readme now computes them from deletion_requests.csv. The definition scan found and fixed further imprecisions, each now computed by test_readme or tied to the defining document. The catalog-link split was 9/1/2 from a hand reading; the engine's check gives 8 confirmed, 1 contradicted, 3 unconfirmed (README, ADR 0005). The 23 generated sample cases are named, since 24 samples have a 24/48/72 h gap (case_03 is hand-written). evidence_92 is cited by 9 sample cases, not 10, a miscount in the data notes copied into ADR 0007 and the README. Also defined: proxy (mean of nine metrics), 19/32 (13 cases get no account), 5% of an estimated 3,050 steps, 8/8 and 31/31, the 75 gold pairs, the 0.090 spread, "12 eval rows changed", the 2 × 6 matrix, and ADR 0003/0015 counts dated to the final run. Fast check green; output.csv unchanged.
+
+Actions:
+* Edited README.md, docs/adr/0001, 0003, 0005, 0007, 0015, docs/02_DATA_NOTES.md (one miscount corrected, marked); extended code/evaluation/tests/test_readme.py
+* Ran test_readme and the fast check (tests, contract, cmp vs baseline, custom, selftest)
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none

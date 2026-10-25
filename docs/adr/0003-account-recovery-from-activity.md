@@ -31,7 +31,7 @@ As recommended. **Activity is a correlation key for linkage, never proof of stat
 
 ## Consequences
 
-- About 360 eval cases get a unique account after the grounded steps; about 136 remain tied (ADR 0004).
+- Measured on the final run, over the 508 eval deletion requests: 360 get a unique account after the grounded steps, 136 remain tied (ADR 0004), 12 have no candidate.
 - The 12 cases in the 42 h family (`docs/03` §1) get no account from this path.
 
 ## Rejected alternatives

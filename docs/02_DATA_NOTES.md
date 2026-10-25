@@ -304,7 +304,7 @@ Other findings from the INCOMPLETE cases:
   - The exception is case_04, which cites `evidence_54` for `account_004` and `evidence_56` for `analytics_901`.
   - **No sample step cites an `activity_id` or `audit_id`.** Every cited ID is a `file_id`.
 - **Shared bundle files.**
-  - `evidence_92`: 10 cases, case_21 and case_23 to case_30.
+  - `evidence_92`: 9 cases, case_21 and case_23 to case_30 (corrected 2026-10-25: this was miscounted as 10).
   - `evidence_01`: 4 cases (case_12, case_15, case_17, case_19).
   - `evidence_03`: 3 cases (case_11, case_13, case_14).
   - `evidence_94`: 3 cases (case_03, case_18, case_20).

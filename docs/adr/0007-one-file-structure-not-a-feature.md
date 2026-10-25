@@ -10,7 +10,7 @@ In 31/32 samples, every cited step uses one evidence file (`docs/02` §2.6). May
 ## Context
 
 - It is a dataset regularity, not a rule.
-- `evidence_92` alone serves 10 sample cases; a file holds many users and decoys.
+- `evidence_92` alone is cited by 9 sample cases (case_21, case_23 to case_30; corrected 2026-10-25 from a miscount of 10); a file holds many users and decoys.
 
 ## Recommendation
 

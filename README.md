@@ -41,7 +41,7 @@ Every number in this README comes from a real run. `code/evaluation/tests/test_r
 | **What** | A deletion-audit engine. It turns 518 deletion requests into `output.csv` (`case_id,deletion_status,steps_json`). |
 | **How** | It parses every evidence file into time-stamped observations, then for each case: cut at `audit_at` → resolve the subject's identifiers → link resources to the subject only on grounded evidence → reconstruct state → apply `deletion_rules.csv` → plan ordered steps. |
 | **Output** | 518 rows: COMPLETE 151, INCOMPLETE 357, NOT_APPLICABLE 10. The contract gate passes. All 9 invariants hold on 518/518 rows. |
-| **Sample score** | proxy 0.801 over the 32 labeled samples (dev 0.798, holdout 0.805); status accuracy 0.906; finding F1 1.000. **Caveat:** 32 samples cannot predict the hidden score ([§11](#11-results-and-honesty)). |
+| **Sample score** | proxy 0.801 (the equal-weight mean of nine headline metrics) over the 32 labeled samples (dev 0.798, holdout 0.805); status accuracy 0.906; finding F1 1.000. **Caveat:** 32 samples cannot predict the hidden score ([§11](#11-results-and-honesty)). |
 | **Deliberate loss** | 136 eval cases have tied account candidates. Their account step is **omitted, never guessed** (ADR 0004). |
 | **Requirements** | Python 3.11+ and the standard library only. Tested on 3.11, 3.12 and 3.13, which all produce the same `output.csv`. |
 | **Key / network** | None needed. A run takes a few seconds. |
@@ -241,7 +241,7 @@ Files are dispatched by what their bytes look like, never by name or folder. The
 | Screenshots (committed, hand-verified transcriptions, sha256-keyed) | 11 | 23 | 0 |
 | **Total** | **94** | | |
 
-- **0 unknown signatures and 0 unparsed lines.** Every cited gold pair in the samples is reproduced: 75 checked, 75 ok, with 0 contradictions in the store state check.
+- **0 unknown signatures and 0 unparsed lines.** Every (sample gold step, cited file) pair is reproduced from the file's content: 75 checked, 75 ok, with 0 contradictions in the store state check.
 - **Replica drift:** 13 records exist only in a replica, across 11 files.
 
 ### 5.2 Cutoff semantics
@@ -294,16 +294,16 @@ flowchart TD
     U -- none --> N[no account step]
 ```
 
-- **Timing:** in the generated regime, the gold account's delete lands 0.75–1.23 h before `reported_at`.
-- **Result:** the activity's reported result matches `reported_status` in 23/23 sample cases.
-- **On samples:** **19/32 exact, 0 wrong.**
+- **Timing:** in the generated regime (the 23 generated sample cases, case_09 and case_11 to case_32, plus the 506 of 518 eval cases whose `reported_at − requested_at` is exactly 24, 48 or 72 h), the gold account's delete lands 0.75–1.23 h before `reported_at` in every one of those 23 sample cases.
+- **Result:** in those same 23 sample cases, the delete's `reported_result` matches `reported_status` 23/23 (COMPLETE↔SUCCESS, NOT_STARTED↔FAILED, PARTIALLY_COMPLETE↔PARTIAL).
+- **On samples:** of the 32 sample cases, the recovered primary account equals gold's in **19/32 exact, 0 wrong** (no case gets a different account; the other 13 get none).
 - **On eval:** 360 cases linked, 136 tied, 12 with no candidate (the 42-hour family, which has no account-delete signal).
 
 ### 6.3 Why ties are omitted (ADR 0004)
 
 - **The tie-break that was rejected:** case-id order reached 23/32 on samples, with 1 wrong pick, and it relies on how the generator numbered the cases, not on any evidence. Using it would attribute a person's data on a guess, which is the error the whole task is about.
 - **What happens instead:** a tie emits no step and logs `UNRESOLVED_LINK(case, candidates)`.
-- **The cost:** about 136–160 account steps (around 5% of steps). Precision stays clean.
+- **The cost:** about 136–160 account steps, around 5% of an estimated 3,050 gold-style steps over the eval set. Precision stays clean.
 
 ### 6.4 Catalog links checked against their artifact (ADR 0005)
 
@@ -340,7 +340,7 @@ Most support records carry no category tag. The category comes from the first si
 4. message text;
 5. system default.
 
-The event type agreed with gold 8/8 on untagged sample records, and with explicit tags 31/31 across all evidence.
+The event type agreed with gold 8/8 on the untagged sample support records that have a deletion-worker event, and with the explicit tag 31/31 on the tagged records across all evidence.
 
 ### 7.3 Status, ordering and citations
 
@@ -360,15 +360,15 @@ Each ADR was written as a question with measured context, a recommendation and t
 
 | ADR | Decision | Why | Rejected alternative | Evidence that settled it |
 | --- | --- | --- | --- | --- |
-| 0001 | Sort rows by the numeric case-id suffix | Matches the input order | Lexical sort | Lexical order contradicts the input for 451 of 518 ids |
+| 0001 | Sort rows by the numeric case-id suffix | Matches the input order | Lexical sort | A lexical sort moves all 518 ids; the 451 three-digit ids sort ahead of the 67 two-digit ones (case_100 before case_33) |
 | 0002 | Strict inclusive cutoff by manifest `captured_at`, for every purpose | One auditable rule; the future cannot change the answer | Use late files' early sub-snapshots for linking | Costs 2 sample hits (19 → 21/32 forgone) |
 | 0003 | Recover accounts from activity: window, result↔status, identity filter, one-to-one | Gold accounts have no pre-audit identity link | Ignore activity; or treat SUCCESS as proof of absence | 23/23 result agreement; 19/32 exact, 0 wrong |
 | 0004 | Ties produce no step and are logged | Never attribute data on a guess | Case-id-order tie-break | The tie-break gets 23/32 but 1 wrong, and relies on a generator artifact |
-| 0005 | Reject a link the referenced artifact contradicts | Evidence over claims | Trust the catalog row | 9 of 12 link rows consistent with their artifact, 1 contradicted, 2 unconfirmed |
+| 0005 | Reject a link the referenced artifact contradicts | Evidence over claims | Trust the catalog row | Of the 12 `LINK_RESOURCE_IDENTITY` rows, the engine's artifact check finds 8 confirmed, 1 contradicted, 3 unconfirmed |
 | 0006 (amended) | An unproven end state gets a future VERIFY only, never a finding citing activity | A FAILED delete proves an attempt, not a state | v1: report it as remaining, citing the activity row | 12/12 sample accounts with a FAILED/PARTIAL claim are gold VERIFY-only |
-| 0007 | "One file per case" is never a feature | It is a dataset regularity, not a rule | Choose a case file first | One file serves 10 sample cases |
+| 0007 | "One file per case" is never a feature | It is a dataset regularity, not a rule | Choose a case file first | One evidence file (evidence_92) is cited by 9 different sample cases |
 | 0008 | Models only for intent (and vision); pinned, cached, rules-only fallback | Determinism and reproducibility | A model deciding state or policy | – |
-| 0009 | Untagged support category from the activity type, under tag and content | Highest measured agreement | Default everything to REDACT; or an LLM on message text | 8/8 on gold, 31/31 against explicit tags |
+| 0009 | Untagged support category from the activity type, under tag and content | Highest measured agreement | Default everything to REDACT; or an LLM on message text | 8/8 against gold on untagged sample records; 31/31 against explicit tags |
 | 0010 | A DELETION_PENDING account is present | The row and its email still exist at the cutoff | "Pending means done" | Unlabeled; 8 eval cases |
 | 0011 | Pre-audit legal holds are retained and verified present | rule_13 | Delete them; or steps for register rows | Unlabeled; 6 eval cases |
 | 0012 | Unobservable categories produce no steps | Nothing visible to link or check | Infer records from activity bursts | 0 observable units for cache, email log, telemetry |
@@ -393,7 +393,7 @@ These are the strongest part of the story, because each one is a rule that was *
   - **Result:** links seen only absent before the request are now dropped.
 - **The support-category bug (blind audit).**
   - **The bug:** four blind sub-agents audited unlabeled eval cases from raw evidence. One found that a templated message text outranked the deletion worker's DELETE claim.
-  - **The fix:** a regression test and corrected precedence, which changed 12 rows.
+  - **The fix:** a regression test and corrected precedence, which changed 12 eval rows of `output.csv`.
 
 ---
 
@@ -439,7 +439,7 @@ flowchart LR
 
 | Experiment | Result | Verdict |
 | --- | --- | --- |
-| Spike: 50 propositions with known truth (25 true, 25 perturbed), single call | AUROC 0.959 (supports) / 0.945 (supports − contradicts); the same request × 20 varied by 0.090 | **FAIL** on repeat stability (gate ≤ 0.05) |
+| Spike: 50 propositions with known truth (25 true, 25 perturbed), single call | AUROC 0.959 (supports) / 0.945 (supports − contradicts); the same request sent 20 times varied by 0.090 in p(supports) (max − min) | **FAIL** on repeat stability (gate ≤ 0.05) |
 | Follow-up: mean of 10 calls, two independent rounds, decision rule written *before* running | AUROC 0.949 / 0.949, max round difference 0.030 (with code-computed facts: 0.962 / 0.962, 0.037) | **PASS** → a ranker may be built, advisory only |
 | Weak kinds | Decoy owner +0.12 / +0.16, wrong operation +0.20 / +0.11 (they score like true claims) | Jev is never asked about ownership or operation; those stay deterministic |
 | Ranker on our output | 1,083 cited eval steps and 62 cited sample steps scored, 10 calls each (11,450 calls, $0.3734). The 15 lowest-scored steps were checked by hand against raw evidence: **0 real engine mistakes** | Advisory queue in `docs/JEV_REVIEW_QUEUE.md`; it never edits `output.csv` |
@@ -475,9 +475,9 @@ flowchart TB
 | Metamorphic relations | Sensitivity to row order, file names, email case, decoys, late files, cutoff moves, replicas, removed files, duplicated texts, tie removal, contradicted links | 13/13 hold |
 | Invariants | Inconsistent rows the samples never exercise | 9/9 on 518/518 |
 | Custom cases | Situations no sample labels (replica-only, DELETION_PENDING, contradicted link, legal hold, old email in upper case, post-cutoff resurrection, tombstones, a marketing-only trap, ties, an unproven delete) | 12/12 pass |
-| Blind silver audit | Engine bugs on unlabeled cases | 20 cases: 1 bug found and fixed (12 rows), 5 documented assumptions |
+| Blind silver audit | Engine bugs on unlabeled cases | 20 eval cases: 1 bug found and fixed (12 eval rows changed), 5 documented assumptions |
 | Loss ledger | Unexplained gaps | `unknown` = 0 |
-| Dependency matrix | Tests that depend on whether pandas, openai, pypdf, typesafe-sdk or pdftotext is installed | 12 runs green; it found 3 such tests, now fixed |
+| Dependency matrix | Tests that depend on whether pandas, openai, pypdf, typesafe-sdk or pdftotext is installed | 12 runs green (2 suites × 6 configurations); it found 3 such tests, now fixed |
 | Clean room | A zip that only works inside the repo | Same `output.csv` sha256, no keys |
 
 **Metamorphic relations (13/13 hold):**
@@ -566,7 +566,7 @@ The samples over-represent hand-written situations, and 22 + 10 cases are too fe
 | Gold probe | Coverage treated as exhaustive (7 contradictions) | ADR 0014 |
 | Dev diff | Citations used a later covering file instead of the latest naming file | The citation rule |
 | Dev diff | A 404 from another lifecycle produced an extra step | ADR 0016 |
-| Blind audit | Templated message text outranked a DELETE claim | Category precedence fixed, regression test, 12 rows |
+| Blind audit | Templated message text outranked a DELETE claim | Category precedence fixed, regression test, 12 eval rows changed |
 | Literal audit | Case ids in docstrings and comments (three times) | Removed |
 | Peer review | A key set without the `openai` package crashed the run | Guarded import, bounded retries, failures never cached |
 | Dependency matrix | A test compared the whole warning list (red without pandas), plus 2 similar tests | Warning filtering; `final --matrix` |
@@ -582,7 +582,7 @@ The samples over-represent hand-written situations, and 22 + 10 cases are too fe
 4. **Board** (`docs/BOARD.md`): tasks T01–T17, each with an acceptance command, built test-first.
 5. **Independent checks:** blind sub-agent audits, metamorphic relations, the Jev spike with a pre-registered decision rule, and a readiness pass. Every turn is logged in `log.txt` (submitted separately).
 
-The tests: 139 solver tests in `code/tests/` and 106 evaluation tests in `code/evaluation/tests/`.
+The tests: 139 solver tests in `code/tests/` and 108 evaluation tests in `code/evaluation/tests/`.
 
 ---
 
@@ -641,7 +641,7 @@ The tests: 139 solver tests in `code/tests/` and 106 evaluation tests in `code/e
   - ADR 0006 (12/12 gold contradicted the first ruling);
   - ADR 0014 (7 coverage contradictions);
   - ADR 0016 (a reused id from an earlier lifecycle);
-  - the support-category precedence bug found by a blind sub-agent (12 rows).
+  - the support-category precedence bug found by a blind sub-agent (12 eval rows changed).
 - Proof: [§8](#decisions-that-evidence-overturned).
 
 **8. What does Jev add, and what did it not?**

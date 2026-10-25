@@ -11,7 +11,7 @@ The request authorises deletion, but no grounded resource is visible at `audit_a
 
 - PS:91 requires `[]` for NOT_APPLICABLE. It does not say an INCOMPLETE row must carry steps: "For `INCOMPLETE`, include findings, the complete remediation plan, and the checks that must pass afterward" describes what to include when there is something to include.
 - `docs/03_DESIGN.md` Stage 2 already writes UNRESOLVED_SUBJECT as "INCOMPLETE with no steps". ADR 0006 §4 says "Nothing grounded means nothing emitted". The T01 gate contradicted both.
-- T09 measurement: **10 eval cases** (case_33, 35, 39, 45, 50, 52, 53, 55, 61, 63) and 4 samples (case_01, 02, 04, 07) end with no grounded step today. Most of them overlap the "subject's identifiers only in post-audit files" set (`docs/02` §5.4) or need T10/T12.
+- T09 measurement: **10 eval cases** (case_33, 35, 39, 45, 50, 52, 53, 55, 61, 63) and 4 samples (case_01, 02, 04, 07) ended with no grounded step at T09, before linking (T10) and the PDF/screenshot loaders (T12) landed. On the final run, 3 eval cases remain (case_55, case_61, case_63; the gate warning `L0.empty_incomplete`). Most of them overlap the "subject's identifiers only in post-audit files" set (`docs/02` §5.4) or need T10/T12.
 - COMPLETE is impossible: every COMPLETE step must cite proving evidence.
 - NOT_APPLICABLE is wrong: the request does authorise deletion.
 - Inventing a step (a guessed account id, or an activity-cited finding) breaks ADR 0004 and 0006.

@@ -80,11 +80,11 @@ DOC_FACTS = [
     ("**7 contradictions**", "docs/adr/0014-coverage-is-weak-evidence.md", "Fixes the 7 contradictions"),
     ("5 from non-empty bundle collections", "docs/adr/0014-coverage-is-weak-evidence.md", "contradict gold in **5** cases"),
     ("4 gold absences that are proven only by omission", "docs/adr/0014-coverage-is-weak-evidence.md", "loses the 4 gold absences proven only by omission"),
-    ("8/8 on untagged sample records", "docs/adr/0009-support-category-from-activity.md", "**agrees with gold 8/8**"),
-    ("31/31 across all evidence", "docs/adr/0009-support-category-from-activity.md", "**31/31** agree"),
-    ("9 of 12 link rows consistent", "docs/adr/0005-contradicted-screenshot-links.md", "9 are consistent with the artifact"),
-    ("451 of 518 ids", "docs/adr/0001-case-id-sort-order.md", "451 of 518 IDs"),
-    ("One file serves 10 sample cases", "docs/adr/0007-one-file-structure-not-a-feature.md", "serves 10 sample cases"),
+    ("8/8 against gold on untagged sample records", "docs/adr/0009-support-category-from-activity.md", "**agrees with gold 8/8**"),
+    ("with the explicit tag 31/31 on the tagged records", "docs/adr/0009-support-category-from-activity.md", "**31/31** agree"),
+    ("around 5% of an estimated 3,050 gold-style steps", "docs/adr/0004-ties-are-unresolved.md", "about 5% of about 3,050"),
+    ("8/8 on the untagged sample support records", "docs/adr/0009-support-category-from-activity.md", "For 8 of the 9"),
+    ("cited by 9 different sample cases", "docs/adr/0007-one-file-structure-not-a-feature.md", "is cited by 9 sample cases"),
     ("15 lowest-scored steps were checked by hand against raw evidence: **0 real engine mistakes**", "docs/JEV_HANDCHECK.md",
      "**Result: 0 real engine mistakes out of 15.**"),
     ("varied by 0.090", "docs/JEV_SPIKE.md", "**0.090**"),
@@ -156,6 +156,45 @@ class EveryNumber(unittest.TestCase):
             self.assertIn(x, USAGE + _read("docs", "JEV_SPIKE.md"), x)
         for x in ("399 calls", "364,270", "20,214", "12 cache hits", "11,450"):
             self.assertIn(x.split()[0], USAGE, x)
+
+    def test_sort_order_claim_is_computed_from_the_dataset(self):
+        ids = [r["case_id"] for r in csv.DictReader(open(ROOT / "dataset" / "deletion_requests.csv", newline="", encoding="utf-8"))]
+        moved = sum(a != b for a, b in zip(ids, sorted(ids), strict=True))
+        three = sum(len(i.split("_")[1]) == 3 for i in ids)
+        two = sum(len(i.split("_")[1]) == 2 for i in ids)
+        self.assertEqual(ids, sorted(ids, key=lambda c: int(c.split("_")[1])))           # the input is in numeric order
+        self.assertIn(f"A lexical sort moves all {moved} ids; the {three} three-digit ids sort ahead of the {two} two-digit ones", README)
+        self.assertEqual(moved, len(ids))
+
+    def test_regime_catalog_and_sample_numbers_are_computed(self):
+        from datetime import datetime
+        def hours(r):
+            t = lambda x: datetime.fromisoformat(x.replace("Z", "+00:00"))  # noqa: E731
+            return (t(r["reported_at"]) - t(r["requested_at"])).total_seconds() / 3600
+        def rows(name):
+            return list(csv.DictReader(open(ROOT / "dataset" / name, newline="", encoding="utf-8")))
+        generated = {"case_09"} | {f"case_{i}" for i in range(11, 33)}         # docs/03_ID_RECOVERY_PROTOTYPE.md §1
+        s_n = sum(r["case_id"] in generated and hours(r) in (24, 48, 72) for r in rows("sample_deletion_requests.csv"))
+        ev = rows("deletion_requests.csv")
+        e_n = sum(hours(r) in (24, 48, 72) for r in ev)
+        self.assertEqual(s_n, len(generated))
+        self.assertIn(f"the {s_n} generated sample cases, case_09 and case_11 to case_32, plus the {e_n} of {len(ev)} eval cases", README)
+        self.assertIn(f"in every one of those {s_n} sample cases", README)
+        self.assertIn("samples case_09, case_11 to case_32 (23)", _read("docs", "03_ID_RECOVERY_PROTOTYPE.md"))
+        out = subprocess.run([sys.executable, "code/evaluation/main.py", "linking"], capture_output=True, text=True, cwd=ROOT).stdout
+        from collections import Counter
+        c = Counter(re.findall(r"^  activity_\d+ .*?: (CONFIRMED|CONTRADICTED|UNCONFIRMED)", out, re.M))
+        self.assertIn(f"Of the {sum(c.values())} `LINK_RESOURCE_IDENTITY` rows, the engine's artifact check finds "
+                      f"{c['CONFIRMED']} confirmed, {c['CONTRADICTED']} contradicted, {c['UNCONFIRMED']} unconfirmed", README)
+        gold = list(csv.DictReader(open(ROOT / "dataset" / "sample_output.csv", newline="", encoding="utf-8")))
+        n92 = sum(any(st["evidence_id"] == "evidence_92" for st in json.loads(r["steps_json"])) for r in gold)
+        self.assertIn(f"One evidence file (evidence_92) is cited by {n92} different sample cases", README)
+        self.assertIn("the other 13 get none", README)
+        self.assertEqual(len(gold) - 19, 13)
+        sys.path.insert(0, str(ROOT / "code"))
+        from evaluation import final, scorer
+        self.assertIn(f"the equal-weight mean of {'nine' if len(scorer.PROXY) == 9 else len(scorer.PROXY)} headline metrics", README)
+        self.assertIn(f"2 suites × {len(final.matrix_configs())} configurations", README)
 
     def test_quoted_document_facts_are_in_the_documents(self):
         for readme_snippet, doc, doc_snippet in DOC_FACTS:
