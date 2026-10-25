@@ -1005,3 +1005,22 @@ branch=claude/stoic-bell-1t82oq
 repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
+
+## [2026-10-25T02:49:20Z] T17 follow-up spike: mean-of-10 Jev ranking passes the pre-registered gate; ownership stays weak
+
+User Prompt (verbatim, secrets redacted):
+(relayed by peer session "Prompt playbook website publishing" for the user) After the robustness fix: a bounded follow-up spike (scratch only, results as a second section of docs/JEV_SPIKE.md). Mean of k=10 calls for supports and contradicts per proposition, two independent rounds with different order: AUROC and per-proposition round difference (max, p95), gate max <= 0.05 and AUROC >= 0.90; per-kind means; precomputed deterministic facts in state to try to fix decoy owner; cost and latency. Decision rule written before running: pass both gates in both rounds -> a ranker-only judge may be built later; otherwise stop. Do not build the judge; keep TYPESAFE_API_KEY out of every file and log.
+
+Agent Response Summary:
+I wrote and committed the decision rule before any call, then ran scratch/proto_jev_followup.py: 2,000 calls (2 variants x 2 rounds x 50 propositions x 10). Part 1: AUROC 0.949/0.949, max round difference 0.030 -> PASS. Part 2 (code-computed identifier_match / captured-before-audit / resource-mentioned facts): 0.962/0.962, 0.037 -> PASS. Decoy owner (+0.12 -> +0.16) and wrong operation (+0.20 -> +0.11) remain weak, so ownership must stay deterministic. Per the rule, a ranker-only judge is allowed later and was not built. Totals: 1,474,680 in / 76,000 out tokens, median 88 ms, about $0.062.
+
+Actions:
+* Committed the decision rule to docs/JEV_SPIKE.md first; wrote and ran scratch/proto_jev_followup.py (git-ignored); appended results to docs/JEV_SPIKE.md; updated docs/BOARD.md (T17 row and result)
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none

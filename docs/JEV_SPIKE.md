@@ -63,3 +63,40 @@ If a judge is wanted later, these could be re-spiked:
 - If the mean-of-10 score passes **both** gates (AUROC ≥ 0.90, and max per-proposition |round 1 − round 2| ≤ 0.05) in **both** independent rounds, a judge may later be built as a **ranker only**: advisory, never editing output.csv, writing a per-step risk score and a review queue to a report.
 - Otherwise stop: the blind sub-agent audit stays the independent check, and the Jev result is recorded as a measured negative result in the evaluation report.
 - The same rule applies separately to the variant with precomputed facts in `state` (part 2).
+
+### Setup
+
+- Same 50 propositions (25 true / 25 false, 5 per perturbation kind).
+- Each call asks the separate `supports` and `contradicts` Noul questions. k = 10 calls per proposition give mean(supports) and mean(contradicts); score = mean(supports) − mean(contradicts).
+- **Two independent rounds**, with shuffled call orders (seeds 1 and 2), 8 parallel workers.
+- **Part 2** adds to `state` facts computed in code, not by the model: `identifier_match` (exact/none: does any subject email or user_id appear in the evidence lines), `evidence_captured_before_audit` and `resource_mentioned_in_evidence`.
+- Code: `scratch/proto_jev_followup.py` (throwaway, git-ignored). The API key is read by the SDK from the environment only.
+
+### Results
+
+| Variant | AUROC round 1 / round 2 | max \|r1 − r2\| (score) | p95 \|r1 − r2\| | Gate |
+| --- | --- | --- | --- | --- |
+| Part 1: mean of 10, state as before | 0.949 / 0.949 | 0.030 | 0.020 | **PASS** |
+| Part 2: mean of 10, + precomputed facts | 0.962 / 0.962 | 0.037 | 0.031 | **PASS** |
+
+Mean score per kind (round 1 / round 2):
+
+| Kind | n | Part 1 | Part 2 |
+| --- | --- | --- | --- |
+| gold (true) | 25 | +0.54 / +0.54 | +0.52 / +0.52 |
+| wrong resource | 5 | −0.44 / −0.43 | −0.40 / −0.39 |
+| flipped state | 5 | −0.47 / −0.49 | −0.50 / −0.48 |
+| post-cutoff | 5 | −0.47 / −0.47 | −0.51 / −0.51 |
+| **wrong operation** | 5 | **+0.20 / +0.20** | **+0.11 / +0.11** |
+| **decoy owner** | 5 | **+0.12 / +0.12** | **+0.16 / +0.16** |
+
+- **Totals for the follow-up:** 2,000 calls, model echoed `jev-1.14.0` every time, 1,474,680 input / 76,000 output tokens, median latency 88 ms, p95 137 ms, 24 s wall time, ≈ $0.062 (at $0.042 / 1M input, output free; aggregator listings).
+
+### Reading and decision
+
+- **The hypothesis holds.** Averaging 10 calls makes the score repeatable (max round-to-round difference 0.030–0.037 ≤ 0.05) while keeping AUROC ≥ 0.90. By the pre-registered rule, a **ranker-only** judge may be built later. It would be advisory, never edit `output.csv`, and write a per-step risk score and a review queue to a report. It is **not** built in this job.
+- **Both weak kinds remain weak.** Decoy-owner and wrong-operation propositions still score positive on average (+0.12…+0.20), i.e. they rank among the true propositions.
+- **The precomputed `identifier_match` fact did not fix decoy owner** (+0.12 → +0.16). It only nudged wrong operation (+0.20 → +0.11).
+- So Jev ranks **state and time** errors well (wrong resource, flipped state, post-cutoff) but not **ownership** or **operation-type** errors. Ownership must stay a deterministic check in code, which it already is: exact identifier matching and ADR 0004/0005.
+- If a ranker is built, it should only rank state/time claims, and its review queue must not be read as covering ownership mistakes.
+- n = 5 per false kind is small. The per-kind means are indicative, not precise.

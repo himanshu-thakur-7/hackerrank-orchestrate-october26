@@ -27,7 +27,7 @@
 | T14 | usage_report.md, README, packaging script, final validation | P0 | 10 | T09, T11, T13, T16 | `python3 code/package.py && python3 code/evaluation/main.py final` | code.zip contains README.md + code/ only (no dataset/, .env, *.zip, __pycache__); final gates green; output.csv 518 rows | todo |
 | T15 | Metamorphic suite: dataset overlay helper + relations | P0 | 10 | T02 (helper), T09 (relations) | `python3 code/evaluation/main.py metamorphic` | All relations hold: shuffled rows, renamed case IDs, uppercase emails, injected post-cutoff file, added `.jr` decoy, contradicted screenshot, earlier audit_at | done |
 | T16 | Invariants on all 518 + blind silver-label audit + score band with per-case loss ledger | P1 | 10 | T09, T10 | `python3 code/evaluation/main.py invariants && python3 code/evaluation/main.py lossledger` | Invariants 518/518; every cited evidence_id exists and is ≤ audit_at; the loss ledger lists unresolved, not-observable, unproven and unlabeled cases with counts | done |
-| T17 | TypeSafe Jev judge (typesafe-sdk, pinned jev-1.14.0, disk-cached, advisory only) behind a spike gate | P2 | 9 | T01, T11 | `python3 code/evaluation/main.py judge-spike` | Spike reports AUROC ≥ 0.90 and repeat-stability ≤ 0.05, otherwise the judge stays disabled; output.csv hash unchanged with the judge on or off | blocked (spike gate failed: repeat Δp 0.090 > 0.05) |
+| T17 | TypeSafe Jev judge (typesafe-sdk, pinned jev-1.14.0, disk-cached, advisory only) behind a spike gate | P2 | 9 | T01, T11 | `python3 code/evaluation/main.py judge-spike` | Spike reports AUROC ≥ 0.90 and repeat-stability ≤ 0.05, otherwise the judge stays disabled; output.csv hash unchanged with the judge on or off | todo (single-call gate failed; mean-of-10 ranker gate passed: ranker-only judge allowed, not built) |
 
 **Build sequence** (critical path in bold): **T01 → T02 → T03 → T04 → T05 → T08 → T09** → T06 / T07 / T12 → T10 → **T15** → T16 → T13 → T11 → **T14**. T17 can run only after T11, and only if time allows.
 
@@ -147,6 +147,10 @@ Four sub-agents audited 14 eval cases from `dataset/` only (no engine output, co
 ## Robustness: optional dependencies and API failures (peer-reported bug)
 
 A key set without the `openai` package crashed `main.py` (and the custom run). Fixed test-first (`code/tests/test_degrade.py`, 7 tests): guarded SDK import with one warning; bounded retries (2) with backoff and JSON/schema validation; failures recorded (usage log, `degraded` count) and never cached; an end-of-run decision summary; committed PDF text cache, so no PDF tool is needed. Two whole-pipeline subprocess tests: a fake key with `openai` blocked, and a client that raises on every call (over an overlay with a fresh remainder text); both give output byte-identical to the cache-only / no-key run. Acceptance in both environments (key unset; key set + openai blocked): selftest OK, determinism eb99c26b7974, invariants 9/9, custom 12/12, metamorphic 13/13; outputs byte-identical to each other, to the committed output.csv, and to a run with no `pdftotext` on PATH.
+
+## T17 follow-up spike (mean of k = 10)
+
+Pre-registered rule committed before running. Mean of 10 calls, two independent rounds: AUROC 0.949/0.949, max round difference 0.030 → **PASS** (with code-computed facts in state: 0.962/0.962, 0.037 → PASS). A ranker-only advisory judge is therefore allowed later; not built. Decoy-owner and wrong-operation propositions stay weak (mean score +0.12…+0.20), and the identifier_match fact did not fix decoy owner, so ownership stays deterministic in code. 2,000 calls, 1.47M input tokens, ≈ $0.062, 24 s.
 
 ## Where this board deviates from the relayed list (and why)
 
