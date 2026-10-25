@@ -10,6 +10,8 @@ resource id (a register row, a statement) are kept as `unattributed` units. Docu
 record that exists, so state is PRESENT; observed_at is the file's captured_at (ADR 0002).
 """
 
+from __future__ import annotations
+
 import re
 import shutil
 import subprocess
@@ -25,6 +27,9 @@ from ghostaudit.loaders.common import (
     kind,
 )
 from ghostaudit.store import Observation
+
+from collections.abc import Callable, Iterable, Sequence
+from typing import cast
 
 RES_RE = re.compile(r"\b(" + "|".join(sorted(PREFIX_SYSTEM, key=len, reverse=True)) + r")_\d+\b")
 USER_RE = re.compile(r"\buser_\d+\b")
@@ -45,7 +50,7 @@ class PdfTextUnavailable(Exception):
     pass
 
 
-def _pdftotext(raw):
+def _pdftotext(raw: bytes) -> str | None:
     exe = shutil.which("pdftotext")
     if not exe:
         return None
@@ -56,7 +61,7 @@ def _pdftotext(raw):
     return out.stdout.decode("utf-8", errors="replace")
 
 
-def _pypdf(raw):
+def _pypdf(raw: bytes) -> str | None:
     try:
         import io
 
@@ -66,7 +71,9 @@ def _pypdf(raw):
     return "\n".join(page.extract_text() or "" for page in pypdf.PdfReader(io.BytesIO(raw)).pages)
 
 
-def extract_text(raw, backends=(_pdftotext, _pypdf)):
+def extract_text(
+    raw: bytes, backends: Sequence[Callable[[bytes], str | None]] = (_pdftotext, _pypdf)
+) -> str:
     import hashlib
 
     from ghostaudit.loaders import pdf_text_cache
@@ -83,12 +90,12 @@ def extract_text(raw, backends=(_pdftotext, _pypdf)):
     )
 
 
-def _tokens(text):
+def _tokens(text: str) -> list[str]:
     out = EMAIL_IN_TEXT.findall(text) + USER_RE.findall(text) + PHONE_RE.findall(text)
     return [t.rstrip(".") for t in out]
 
 
-def units(text):
+def units(text: str) -> list[tuple[str, str, list[str]]]:
     """(locator, unit_text, resource_ids) record units of one document."""
     lines = text.splitlines()
     ids = sorted(set(m.group(0) for m in RES_RE.finditer(text)), key=lambda r: text.index(r))
@@ -104,7 +111,7 @@ def units(text):
     ]
 
 
-def _without_resource_id(file_id, loc, unit, toks):
+def _without_resource_id(file_id: str, loc: str, unit: str, toks: Sequence[str]) -> list[Unit]:
     """Units for a text with no resource id. A register (several person rows, each with its own
     user id) yields one Unit per row; any other text with identifiers yields one Unit."""
     person_lines = [(n, line) for n, line in enumerate(unit.splitlines(), 1) if _tokens(line)]
@@ -119,7 +126,7 @@ def _without_resource_id(file_id, loc, unit, toks):
     return []
 
 
-def _exposed(toks, unit):
+def _exposed(toks: Sequence[str], unit: str) -> tuple[str, ...]:
     """Direct identifiers visible in the unit: emails and phones among its tokens, and a name."""
     pii = {k for k in map(kind, toks) if k in ("email", "phone")}
     if any(NAME_RE.match(line) for line in unit.splitlines()):
@@ -127,7 +134,7 @@ def _exposed(toks, unit):
     return tuple(p for p in ("name", "email", "phone") if p in pii)
 
 
-def _attributes(unit):
+def _attributes(unit: str) -> tuple[tuple[str, str], ...]:
     """The first value of each ATTR_RES attribute found in the unit, whitespace-normalized."""
     found = {}
     for line in unit.splitlines():
@@ -138,7 +145,7 @@ def _attributes(unit):
     return tuple(sorted(found.items()))
 
 
-def load(file_id, captured_at, raw):
+def load(file_id: str, captured_at: str, raw: bytes) -> LoadResult:
     r = LoadResult("pdf")
     for loc, unit, ids in units(extract_text(raw)):
         toks = identifiers(*_tokens(unit))
@@ -147,7 +154,7 @@ def load(file_id, captured_at, raw):
             continue
         pii, attrs = _exposed(toks, unit), _attributes(unit)
         for rid in ids:
-            system = PREFIX_SYSTEM[RES_RE.match(rid).group(1)]
+            system = PREFIX_SYSTEM[cast("re.Match[str]", RES_RE.match(rid)).group(1)]
             r.observations.append(
                 Observation(
                     file_id,
@@ -167,7 +174,7 @@ def load(file_id, captured_at, raw):
     return r
 
 
-def write_text_cache(pdf_paths, out_path):
+def write_text_cache(pdf_paths: Iterable[str | Path], out_path: str | Path) -> None:
     """Regenerate pdf_text_cache.py from PDF files with pdftotext (run once per dataset version)."""
     import hashlib
 

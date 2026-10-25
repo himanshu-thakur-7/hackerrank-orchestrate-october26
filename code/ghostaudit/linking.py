@@ -21,29 +21,41 @@ there is no tie-break (ADR 0004), in particular never by case_id order. The dist
 reported_at is reported for each candidate, but it is not used to choose.
 """
 
+from __future__ import annotations
+
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from ghostaudit.loaders.common import EMAIL_IN_TEXT
 
+from collections.abc import Iterable, Mapping
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from ghostaudit.data import Request
+    from ghostaudit.identity import Identity, Resolver
+    from ghostaudit.intent import Intent
+    from ghostaudit.store import ActivityEvent, CaseView, EvidenceStore, Observation
 # The primary-account delete lands between 0.5 h and 1.5 h before reported_at (docs/03 §1: the gold
 # account's delete was measured 0.75-1.23 h before reported_at in all 23 generated sample cases).
 ACCOUNT_DELETE_WINDOW_HOURS = (0.5, 1.5)
 RESULT_OF = {"COMPLETE": "SUCCESS", "PARTIALLY_COMPLETE": "PARTIAL", "NOT_STARTED": "FAILED"}
 
 
-def _T(s):
+def _T(s: str) -> datetime:
     return datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ")
 
 
-def _case_order(case_id):
+def _case_order(case_id: str) -> tuple[int, str]:
     """Natural case order (a shorter id sorts first, so 9 comes before 10); it only makes the
     iteration deterministic."""
     return (len(case_id), case_id)
 
 
-def _eliminate_one_to_one(links, live):
+def _eliminate_one_to_one(
+    links: dict[str, AccountLink], live: dict[str, dict[str, Candidate]]
+) -> None:
     """Global one-to-one elimination: a request left with exactly one candidate claims it, and the
     claimed delete is removed from every other request, until nothing changes. A delete that two
     requests both claim as their only candidate links neither (ADR 0004)."""
@@ -62,7 +74,7 @@ def _eliminate_one_to_one(links, live):
             changed |= _remove_claimed(live, cid, aid)
 
 
-def _remove_claimed(live, owner_cid, aid):
+def _remove_claimed(live: dict[str, dict[str, Candidate]], owner_cid: str, aid: str) -> bool:
     """Remove activity `aid` from every request but its owner; True if anything was removed."""
     removed = False
     for cid, cs in live.items():
@@ -72,7 +84,7 @@ def _remove_claimed(live, owner_cid, aid):
     return removed
 
 
-def _settle(link, survivors):
+def _settle(link: AccountLink, survivors: dict[str, Candidate]) -> None:
     """Record the survivors and, for an unlinked request, why it stayed unresolved."""
     link.survivors = tuple(sorted(survivors.values(), key=lambda c: (c.event_time, c.activity_id)))
     if link.status == "LINKED":
@@ -105,12 +117,12 @@ class AccountLink:
     status: str  # LINKED | TIED | NO_CANDIDATE | NOT_A_DELETION
     resource_id: str | None = None
     activity_id: str | None = None
-    candidates: tuple = ()  # after window + result
-    survivors: tuple = ()  # after identity filter + global elimination
+    candidates: tuple[Candidate, ...] = ()  # after window + result
+    survivors: tuple[Candidate, ...] = ()  # after identity filter + global elimination
     reason: str = ""
-    filtered: list = field(default_factory=list)  # (resource_id, why dropped)
+    filtered: list[tuple[str, str]] = field(default_factory=list)  # (resource_id, why dropped)
 
-    def describe(self):
+    def describe(self) -> str:
         if self.status == "LINKED":
             c = next(c for c in self.survivors if c.resource_id == self.resource_id)
             return (
@@ -132,11 +144,17 @@ class CatalogLink:
 
 
 class Linker:
-    def __init__(self, store, resolver, requests, intents):
+    def __init__(
+        self,
+        store: EvidenceStore,
+        resolver: Resolver,
+        requests: Iterable[Request],
+        intents: Mapping[str, Intent],
+    ) -> None:
         self.store, self.resolver = store, resolver
         self.requests = {q["case_id"]: q for q in requests}
         self.intents = intents
-        self._accounts = None
+        self._accounts: dict[str, AccountLink] | None = None  # computed once, on first use
         self._deletes = [
             a
             for a in store.activity_events
@@ -147,7 +165,7 @@ class Linker:
         ]
 
     # ---- primary account -------------------------------------------------------------------
-    def _candidates(self, q):
+    def _candidates(self, q: Request) -> list[Candidate]:
         rep = _T(q["reported_at"])
         lo, hi = ACCOUNT_DELETE_WINDOW_HOURS
         want = RESULT_OF.get(q["reported_status"])
@@ -170,17 +188,19 @@ class Linker:
                 )
         return out
 
-    def _owners(self, view, resource_id):
-        owners = set()
+    def _owners(self, view: CaseView, resource_id: str) -> set[str]:
+        owners: set[str] = set()
         for o in view.observations(resource_id):
             if o.system_id == "account_service":
-                owners |= {self.resolver.owner_of(t) for t in o.identifiers} - {None}
+                owners |= {u for t in o.identifiers if (u := self.resolver.owner_of(t)) is not None}
         for c in self.catalog(view, None):
             if c.resource_id == resource_id and c.status == "CONFIRMED":
                 owners |= set(c.reason.split("owner=")[1:2])
         return owners
 
-    def _identity_filter(self, link, cands, view, subject):
+    def _identity_filter(
+        self, link: AccountLink, cands: list[Candidate], view: CaseView, subject: Identity
+    ) -> list[Candidate]:
         """Drop candidates that visible pre-audit evidence ties to someone else; if any is tied to
         this subject, keep only those. Dropped candidates are recorded on the link."""
         mine, other = [], []
@@ -195,7 +215,7 @@ class Linker:
                 )
         return mine or [c for c in cands if c not in other]
 
-    def _screen(self, cid):
+    def _screen(self, cid: str) -> tuple[AccountLink, list[Candidate] | None]:
         """(AccountLink, kept candidates) for one request; kept is None when it is not a
         resolvable deletion request (no candidates are generated for it)."""
         q = self.requests[cid]
@@ -209,7 +229,7 @@ class Linker:
         link = AccountLink(cid, "TIED", candidates=tuple(cands))
         return link, self._identity_filter(link, cands, self.store.as_of(q["audit_at"]), subject)
 
-    def _compute(self):
+    def _compute(self) -> dict[str, AccountLink]:
         links, live = {}, {}
         for cid in sorted(self.requests, key=_case_order):
             links[cid], keep = self._screen(cid)
@@ -218,39 +238,40 @@ class Linker:
         _eliminate_one_to_one(links, live)
         for cid, survivors in live.items():
             _settle(links[cid], survivors)
-        self._accounts = links
+        return links
 
-    def account(self, case_id):
+    def _all(self) -> dict[str, AccountLink]:
+        """Every request's account link, computed on first use (the elimination is global)."""
         if self._accounts is None:
-            self._compute()
-        return self._accounts.get(case_id) or AccountLink(
+            self._accounts = self._compute()
+        return self._accounts
+
+    def account(self, case_id: str) -> AccountLink:
+        return self._all().get(case_id) or AccountLink(
             case_id, "NOT_A_DELETION", reason="unknown request"
         )
 
-    def distribution(self):
+    def distribution(self) -> dict[int, int]:
         """{number of surviving candidates: deletion requests}; 1 with status LINKED, >1 or 0
         unresolved."""
-        if self._accounts is None:
-            self._compute()
         return dict(
             sorted(
                 Counter(
                     len(acct.survivors)
-                    for acct in self._accounts.values()
+                    for acct in self._all().values()
                     if acct.status != "NOT_A_DELETION"
                 ).items()
             )
         )
 
-    def summary(self, case_ids):
+    def summary(self, case_ids: Iterable[str]) -> str:
         """One line for a run: surviving-candidate distribution and link outcomes over these
         requests."""
-        if self._accounts is None:
-            self._compute()
+        accounts = self._all()
         ls = [
-            self._accounts[c]
+            accounts[c]
             for c in case_ids
-            if c in self._accounts and self._accounts[c].status != "NOT_A_DELETION"
+            if c in accounts and accounts[c].status != "NOT_A_DELETION"
         ]
         dist = dict(sorted(Counter(len(acct.survivors) for acct in ls).items()))
         st = Counter(acct.status for acct in ls)
@@ -262,7 +283,7 @@ class Linker:
         )
 
     # ---- catalog links -------------------------------------------------------------------
-    def catalog(self, view, subject):
+    def catalog(self, view: CaseView, subject: Identity | None) -> list[CatalogLink]:
         """LINK_RESOURCE_IDENTITY claims visible at the cutoff (for `subject`, or all when None),
         each checked against the artifact naming the resource that was captured at or before the
         claim (ADR 0005)."""
@@ -276,12 +297,12 @@ class Linker:
             out.append(self._check_claim(a, claimed, self._artifacts(view, a)))
         return out
 
-    def _claimed_owners(self, a):
+    def _claimed_owners(self, a: ActivityEvent) -> set[str]:
         """The known people a link row names (by email or user id)."""
         tokens = EMAIL_IN_TEXT.findall(a.details) + _user_ids(a.details)
-        return {self.resolver.owner_of(t) for t in tokens} - {None}
+        return {u for t in tokens if (u := self.resolver.owner_of(t)) is not None}
 
-    def _artifacts(self, view, a):
+    def _artifacts(self, view: CaseView, a: ActivityEvent) -> list[Observation]:
         """Visible observations of the linked resource that carry identifiers and were captured at
         or before the claim."""
         return [
@@ -289,10 +310,12 @@ class Linker:
             for o in view.observations(a.resource_id)
             if o.system_id == a.target_system
             and o.identifiers
-            and self.store.captured_at(o.file_id) <= a.event_time
+            and cast("str", self.store.captured_at(o.file_id)) <= a.event_time
         ]
 
-    def _check_claim(self, a, claimed, arts):
+    def _check_claim(
+        self, a: ActivityEvent, claimed: set[str], arts: list[Observation]
+    ) -> CatalogLink:
         """CONFIRMED when the latest artifact shows a claimed person, CONTRADICTED when it shows
         someone else, UNCONFIRMED when no artifact names the resource."""
         if not arts:
@@ -326,7 +349,7 @@ class Linker:
         )
 
 
-def _user_ids(text):
+def _user_ids(text: str) -> list[str]:
     import re
 
     return re.findall(r"\buser_\d+\b", text)

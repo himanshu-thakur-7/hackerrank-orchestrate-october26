@@ -1,6 +1,23 @@
 """Output contract (AGENTS.md §6.4): the 15 (phase, operation, state) triples, in sort order.
 The position of an operation in this list is its op_rank, the first part of the step sort key."""
 
+from __future__ import annotations
+
+from typing import TypedDict
+
+
+class Step(TypedDict):
+    """One step of steps_json, with exactly the seven contract keys."""
+
+    step_no: int
+    phase: str
+    system_id: str
+    resource_id: str
+    operation: str
+    state: str
+    evidence_id: str
+
+
 TRIPLES = (
     ("FINDING", "REPORT_REMAINING_RECORD", "PRESENT"),
     ("FINDING", "REPORT_EXPOSED_PII", "PRESENT"),
@@ -23,7 +40,7 @@ PHASE = {op: phase for phase, op, _ in TRIPLES}
 STATE = {op: state for _, op, state in TRIPLES}
 
 
-def step(operation, system_id, resource_id, evidence_id=""):
+def step(operation: str, system_id: str, resource_id: str, evidence_id: str = "") -> Step:
     return {
         "step_no": 0,
         "phase": PHASE[operation],
@@ -35,7 +52,7 @@ def step(operation, system_id, resource_id, evidence_id=""):
     }
 
 
-def ordered(steps):
+def ordered(steps: list[Step]) -> list[Step]:
     """Sort by (op_rank, system_id, resource_id) as plain strings, then number 1..n."""
     out = sorted(steps, key=lambda s: (OP_RANK[s["operation"]], s["system_id"], s["resource_id"]))
     for i, s in enumerate(out, 1):

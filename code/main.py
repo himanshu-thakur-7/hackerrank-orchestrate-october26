@@ -7,12 +7,16 @@ python3 code/main.py --intent rules        # rules-only intent (no model, no cac
 python3 code/main.py --explain <case_id>                 # trace behind one row
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import sys
 from collections import Counter
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
 
 CODE = Path(__file__).resolve().parent
 ROOT = CODE.parent
@@ -21,8 +25,13 @@ sys.path.insert(0, str(CODE))
 from ghostaudit import data, explain, identity, intent, llm_intent, usage, writer  # noqa: E402
 from ghostaudit.engine import Engine  # noqa: E402
 
+if TYPE_CHECKING:
+    from ghostaudit.data import Request
+    from ghostaudit.intent import Intent
+    from ghostaudit.linking import Linker
 
-def parse_args(argv=None):
+
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
@@ -55,15 +64,15 @@ class Context:
     """Everything a run needs once the inputs are loaded and every request's intent is decided."""
 
     data_dir: Path
-    requests: list
+    requests: list[Request]
     resolver: identity.Resolver
     tracker: usage.Tracker
     classifier: llm_intent.IntentClassifier | None
-    classify: object
-    intents: dict
+    classify: Callable[[str], Intent]
+    intents: dict[str, Intent]
 
 
-def build_context(a):
+def build_context(a: argparse.Namespace) -> Context:
     data_dir = Path(a.data)
     reqs = data.load_requests(a.requests or data_dir / "deletion_requests.csv")
     tracker = usage.Tracker()
@@ -72,14 +81,14 @@ def build_context(a):
         clf = llm_intent.IntentClassifier(
             client=llm_intent.default_client(tracker), tracker=tracker
         )
-    classify = intent.classify_rules if clf is None else clf.classify
+    classify: Callable[[str], Intent] = intent.classify_rules if clf is None else clf.classify
     intents = {q["case_id"]: classify(q["request_text"]) for q in reqs}
     return Context(
         data_dir, reqs, identity.Resolver.from_dataset(data_dir), tracker, clf, classify, intents
     )
 
 
-def report(ctx):
+def report(ctx: Context) -> int:
     """--report: intent and identity counts; no file is written."""
     c = Counter(i.label for i in ctx.intents.values())
     nd = sorted(
@@ -93,7 +102,7 @@ def report(ctx):
     return 0
 
 
-def explain_case(ctx, eng, case_id):
+def explain_case(ctx: Context, eng: Engine, case_id: str) -> int:
     """--explain: the trace behind one row, searched in both request files and --requests."""
     pool = {
         q["case_id"]: q
@@ -109,12 +118,13 @@ def explain_case(ctx, eng, case_id):
     return 0
 
 
-def run(ctx, eng, a):
+def run(ctx: Context, eng: Engine, a: argparse.Namespace) -> int:
     """Write output.csv, print the run summaries and record model usage."""
     rows = [eng.audit(q, ctx.intents[q["case_id"]]) for q in ctx.requests]
     writer.write(a.out, rows)
     print(f"wrote {len(rows)} rows -> {a.out}")
-    print(eng.linker.summary([q["case_id"] for q in ctx.requests]))
+    linker = cast("Linker", eng.linker)  # Engine.from_dataset always builds one
+    print(linker.summary([q["case_id"] for q in ctx.requests]))
     if ctx.classifier is not None:
         ctx.classifier.save()
         print(ctx.classifier.summary())
@@ -130,7 +140,7 @@ def run(ctx, eng, a):
     return 0
 
 
-def main(argv=None):
+def main(argv: Sequence[str] | None = None) -> int:
     a = parse_args(argv)
     ctx = build_context(a)
     if a.report:

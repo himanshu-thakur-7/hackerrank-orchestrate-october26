@@ -1,6 +1,8 @@
 """One data record (a row of a collection) -> Observation. Shared by bundle and collection-list
 loaders."""
 
+from __future__ import annotations
+
 import json
 
 from ghostaudit.loaders.common import (
@@ -13,6 +15,11 @@ from ghostaudit.loaders.common import (
 )
 from ghostaudit.store import Observation
 
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ghostaudit.loaders.common import LoadResult
 COLLECTION_SYSTEM = {
     "customer_profiles": "account_service",
     "customer_search_documents": "search_service",
@@ -28,7 +35,16 @@ COLLECTION_SYSTEM = {
 }
 
 
-def observation(file_id, rec, system, collection, category, observed_at, locator, result_out):
+def observation(
+    file_id: str,
+    rec: Mapping[str, Any],
+    system: str,
+    collection: str,
+    category: str | None,
+    observed_at: str,
+    locator: str,
+    result_out: LoadResult,
+) -> Observation:
     fields = {k: v for k, v in rec.items() if not isinstance(v, (dict, list))}
     if isinstance(rec.get("document"), dict):
         fields.update(rec["document"])

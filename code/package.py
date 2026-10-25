@@ -15,6 +15,8 @@ environments, .git. The build refuses to write a zip in which a key-shaped strin
 apikey_...) appears.
 """
 
+from __future__ import annotations
+
 import csv
 import hashlib
 import re
@@ -22,6 +24,17 @@ import subprocess
 import sys
 import zipfile
 from pathlib import Path
+
+from typing import TypedDict
+
+
+class IdentityValues(TypedDict):
+    """What sanitize() replaces: identity emails and phones, and verbatim dataset rows."""
+
+    email: list[str]
+    phone: list[str]
+    rows: set[str]
+
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "code.zip"
@@ -70,11 +83,11 @@ TEL = re.compile(r"tel:\+?\d{6,}")
 FIXED_TIME = (2026, 10, 25, 0, 0, 0)  # constant timestamps keep the zip byte-stable across builds
 
 
-def key_hits(text):
+def key_hits(text: str) -> list[str]:
     return [m.group(0)[:6] + "..." for p in KEY_PATTERNS for m in p.finditer(text)]
 
 
-def files():
+def files() -> list[Path]:
     out = [ROOT / "README.md"]
     for p in sorted((ROOT / "code").rglob("*")):
         rel = p.relative_to(ROOT)
@@ -91,7 +104,7 @@ def files():
     return out
 
 
-def _identity_contacts(data_dir):
+def _identity_contacts(data_dir: Path) -> tuple[set[str], set[str]]:
     """(emails, phones) from the identity snapshot and every value in the audit history."""
     emails, phones = set(), set()
     with open(data_dir / "user_identities.csv", newline="", encoding="utf-8") as f:
@@ -108,7 +121,7 @@ def _identity_contacts(data_dir):
     return emails, phones
 
 
-def _dataset_rows(data_dir):
+def _dataset_rows(data_dir: Path) -> set[str]:
     """Every line of the text dataset files that is long enough to count as a row."""
     rows = set()
     for p in sorted(data_dir.rglob("*")):
@@ -119,7 +132,7 @@ def _dataset_rows(data_dir):
     return rows
 
 
-def identity_values(data_dir=DATA):
+def identity_values(data_dir: Path = DATA) -> IdentityValues:
     """Every email and phone in the identity snapshot and the audit history, plus the verbatim
     dataset rows."""
     emails, phones = _identity_contacts(data_dir)
@@ -130,19 +143,19 @@ def identity_values(data_dir=DATA):
     }
 
 
-def _token(kind, value):
+def _token(kind: str, value: str) -> str:
     return f"{kind}#" + hashlib.sha256(value.encode("utf-8")).hexdigest()[:6]
 
 
-def _email_token(m):
+def _email_token(m: re.Match[str]) -> str:
     return _token("email", m.group(0).lower())
 
 
-def _phone_token(m):
+def _phone_token(m: re.Match[str]) -> str:
     return _token("phone", re.sub(r"\D", "", m.group(0)))
 
 
-def sanitize(text, values):
+def sanitize(text: str, values: IdentityValues) -> str:
     lines = []
     for line in text.split("\n"):
         segments = [line.strip()] + [
@@ -170,7 +183,7 @@ def sanitize(text, values):
     return PHONE.sub(_phone_token, text)
 
 
-def docs():
+def docs() -> list[tuple[str, Path]]:
     """(published path, source path) for every doc that ships in code.zip."""
     out = []
     for pattern in DOCS:
@@ -179,7 +192,7 @@ def docs():
     return sorted(out)
 
 
-def build(out=OUT):
+def build(out: str | Path = OUT) -> Path:
     entries = []
     for p in files():
         b = p.read_bytes()
@@ -205,7 +218,7 @@ def build(out=OUT):
     return out
 
 
-def scan_repo():
+def scan_repo() -> list[tuple[str, str]]:
     """Key-shaped strings in any git-tracked file (path and a masked prefix only)."""
     names = subprocess.run(
         ["git", "ls-files"], capture_output=True, text=True, cwd=ROOT
@@ -218,7 +231,7 @@ def scan_repo():
     return hits
 
 
-def main():
+def main() -> int:
     out = build()
     with zipfile.ZipFile(out) as z:
         infos = z.infolist()

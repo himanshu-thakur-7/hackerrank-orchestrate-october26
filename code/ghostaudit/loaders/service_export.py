@@ -4,6 +4,8 @@ Each record is one probed resource (search records nest the hit documents). A pr
 exhaustive, so no Coverage is emitted.
 """
 
+from __future__ import annotations
+
 import json
 
 from ghostaudit.loaders.common import (
@@ -18,8 +20,18 @@ from ghostaudit.loaders.common import (
 )
 from ghostaudit.store import Observation
 
+from typing import Any
 
-def _search_record(r, file_id, system, table, rec, observed, lines):
+
+def _search_record(
+    r: LoadResult,
+    file_id: str,
+    system: str,
+    table: str,
+    rec: dict[str, Any],
+    observed: str,
+    lines: dict[int, str],
+) -> None:
     """A search query record: one PRESENT observation per hit document, or one ABSENT observation
     of the queried resource when the search returned nothing."""
     docs = rec["hits"].get("documents") or []
@@ -54,9 +66,18 @@ def _search_record(r, file_id, system, table, rec, observed, lines):
         _add(r, file_id, o, json.dumps(rec))
 
 
-def _plain_record(r, file_id, system, table, rec, observed, lines):
+def _plain_record(
+    r: LoadResult,
+    file_id: str,
+    system: str,
+    table: str,
+    rec: dict[str, Any],
+    observed: str,
+    lines: dict[int, str],
+) -> None:
     """A resource record; the fields of a nested "profile" count as the record's own."""
-    nested = rec.get("profile") if isinstance(rec.get("profile"), dict) else {}
+    profile = rec.get("profile")
+    nested = profile if isinstance(profile, dict) else {}
     fields = {**rec, **nested}
     o = Observation(
         file_id,
@@ -73,7 +94,7 @@ def _plain_record(r, file_id, system, table, rec, observed, lines):
     _add(r, file_id, o, json.dumps(rec))
 
 
-def load(file_id, captured_at, text):
+def load(file_id: str, captured_at: str, text: str) -> LoadResult:
     data = json.loads(text)
     lines = json_line_map(text, data)
     r = LoadResult("json:service_exports")
@@ -86,7 +107,7 @@ def load(file_id, captured_at, text):
     return r
 
 
-def _add(r, file_id, o, raw):
+def _add(r: LoadResult, file_id: str, o: Observation, raw: str) -> None:
     r.observations.append(o)
     if not o.identifiers:
         r.unattributed.append(Unit(file_id, o.locator, raw, "no identifier"))

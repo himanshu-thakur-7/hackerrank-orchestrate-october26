@@ -3,6 +3,8 @@ resource_id=.. lookup_key=..' followed by '<x>_completed' with the state fields.
 (owner) is joined to the completed record through trace_id. Not exhaustive: no Coverage.
 """
 
+from __future__ import annotations
+
 import re
 from collections import OrderedDict
 
@@ -17,6 +19,9 @@ from ghostaudit.loaders.common import (
 )
 from ghostaudit.store import Observation
 
+
+# (line number, timestamp, logfmt fields, raw line)
+TraceLine = tuple[int, str, dict[str, str], str]
 LINE_RE = re.compile(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) (level=\w+ service=\w+ .*)$")
 # readback grammar: nothing between service= and (trace_id=) event=; observability logfmt has
 # instance=/pod=/region= there
@@ -25,7 +30,7 @@ GRAMMAR_RE = re.compile(
 )
 
 
-def matches(text):
+def matches(text: str) -> bool:
     lines = [text_line for text_line in text.splitlines() if text_line.strip()]
     return (
         bool(lines)
@@ -34,10 +39,10 @@ def matches(text):
     )
 
 
-def _traces(file_id, text, r):
+def _traces(file_id: str, text: str, r: LoadResult) -> OrderedDict[str, list[TraceLine]]:
     """trace_id -> [(line no, ts, fields, raw line)] in file order. Lines outside the grammar are
     unparsed; collector lines without a trace are not records."""
-    traces = OrderedDict()
+    traces: OrderedDict[str, list[TraceLine]] = OrderedDict()
     for n, line in enumerate(text.splitlines(), 1):
         if not line.strip():
             continue
@@ -51,7 +56,7 @@ def _traces(file_id, text, r):
     return traces
 
 
-def _trace_records(file_id, tid, lines, r):
+def _trace_records(file_id: str, tid: str, lines: list[TraceLine], r: LoadResult) -> None:
     """Observations for the completed events of one trace, owned by the trace's lookup keys."""
     keys = [f.get("lookup_key") for _, _, f, _ in lines if f.get("event", "").endswith("_started")]
     done = [(n, ts, f, raw) for n, ts, f, raw in lines if f.get("event", "").endswith("_completed")]
@@ -84,7 +89,7 @@ def _trace_records(file_id, tid, lines, r):
             r.unattributed.append(Unit(file_id, f"line {n}", raw, "no identifier"))
 
 
-def load(file_id, captured_at, text):
+def load(file_id: str, captured_at: str, text: str) -> LoadResult:
     r = LoadResult("log:readback")
     for tid, lines in _traces(file_id, text, r).items():
         _trace_records(file_id, tid, lines, r)

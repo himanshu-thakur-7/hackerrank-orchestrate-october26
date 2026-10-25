@@ -14,6 +14,8 @@ Coverage (absence by omission) and why it is sound here:
     lists.
 """
 
+from __future__ import annotations
+
 import json
 import re
 import sqlite3
@@ -30,6 +32,11 @@ from ghostaudit.loaders.common import (
 )
 from ghostaudit.store import Coverage, Observation
 
+from collections.abc import Iterable
+from typing import Any, cast
+
+# a row normalized for one Observation: (system_id, category, fields, observed_at)
+Normalized = tuple[str, str | None, dict[str, Any], str]
 TYPED = [  # table base name -> (system_id, category from the table's declared content)
     ("customer_profiles", "account_service", "USER_PROFILE"),
     ("customer_search_documents", "search_service", "SEARCH_INDEX_ENTRY"),
@@ -59,18 +66,18 @@ TIME_COLS = ("updated_at", "indexed_at")
 INSERT_RE = re.compile(r"^INSERT INTO\s+\"?(\w+)\"?\s+VALUES\s*\(\s*'([^']*)'")
 
 
-def matches(text):
+def matches(text: str) -> bool:
     return "CREATE TABLE" in text and "INSERT INTO" in text
 
 
-def _typed(table):
+def _typed(table: str) -> tuple[str, str | None] | None:
     for base, system, cat in TYPED:
         if table == base or table.startswith(base + "_"):
             return system, cat
     return None
 
 
-def load(file_id, captured_at, text):
+def load(file_id: str, captured_at: str, text: str) -> LoadResult:
     db = sqlite3.connect(":memory:")
     try:
         db.executescript(text)
@@ -79,9 +86,9 @@ def load(file_id, captured_at, text):
         db.close()
 
 
-def _insert_lines(text):
+def _insert_lines(text: str) -> dict[tuple[str, str], int]:
     """(table, resource_id) -> line number of its first INSERT, for locators."""
-    lines = {}
+    lines: dict[tuple[str, str], int] = {}
     for n, line in enumerate(text.splitlines(), 1):
         m = INSERT_RE.match(line)
         if m:
@@ -89,7 +96,7 @@ def _insert_lines(text):
     return lines
 
 
-def _generic_row(row, captured_at):
+def _generic_row(row: dict[str, Any], captured_at: str) -> Normalized:
     """A row of a generic collection table: (system, category, fields, observed_at), with the
     scalar fields of its record_json (and of a nested "document") flattened."""
     system, coll = row["origin_system"], row["collection_name"]
@@ -101,7 +108,7 @@ def _generic_row(row, captured_at):
     return system, COLLECTION_CATEGORY.get(coll), fields, row.get("updated_at") or captured_at
 
 
-def _typed_row(row, typed, captured_at):
+def _typed_row(row: dict[str, Any], typed: tuple[str, str | None], captured_at: str) -> Normalized:
     """A row of a known table: (system, category, fields, observed_at); the time is the first ISO
     timestamp among TIME_COLS, else the file's capture time."""
     system, cat = typed
@@ -112,7 +119,9 @@ def _typed_row(row, typed, captured_at):
     return system, cat, dict(row), observed
 
 
-def _observation(file_id, table, row, normalized, loc):
+def _observation(
+    file_id: str, table: str, row: dict[str, Any], normalized: Normalized, loc: str
+) -> Observation:
     """One Observation for a row. An email found in free text counts as an exposed email."""
     system, cat, fields, observed = normalized
     pii, free = exposed_with_free_emails(fields)
@@ -131,7 +140,14 @@ def _observation(file_id, table, row, normalized, loc):
     )
 
 
-def _coverage(file_id, captured_at, table, typed, scope, systems_listed):
+def _coverage(
+    file_id: str,
+    captured_at: str,
+    table: str,
+    typed: tuple[str, str | None] | None,
+    scope: dict[str, str],
+    systems_listed: Iterable[str],
+) -> list[Coverage]:
     """Coverage for one table (weak evidence, ADR 0014): an inventory scopes it per system with the
     scope's own time; otherwise a typed table covers its system and a generic one every system it
     lists, at the file's capture time."""
@@ -144,7 +160,7 @@ def _coverage(file_id, captured_at, table, typed, scope, systems_listed):
     return [Coverage(file_id, captured_at, s, table) for s in sorted(systems_listed)]
 
 
-def _unknown_table(file_id, table, cols, rows):
+def _unknown_table(file_id: str, table: str, cols: list[str], rows: list[dict[str, Any]]) -> Unit:
     plural = "s" if len(rows) != 1 else ""
     return Unit(
         file_id,
@@ -154,7 +170,15 @@ def _unknown_table(file_id, table, cols, rows):
     )
 
 
-def _load_table(r, file_id, captured_at, db, table, lines, scope):
+def _load_table(
+    r: LoadResult,
+    file_id: str,
+    captured_at: str,
+    db: sqlite3.Connection,
+    table: str,
+    lines: dict[tuple[str, str], int],
+    scope: dict[str, str],
+) -> None:
     """Append one table's observations, unattributed rows and coverage to `r`."""
     cols = [c[1] for c in db.execute(f'pragma table_info("{table}")')]
     rows = [dict(zip(cols, row, strict=True)) for row in db.execute(f'select * from "{table}"')]
@@ -166,7 +190,9 @@ def _load_table(r, file_id, captured_at, db, table, lines, scope):
     systems_listed = set()
     for row in rows:
         normalized = (
-            _generic_row(row, captured_at) if generic else _typed_row(row, typed, captured_at)
+            _generic_row(row, captured_at)
+            if generic
+            else _typed_row(row, cast("tuple[str, str | None]", typed), captured_at)
         )
         systems_listed.add(normalized[0])
         loc = f"line {lines.get((table, row['resource_id']), '?')}"
@@ -180,7 +206,7 @@ def _load_table(r, file_id, captured_at, db, table, lines, scope):
     r.coverage += _coverage(file_id, captured_at, table, typed, scope, systems_listed)
 
 
-def _load(file_id, captured_at, text, db):
+def _load(file_id: str, captured_at: str, text: str, db: sqlite3.Connection) -> LoadResult:
     r = LoadResult("sql")
     lines = _insert_lines(text)
     tables = [

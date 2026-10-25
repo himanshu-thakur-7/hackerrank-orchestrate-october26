@@ -4,6 +4,8 @@
   (ADR 0014).
 """
 
+from __future__ import annotations
+
 import json
 
 from ghostaudit.loaders import datarow, register
@@ -12,7 +14,7 @@ from ghostaudit.loaders.sql import COLLECTION_CATEGORY
 from ghostaudit.store import Coverage
 
 
-def load(file_id, captured_at, text):
+def load(file_id: str, captured_at: str, text: str) -> LoadResult:
     data = json.loads(text)
     lines = json_line_map(text, data)
     r = LoadResult("json:records")

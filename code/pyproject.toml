@@ -38,14 +38,14 @@ max-complexity = 10
 
 [tool.mypy]
 python_version = "3.11"
-files = ["ghostaudit", "main.py"]
+files = ["ghostaudit", "main.py", "package.py"]
 exclude = ["ghostaudit/llm_cache\\.py$", "ghostaudit/loaders/pdf_text_cache\\.py$", "ghostaudit/loaders/screens_data\\.py$"]
 warn_unused_ignores = true
 warn_redundant_casts = true
 no_implicit_optional = true
 
 [[tool.mypy.overrides]]
-module = ["ghostaudit.*"]
+module = ["ghostaudit.*", "main", "package"]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 

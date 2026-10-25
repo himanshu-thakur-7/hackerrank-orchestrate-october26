@@ -10,6 +10,8 @@ identifier of the subject: SAME_RECORD / TRACE_JOIN) -> state at audit_at (CaseV
 anything that would need it is logged, never guessed (ADR 0004).
 """
 
+from __future__ import annotations
+
 import csv
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -19,18 +21,29 @@ from ghostaudit import intent as intent_mod
 from ghostaudit.loaders.common import system_of
 from ghostaudit.store import ActivityEvent, EvidenceFile, EvidenceStore, StateResult
 
+from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from ghostaudit.contract import Step
+    from ghostaudit.data import Request
+    from ghostaudit.store import CaseView, Observation
+
+# (system_id, resource_id) -> (observations that link it to the subject, grounding)
+Found = dict[tuple[str, str], tuple[list["Observation"], str]]
+
 
 @dataclass
 class ResourceAssessment:
     system_id: str
     resource_id: str
-    links: list  # visible observations naming the subject (the grounded link)
+    links: list[Observation]  # visible observations naming the subject (the grounded link)
     state: StateResult | None
     category: str | None
     category_source: str
     treatment: policy.Treatment
     # covering files after the deciding sighting that omit it (ADR 0014 risk)
-    later_omissions: tuple = ()
+    later_omissions: tuple[str, ...] = ()
     # IDENTIFIER (same record / trace join) | SOURCE_REF | CATALOG | ACTIVITY_ACCOUNT
     grounding: str = "IDENTIFIER"
     evidence: str = ""  # file to cite for the state (CaseView.citation)
@@ -40,13 +53,13 @@ class ResourceAssessment:
 class CaseAssessment:
     case_id: str
     status: str
-    steps: list
+    steps: list[Step]
     subject: identity.Identity | None = None
-    resources: list = field(default_factory=list)
-    log: list = field(default_factory=list)
+    resources: list[ResourceAssessment] = field(default_factory=list)
+    log: list[str] = field(default_factory=list)
 
 
-def load_activity(path):
+def load_activity(path: str | Path) -> list[ActivityEvent]:
     with open(path, newline="", encoding="utf-8") as f:
         return [
             ActivityEvent(
@@ -63,19 +76,24 @@ def load_activity(path):
         ]
 
 
-def _incomplete_plan(violations, planned):
+def _incomplete_plan(
+    violations: list[ResourceAssessment], planned: list[ResourceAssessment]
+) -> list[Step]:
     """Findings (cited) and remediation for each violation, then a future, uncited check for
     every planned resource, unproven ones included (ADR 0006 §1)."""
     steps = []
     for r in violations:
-        steps.append(contract.step(r.treatment.finding, r.system_id, r.resource_id, r.evidence))
-        steps.append(contract.step(r.treatment.remediation, r.system_id, r.resource_id))
+        t = r.treatment  # a violation always carries all three operations
+        steps.append(contract.step(cast("str", t.finding), r.system_id, r.resource_id, r.evidence))
+        steps.append(contract.step(cast("str", t.remediation), r.system_id, r.resource_id))
     for r in planned:
-        steps.append(contract.step(r.treatment.verification, r.system_id, r.resource_id))
+        steps.append(
+            contract.step(cast("str", r.treatment.verification), r.system_id, r.resource_id)
+        )
     return contract.ordered(steps)
 
 
-def _complete_plan(a, planned):
+def _complete_plan(a: CaseAssessment, planned: list[ResourceAssessment]) -> list[Step]:
     """Cited verifications only. An unproven resource cannot be cited, so it is omitted and
     logged (ADR 0006 edge case)."""
     steps = []
@@ -84,12 +102,14 @@ def _complete_plan(a, planned):
             a.log.append(f"UNPROVEN({r.system_id}/{r.resource_id})")
             continue
         steps.append(
-            contract.step(r.treatment.verification, r.system_id, r.resource_id, r.evidence)
+            contract.step(
+                cast("str", r.treatment.verification), r.system_id, r.resource_id, r.evidence
+            )
         )
     return contract.ordered(steps) if steps else []
 
 
-def _drop_stale_links(a, request, found):
+def _drop_stale_links(a: CaseAssessment, request: Request, found: Found) -> None:
     """ADR 0016: a resource whose every link predates requested_at and shows it absent belongs to
     an earlier lifecycle of the id, not to this request."""
     for key, (links, _) in sorted(found.items()):
@@ -104,17 +124,17 @@ def _drop_stale_links(a, request, found):
             )
 
 
-def _add_source_refs(a, found):
+def _add_source_refs(a: CaseAssessment, found: Found) -> None:
     """A record naming its source (source_resource_id) brings that source into scope."""
     for (_system_id, resource_id), (links, _) in sorted(found.items()):
         for o in links:
             src = dict(o.attrs).get("source_resource_id")
-            if src and system_of(src) and (system_of(src), src) not in found:
-                found[(system_of(src), src)] = ([], "SOURCE_REF")
+            if src and (owner := system_of(src)) and (owner, src) not in found:
+                found[(owner, src)] = ([], "SOURCE_REF")
                 a.log.append(f"SOURCE_REF({src} from {resource_id} {o.file_id} {o.locator})")
 
 
-def _apply_catalog_link(a, c, found):
+def _apply_catalog_link(a: CaseAssessment, c: linking.CatalogLink, found: Found) -> None:
     """A confirmed catalog claim links the resource; a contradicted one removes it (ADR 0005); an
     unconfirmed one is only logged."""
     key = (c.system_id, c.resource_id)
@@ -131,12 +151,24 @@ def _apply_catalog_link(a, c, found):
 
 
 class Engine:
-    def __init__(self, store, resolver, rules, notes=(), linker=None):
+    def __init__(
+        self,
+        store: EvidenceStore,
+        resolver: identity.Resolver,
+        rules: policy.Rules,
+        notes: Sequence[str] = (),
+        linker: linking.Linker | None = None,
+    ) -> None:
         self.store, self.resolver, self.rules, self.linker = store, resolver, rules, linker
         self.notes = list(notes)  # run-level notes (e.g. evidence formats whose loader is pending)
 
     @classmethod
-    def from_dataset(cls, data_dir, resolver=None, classify=None):
+    def from_dataset(
+        cls,
+        data_dir: str | Path,
+        resolver: identity.Resolver | None = None,
+        classify: Callable[[str], intent_mod.Intent] | None = None,
+    ) -> Engine:
         d = Path(data_dir)
         with open(d / "evidence_files.csv", newline="", encoding="utf-8") as f:
             manifest = list(csv.DictReader(f))
@@ -177,7 +209,7 @@ class Engine:
         lk = linking.Linker(store, resolver, requests, intents)
         return cls(store, resolver, policy.Rules.from_csv(d / "deletion_rules.csv"), notes, lk)
 
-    def assess(self, request, intent):
+    def assess(self, request: Request, intent: intent_mod.Intent) -> CaseAssessment:
         case_id = request["case_id"]
         if intent.label != "DELETION":
             return CaseAssessment(
@@ -201,7 +233,7 @@ class Engine:
         a.status, a.steps = self._plan(a)
         return a
 
-    def _plan(self, a):
+    def _plan(self, a: CaseAssessment) -> tuple[str, list[Step]]:
         """Verdict (ADR 0006) + steps. INCOMPLETE iff any grounded violation; COMPLETE cites
         every step."""
         planned = [r for r in a.resources if r.treatment.kind != "none"]
@@ -214,7 +246,14 @@ class Engine:
             return "INCOMPLETE", []
         return "COMPLETE", steps
 
-    def _link(self, a, view, subject, request, found):
+    def _link(
+        self,
+        a: CaseAssessment,
+        view: CaseView,
+        subject: identity.Identity,
+        request: Request,
+        found: Found,
+    ) -> None:
         """Stage 4 (T10): stale links out, source references, catalog claims checked against
         artifacts, the activity account."""
         _drop_stale_links(a, request, found)
@@ -225,10 +264,18 @@ class Engine:
             _apply_catalog_link(a, c, found)
         acc = self.linker.account(request["case_id"])
         if acc.status == "LINKED":
-            found.setdefault(("account_service", acc.resource_id), ([], "ACTIVITY_ACCOUNT"))
+            account = cast("str", acc.resource_id)  # set whenever the status is LINKED
+            found.setdefault(("account_service", account), ([], "ACTIVITY_ACCOUNT"))
         a.log.append(acc.describe())
 
-    def _resource(self, view, system_id, resource_id, links, grounding="IDENTIFIER"):
+    def _resource(
+        self,
+        view: CaseView,
+        system_id: str,
+        resource_id: str,
+        links: list[Observation],
+        grounding: str = "IDENTIFIER",
+    ) -> ResourceAssessment:
         observations = [o for o in view.observations(resource_id) if o.system_id == system_id]
         activity = [e for e in view.activity(resource_id) if e.target_system == system_id]
         category, source = policy.categorize(system_id, observations, activity)
@@ -251,6 +298,6 @@ class Engine:
             view.citation(system_id, resource_id, state) if state else "",
         )
 
-    def audit(self, request, intent):
+    def audit(self, request: Request, intent: intent_mod.Intent) -> tuple[str, str, list[Step]]:
         a = self.assess(request, intent)
         return a.case_id, a.status, a.steps

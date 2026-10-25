@@ -3,7 +3,10 @@ sha256 of the image (screens_data.py); a PNG without one is an unknown signature
 Live cached
 vision extraction is the second adapter (T11). observed_at is the file's captured_at (ADR 0002)."""
 
+from __future__ import annotations
+
 import hashlib
+from typing import Any, cast
 
 from ghostaudit.loaders import screens_data
 from ghostaudit.loaders.common import LoadResult, Unit, identifiers
@@ -13,11 +16,11 @@ class MissingTranscription(Exception):
     pass
 
 
-def load(file_id, captured_at, raw):
+def load(file_id: str, captured_at: str, raw: bytes) -> LoadResult:
     from ghostaudit.store import Observation
 
     sha = hashlib.sha256(raw).hexdigest()
-    screen = screens_data.SCREENS.get(sha)
+    screen = cast("dict[str, Any] | None", screens_data.SCREENS.get(sha))
     if screen is None:
         raise MissingTranscription(
             f"{file_id}: PNG sha256 {sha} has no committed transcription (screens_data.py); "

@@ -1,9 +1,16 @@
 """Shared helpers for loaders: value classification, PII fields, identifiers, attrs, logfmt
 parsing."""
 
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass, field
 
+from collections.abc import Collection, Mapping
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    pass
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 USER_RE = re.compile(r"^user_\d+$")
 HASH_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -27,7 +34,7 @@ PREFIX_SYSTEM = {
 }
 
 
-def system_of(resource_id):
+def system_of(resource_id: str) -> str | None:
     """Owning system of a resource id by its prefix (account_12 -> account_service), or None."""
     prefix = resource_id.rsplit("_", 1)[0]
     return PREFIX_SYSTEM.get(prefix)
@@ -60,11 +67,11 @@ class LoadResult:
     unparsed: list = field(default_factory=list)  # record-like units that could not be parsed
 
 
-def null(v):
+def null(v: object) -> bool:
     return v is None or (isinstance(v, str) and v.strip().lower() in ("", "null", "none"))
 
 
-def kind(v):
+def kind(v: object) -> str | None:
     """'email' | 'user_id' | 'email_hash' | 'phone' | None for one scalar value."""
     if not isinstance(v, str) or null(v):
         return None
@@ -80,7 +87,7 @@ def kind(v):
     return None
 
 
-def pii_fields(fields):
+def pii_fields(fields: Mapping[str, Any]) -> tuple[str, ...]:
     found = set()
     for k, v in fields.items():
         if null(v) or isinstance(v, (dict, list)):
@@ -96,7 +103,7 @@ def pii_fields(fields):
     return tuple(p for p in PII_ORDER if p in found)
 
 
-def identifiers(*values):
+def identifiers(*values: object) -> tuple[str, ...]:
     """Sorted unique scalar values that are exact identifiers (email, user_id, sha256, phone)."""
     out = set()
     for v in values:
@@ -105,11 +112,11 @@ def identifiers(*values):
     return tuple(sorted(out))
 
 
-def scalar_items(fields):
+def scalar_items(fields: Mapping[str, Any]) -> list[tuple[str, Any]]:
     return [(k, v) for k, v in fields.items() if not isinstance(v, (dict, list))]
 
 
-def attrs(fields, exclude=()):
+def attrs(fields: Mapping[str, Any], exclude: Collection[str] = ()) -> tuple[tuple[str, str], ...]:
     """Non-identifying scalar fields of a record, as sorted (key, str value) pairs."""
     out = []
     for k, v in scalar_items(fields):
@@ -126,7 +133,7 @@ def attrs(fields, exclude=()):
 EMAIL_IN_TEXT = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
 
-def emails_in_text(fields):
+def emails_in_text(fields: Mapping[str, Any]) -> list[str]:
     """Emails embedded in free-text values (e.g. a support message body)."""
     out = []
     for _, v in scalar_items(fields):
@@ -138,7 +145,7 @@ def emails_in_text(fields):
 KV_RE = re.compile(r'(\w+)=("(?:[^"\\]|\\.)*"|\S+)')
 
 
-def logfmt(text):
+def logfmt(text: str) -> dict[str, str]:
     """key=value pairs (values may be double-quoted) -> dict of str."""
     out = {}
     for k, v in KV_RE.findall(text):
@@ -148,7 +155,7 @@ def logfmt(text):
     return out
 
 
-def exposed_with_free_emails(fields):
+def exposed_with_free_emails(fields: Mapping[str, Any]) -> tuple[tuple[str, ...], list[str]]:
     """(pii_fields, emails found in free text). An email inside free text counts as an exposed
     email even when no email field is set."""
     free = emails_in_text(fields)
@@ -171,7 +178,7 @@ ABSENCE_SIGNALS = (
 FLAG_STATES = (("restore_allowed", "RESTORABLE", "BLOCKED"), ("enabled", "ACTIVE", "DISABLED"))
 
 
-def state_from_fields(f):
+def state_from_fields(f: Mapping[str, Any]) -> str:
     """Generic state for one record from its fields. Absence signals win, then flow/restore
     flags."""
     g = {
@@ -190,7 +197,7 @@ def state_from_fields(f):
 RID_RE = re.compile(r'"resource_id"\s*:\s*"([^"]+)"')
 
 
-def _ordered_dicts(node, out):
+def _ordered_dicts(node: object, out: list[dict[str, Any]]) -> None:
     """Dicts carrying a resource_id, in the textual order of their "resource_id" key."""
     if isinstance(node, dict):
         for k, v in node.items():
@@ -203,10 +210,10 @@ def _ordered_dicts(node, out):
             _ordered_dicts(v, out)
 
 
-def json_line_map(text, data):
+def json_line_map(text: str, data: object) -> dict[int, str]:
     """id(dict) -> 'line N' of that dict's \"resource_id\" key, matched in textual order."""
     hits = [(m.group(1), text.count("\n", 0, m.start()) + 1) for m in RID_RE.finditer(text)]
-    order = []
+    order: list[dict[str, Any]] = []
     _ordered_dicts(data, order)
     return {
         id(d): f"line {ln}"

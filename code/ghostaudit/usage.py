@@ -5,7 +5,12 @@ Prices are USD per 1M tokens (input, output), from the provider's model page
 (https://developers.openai.com/api/docs/models/gpt-5.4-mini, checked 2026-10-25).
 """
 
+from __future__ import annotations
+
 from dataclasses import asdict, dataclass
+
+from pathlib import Path
+from typing import Any
 
 PRICE_PER_MTOK = {"gpt-5.4-mini-2026-03-17": (0.75, 4.50)}
 
@@ -20,14 +25,14 @@ class Call:
     cache_hit: bool
 
 
-def _cost(call):
+def _cost(call: Call) -> float:
     """Estimated USD for one live call; a model without a listed price costs 0."""
     price_in, price_out = PRICE_PER_MTOK.get(call.model, (0, 0))
     return (call.input_tokens * price_in + call.output_tokens * price_out) / 1e6
 
 
-def _per_model(live):
-    per_model = {}
+def _per_model(live: list[Call]) -> dict[str, dict[str, Any]]:
+    per_model: dict[str, dict[str, Any]] = {}
     for c in live:
         m = per_model.setdefault(
             c.model, {"provider": c.provider, "calls": 0, "input_tokens": 0, "output_tokens": 0}
@@ -38,23 +43,25 @@ def _per_model(live):
     return per_model
 
 
-def _cache_hits_per_model(calls):
+def _cache_hits_per_model(calls: list[Call]) -> dict[str, int]:
     hits = [c.model for c in calls if c.cache_hit]
     return {m: hits.count(m) for m in sorted(set(hits))}
 
 
 class Tracker:
-    def __init__(self):
-        self.calls = []
+    def __init__(self) -> None:
+        self.calls: list[Call] = []
         # texts whose live call failed after every retry (decided by rules instead)
-        self.failures = []
-        self.notes = []  # run-level degradations (e.g. a key without the SDK)
+        self.failures: list[dict[str, Any]] = []
+        self.notes: list[str] = []  # run-level degradations (e.g. a key without the SDK)
 
-    def note(self, message):
+    def note(self, message: str) -> None:
         if message not in self.notes:
             self.notes.append(message)
 
-    def record_failure(self, provider, model, attempts, latency_ms, error):
+    def record_failure(
+        self, provider: str, model: str, attempts: int, latency_ms: float, error: str
+    ) -> None:
         self.failures.append(
             {
                 "provider": provider,
@@ -65,7 +72,15 @@ class Tracker:
             }
         )
 
-    def record(self, provider, model, input_tokens, output_tokens, latency_ms, cache_hit):
+    def record(
+        self,
+        provider: str,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        latency_ms: float,
+        cache_hit: bool,
+    ) -> None:
         self.calls.append(
             Call(
                 provider,
@@ -77,7 +92,7 @@ class Tracker:
             )
         )
 
-    def totals(self):
+    def totals(self) -> dict[str, Any]:
         """Run totals: live calls with their tokens and cost, cache hits, degradations and notes."""
         live = [c for c in self.calls if not c.cache_hit]
         return {
@@ -94,7 +109,7 @@ class Tracker:
             "cache_hits_per_model": _cache_hits_per_model(self.calls),
         }
 
-    def summary(self):
+    def summary(self) -> str:
         t = self.totals()
         avg = (t["input_tokens"] + t["output_tokens"]) / t["calls"] if t["calls"] else 0
         return (
@@ -105,11 +120,11 @@ class Tracker:
             + (f"; notes: {' | '.join(t['notes'])}" if t["notes"] else "")
         )
 
-    def rows(self):
+    def rows(self) -> list[dict[str, Any]]:
         return [asdict(c) for c in self.calls]
 
 
-def write_run_log(directory, tracker):
+def write_run_log(directory: str | Path, tracker: Tracker) -> None:
     """Per-call records of one run as Markdown under runs/ (git-ignored); totals feed
     usage_report.md."""
     import time

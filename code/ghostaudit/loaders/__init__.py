@@ -5,6 +5,8 @@ Signatures whose adapter is not built yet raise LoaderPending (strict) so nothin
 silently.
 """
 
+from __future__ import annotations
+
 import json
 from pathlib import Path
 
@@ -22,7 +24,9 @@ from ghostaudit.loaders import (
 )
 from ghostaudit.loaders.common import LoadResult, Unit  # noqa: F401  (re-exported)
 
-PENDING = {}  # signature -> board task that will implement it
+from collections.abc import Callable, Container
+
+PENDING: dict[str, str] = {}  # signature -> board task that will implement it
 
 
 class UnknownSignature(Exception):
@@ -33,7 +37,7 @@ class LoaderPending(Exception):
     pass
 
 
-LOADERS = {
+LOADERS: dict[str, Callable[..., LoadResult]] = {
     "txt:handover": handover.load,
     "json:service_exports": service_export.load,
     "log:readback": readback.load,
@@ -64,7 +68,7 @@ TEXT_SIGNATURES = (
 )
 
 
-def _decode(raw, file_id):
+def _decode(raw: bytes, file_id: str) -> str:
     try:
         return raw.decode("utf-8")
     except UnicodeDecodeError as e:
@@ -74,7 +78,7 @@ def _decode(raw, file_id):
         ) from e
 
 
-def _json_signature(text, file_id):
+def _json_signature(text: str, file_id: str) -> str:
     try:
         data = json.loads(text)
     except json.JSONDecodeError as e:
@@ -89,7 +93,7 @@ def _json_signature(text, file_id):
     raise UnknownSignature(f"{file_id}: unknown content signature: JSON object with keys {keys}")
 
 
-def sniff(raw, file_id="?"):
+def sniff(raw: bytes, file_id: str = "?") -> str:
     """The content signature of one evidence file; UnknownSignature when nothing matches."""
     for magic, sig in BINARY_SIGNATURES:
         if raw.startswith(magic):
@@ -104,7 +108,7 @@ def sniff(raw, file_id="?"):
     raise UnknownSignature(f"{file_id}: unknown content signature; first line {first[:80]!r}")
 
 
-def load_bytes(file_id, captured_at, raw, strict=True):
+def load_bytes(file_id: str, captured_at: str, raw: bytes, strict: bool = True) -> LoadResult:
     sig = sniff(raw, file_id)
     if sig not in LOADERS:
         if strict:
@@ -120,7 +124,9 @@ def load_bytes(file_id, captured_at, raw, strict=True):
     return LOADERS[sig](file_id, captured_at, raw.decode("utf-8"))
 
 
-def load_manifest(data_dir, strict=True, only=None):
+def load_manifest(
+    data_dir: str | Path, strict: bool = True, only: Container[str] | None = None
+) -> dict[str, LoadResult]:
     """Load every evidence file listed in evidence_files.csv -> {file_id: LoadResult}."""
     import csv
 

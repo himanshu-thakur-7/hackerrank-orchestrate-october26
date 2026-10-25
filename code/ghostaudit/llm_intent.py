@@ -16,6 +16,8 @@ sha256(model + prompt + text)); a live call happens only on a cache miss with OP
 The key is read by the SDK from the environment and never touched here.
 """
 
+from __future__ import annotations
+
 import hashlib
 import importlib.util
 import json
@@ -26,10 +28,21 @@ from pathlib import Path
 
 from ghostaudit.intent import Intent, _del, _neg, classify_rules
 
+from collections.abc import Iterable, Mapping
+from importlib.abc import Loader
+from importlib.machinery import ModuleSpec
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from ghostaudit.usage import Tracker
+
+# a cache entry: {'answers': {...}, 'label': 'DELETION' | 'NOT_DELETION', 'model': id}
+Entry = dict[str, Any]
 MODEL = "gpt-5.4-mini-2026-03-17"
 SEED = 20261025
 MAX_RETRIES = 2  # per text, after the first attempt; then the rules decide (never a crash)
-_warned = set()
+_warned: set[str] = set()  # warning keys already printed this process
 PROMPT_PATH = Path(__file__).resolve().parents[1] / "prompts" / "intent_classifier.md"
 CACHE_PATH = Path(__file__).resolve().parent / "llm_cache.py"
 SCHEMA = {
@@ -54,17 +67,17 @@ SCHEMA = {
 }
 
 
-def prompt_text():
+def prompt_text() -> str:
     return PROMPT_PATH.read_text(encoding="utf-8")
 
 
-def cache_key(text, prompt=None, model=MODEL):
+def cache_key(text: str, prompt: str | None = None, model: str = MODEL) -> str:
     return hashlib.sha256(
         f"{model}\n{prompt if prompt is not None else prompt_text()}\n{text}".encode()
     ).hexdigest()
 
 
-def build_messages(text, prompt=None):
+def build_messages(text: str | None, prompt: str | None = None) -> list[dict[str, str]]:
     safe = (text or "").replace("MESSAGE>>>", "MESSAGE> > >").replace("<<<MESSAGE", "< < <MESSAGE")
     return [
         {"role": "system", "content": prompt if prompt is not None else prompt_text()},
@@ -72,37 +85,41 @@ def build_messages(text, prompt=None):
     ]
 
 
-def label(answers):
+def label(answers: Mapping[str, Any]) -> str:
     asks = answers["asks_to_delete"] or answers["asks_to_verify_or_finish_deletion"]
     return "DELETION" if asks and not answers["excludes_deletion"] else "NOT_DELETION"
 
 
-def rules_clarity(text):
+def rules_clarity(text: str) -> str:
     """'clear' when the rules' cues point one way only; 'remainder' when both or neither fire."""
     de, neg = any(p.search(text) for p in _del), any(p.search(text) for p in _neg)
     return "clear" if de != neg else "remainder"
 
 
-def read_cache(path=CACHE_PATH):
+def _cache_module(path: str | Path) -> ModuleType:
+    """Execute the generated cache file as a module (it holds only literals)."""
+    spec = cast(ModuleSpec, importlib.util.spec_from_file_location("ghostaudit_llm_cache", path))
+    mod = importlib.util.module_from_spec(spec)
+    cast(Loader, spec.loader).exec_module(mod)
+    return mod
+
+
+def read_cache(path: str | Path = CACHE_PATH) -> dict[str, Entry]:
     if not Path(path).exists():
         return {}
-    spec = importlib.util.spec_from_file_location("ghostaudit_llm_cache", path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return dict(mod.CACHE)
+    return dict(_cache_module(path).CACHE)
 
 
-def read_origin(path=CACHE_PATH):
+def read_origin(path: str | Path = CACHE_PATH) -> list[dict[str, Any]]:
     """The runs that added entries to the cache (live calls and tokens each); [] if unknown."""
     if not Path(path).exists():
         return []
-    spec = importlib.util.spec_from_file_location("ghostaudit_llm_cache", path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return list(getattr(mod, "ORIGIN", []))
+    return list(getattr(_cache_module(path), "ORIGIN", []))
 
 
-def write_cache(path, cache, origin=None):
+def write_cache(
+    path: str | Path, cache: Mapping[str, Entry], origin: list[dict[str, Any]] | None = None
+) -> None:
     """origin=None keeps the ORIGIN already in the file."""
     origin = read_origin(path) if origin is None else origin
     lines = [
@@ -123,7 +140,7 @@ def write_cache(path, cache, origin=None):
     Path(path).write_text("\n".join(lines), encoding="utf-8")
 
 
-def _warn_once(key, message, tracker=None):
+def _warn_once(key: str, message: str, tracker: Tracker | None = None) -> None:
     if key in _warned:
         return
     _warned.add(key)
@@ -132,7 +149,7 @@ def _warn_once(key, message, tracker=None):
         tracker.note(message)
 
 
-def default_client(tracker=None):
+def default_client(tracker: Tracker | None = None) -> Any:
     """An OpenAI client when OPENAI_API_KEY is set and the optional `openai` package imports; else
     None.
     A key without the package degrades to rules + cache with one warning, never a crash."""
@@ -153,7 +170,7 @@ def default_client(tracker=None):
     )  # retries are bounded here (MAX_RETRIES), not inside the SDK
 
 
-def _valid(answers):
+def _valid(answers: object) -> bool:
     keys = ("asks_to_delete", "asks_to_verify_or_finish_deletion", "excludes_deletion")
     return (
         isinstance(answers, dict)
@@ -163,16 +180,26 @@ def _valid(answers):
 
 
 class IntentClassifier:
-    def __init__(self, client=None, cache=None, tracker=None, prompt=None, backoff=0.5):
+    def __init__(
+        self,
+        client: Any = None,
+        cache: dict[str, Entry] | None = None,
+        tracker: Tracker | None = None,
+        prompt: str | None = None,
+        backoff: float = 0.5,
+    ) -> None:
         self.client, self.tracker, self.backoff = client, tracker, backoff
         self.cache = read_cache() if cache is None else cache
         self.prompt = prompt if prompt is not None else prompt_text()
-        self.disagreements, self.new_entries = [], 0
-        self.failed = set()  # keys whose live call failed this run: not retried again, never cached
-        self._decided = {}  # text -> source, for the end-of-run summary
+        self.disagreements: list[dict[str, str]] = []
+        self.new_entries = 0
+        self.failed: set[str] = (
+            set()
+        )  # keys whose live call failed this run: not retried again, never cached
+        self._decided: dict[str, str] = {}  # text -> source, for the end-of-run summary
 
     @property
-    def counts(self):
+    def counts(self) -> dict[str, int]:
         from collections import Counter
 
         c = Counter(self._decided.values())
@@ -184,7 +211,7 @@ class IntentClassifier:
             "degraded": c["rules (model error)"],
         }
 
-    def summary(self):
+    def summary(self) -> str:
         c = self.counts
         return (
             f"intent decisions ({len(self._decided)} unique texts): rules (clear) {c['rules']}, "
@@ -193,7 +220,7 @@ class IntentClassifier:
             f"{c['degraded']}"
         )
 
-    def _live(self, text, key):
+    def _live(self, text: str, key: str) -> dict[str, Any] | None:
         """One text through the API with bounded retries; None (and a recorded failure) if every
         attempt fails."""
         errors = []
@@ -238,7 +265,7 @@ class IntentClassifier:
         )
         return None
 
-    def _verdict(self, text):
+    def _verdict(self, text: str) -> tuple[Entry | None, bool]:
         key = cache_key(text, self.prompt)
         hit = self.cache.get(key)
         if hit is not None:
@@ -255,7 +282,7 @@ class IntentClassifier:
         self.new_entries += 1
         return entry, False
 
-    def prefetch(self, texts, workers=8):
+    def prefetch(self, texts: Iterable[str], workers: int = 8) -> int:
         """Fill the cache for many texts with parallel live calls (cache misses only); results
         are order-free."""
         from concurrent.futures import ThreadPoolExecutor
@@ -267,7 +294,7 @@ class IntentClassifier:
             list(ex.map(self._verdict, todo))
         return len(todo)
 
-    def review(self, text):
+    def review(self, text: str) -> Entry | None:
         """Model verdict for any text, compared with the rules (records disagreements)."""
         v, _ = self._verdict(text)
         r = classify_rules(text)
@@ -284,12 +311,12 @@ class IntentClassifier:
             )
         return v
 
-    def classify(self, text):
+    def classify(self, text: str) -> Intent:
         out = self._classify(text)
         self._decided.setdefault(text, out.source)
         return out
 
-    def _classify(self, text):
+    def _classify(self, text: str) -> Intent:
         r = classify_rules(text)
         if rules_clarity(text) == "clear":
             return r
@@ -304,7 +331,7 @@ class IntentClassifier:
             )
         return Intent(v["label"], v["answers"]["rationale"], "model (cache)" if cached else "model")
 
-    def save(self, path=CACHE_PATH):
+    def save(self, path: str | Path = CACHE_PATH) -> None:
         if self.new_entries:
             m = (
                 self.tracker.totals()["per_model"].get(MODEL, {})

@@ -5,6 +5,8 @@ request that never asks to delete, erase, remove or close does not authorize del
 (AGENTS.md §6.5).
 """
 
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass
 
@@ -55,7 +57,7 @@ class Intent:
     source: str = "rules"
 
 
-def classify_rules(text):
+def classify_rules(text: str | None) -> Intent:
     t = text or ""
     neg = next((p.pattern for p in _neg if p.search(t)), None)
     if neg:

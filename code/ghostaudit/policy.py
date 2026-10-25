@@ -10,9 +10,17 @@ claim about category, never about state), then weak message text, then the syste
 is not a deletion_rules category: connectors get the data-flow operations.
 """
 
+from __future__ import annotations
+
 import csv
 from dataclasses import dataclass
 
+from collections.abc import Iterable, Mapping
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ghostaudit.store import ActivityEvent, Observation, StateResult
 ABSENT = "ABSENT"
 
 SYSTEM_DEFAULT = {
@@ -42,7 +50,7 @@ UNOBSERVABLE = {
 }  # ADR 0012
 
 
-def _content(system_id, o):
+def _content(system_id: str, o: Observation) -> str | None:
     """Category shown by the record's own content (strong: outranks the activity claim), or None."""
     a = dict(o.attrs)
     event = a.get("event", "")
@@ -57,7 +65,7 @@ def _content(system_id, o):
     return None
 
 
-def _message_content(o):
+def _message_content(o: Observation) -> bool:
     """Weak content: message text. Ticket exports carry a templated message_excerpt on every ticket,
     so it only
     decides when no deletion_worker claim exists (silver audit, docs/SILVER_AUDIT.md: 12 eval
@@ -68,17 +76,23 @@ def _message_content(o):
     )
 
 
-def _by_tag(system_id, observations, activity):
+def _by_tag(
+    system_id: str, observations: list[Observation], activity: list[ActivityEvent]
+) -> str | None:
     tagged = [o for o in observations if o.category]
     return tagged[-1].category if tagged else None
 
 
-def _by_content(system_id, observations, activity):
+def _by_content(
+    system_id: str, observations: list[Observation], activity: list[ActivityEvent]
+) -> str | None:
     hits = [c for c in (_content(system_id, o) for o in observations) if c]
     return hits[-1] if hits else None
 
 
-def _by_activity(system_id, observations, activity):
+def _by_activity(
+    system_id: str, observations: list[Observation], activity: list[ActivityEvent]
+) -> str | None:
     claims = [
         ACTIVITY_CATEGORY[(system_id, a.event_type)]
         for a in activity
@@ -87,13 +101,17 @@ def _by_activity(system_id, observations, activity):
     return claims[-1] if claims else None
 
 
-def _by_message_content(system_id, observations, activity):
+def _by_message_content(
+    system_id: str, observations: list[Observation], activity: list[ActivityEvent]
+) -> str | None:
     if system_id == "support_platform" and any(_message_content(o) for o in observations):
         return "SUPPORT_MESSAGE"
     return None
 
 
-def _by_system(system_id, observations, activity):
+def _by_system(
+    system_id: str, observations: list[Observation], activity: list[ActivityEvent]
+) -> str | None:
     return SYSTEM_DEFAULT.get(system_id)
 
 
@@ -106,7 +124,9 @@ CATEGORY_SIGNALS = (
 )
 
 
-def categorize(system_id, observations, activity):
+def categorize(
+    system_id: str, observations: list[Observation], activity: list[ActivityEvent]
+) -> tuple[str | None, str]:
     """observations and activity in time order, already cut at audit_at."""
     for source, signal in CATEGORY_SIGNALS:
         c = signal(system_id, observations, activity)
@@ -116,15 +136,17 @@ def categorize(system_id, observations, activity):
 
 
 class Rules:
-    def __init__(self, rows):
-        self._by_cat = {r["data_category"]: (r["rule_id"], r["required_action"]) for r in rows}
+    def __init__(self, rows: Iterable[Mapping[str, str]]) -> None:
+        self._by_cat: dict[str | None, tuple[str | None, str | None]] = {
+            r["data_category"]: (r["rule_id"], r["required_action"]) for r in rows
+        }
 
     @classmethod
-    def from_csv(cls, path):
+    def from_csv(cls, path: str | Path) -> Rules:
         with open(path, newline="", encoding="utf-8") as f:
             return cls(list(csv.DictReader(f)))
 
-    def action(self, category):
+    def action(self, category: str | None) -> tuple[str | None, str | None]:
         return self._by_cat.get(category, (None, None))
 
 
@@ -150,14 +172,14 @@ PLANS = {
 }
 
 
-def _judge_delete(state, pii):
+def _judge_delete(state: str, pii: tuple[str, ...]) -> tuple[str, str]:
     """DELETE: compliant only when the record is gone."""
     if state == ABSENT:
         return "compliant", "absent"
     return "violation", f"{state}, must be absent"
 
 
-def _judge_keep_without_identifiers(state, pii):
+def _judge_keep_without_identifiers(state: str, pii: tuple[str, ...]) -> tuple[str, str]:
     """REDACT / ANONYMIZE: the record stays, but no direct identifier may remain on it."""
     if state == ABSENT:
         return "none", "ABSENT, but policy keeps the record"
@@ -166,7 +188,7 @@ def _judge_keep_without_identifiers(state, pii):
     return "compliant", "present without direct identifiers"
 
 
-def _judge_retain(state, pii):
+def _judge_retain(state: str, pii: tuple[str, ...]) -> tuple[str, str]:
     """RETAIN: the record must still exist; a missing one is logged, never planned."""
     if state == ABSENT:
         return "none", "RETAINED_RECORD_MISSING"
@@ -181,12 +203,12 @@ _BACKUP_STATES = {
 _FLOW_STATES = {"ACTIVE": ("violation", "flow enabled"), "DISABLED": ("compliant", "flow disabled")}
 
 
-def _judge_backup(state, pii):
+def _judge_backup(state: str, pii: tuple[str, ...]) -> tuple[str, str]:
     """BLOCK_RESTORE (rule_14): the backup is retained but its restore access must be blocked."""
     return _BACKUP_STATES.get(state, ("unproven", f"{state}: restore access not shown"))
 
 
-def _judge_flow(state, pii):
+def _judge_flow(state: str, pii: tuple[str, ...]) -> tuple[str, str]:
     """DISABLE_FLOW: a connector must be shown disabled."""
     return _FLOW_STATES.get(state, ("unproven", f"{state}: flow state not shown"))
 
@@ -203,7 +225,7 @@ JUDGES = {
 }
 
 
-def action_for(category, rules):
+def action_for(category: str, rules: Rules) -> tuple[str | None, str | None]:
     """(rule_id, action) for a category. Connectors are not a deletion_rules category and always
     get DISABLE_FLOW; a retained backup (rule_14) must also have its restore access blocked."""
     if category == "DATA_FLOW":
@@ -214,7 +236,7 @@ def action_for(category, rules):
     return rule_id, action
 
 
-def _treatment(kind, reason, rule_id, action):
+def _treatment(kind: str, reason: str, rule_id: str | None, action: str) -> Treatment:
     """A Treatment carrying the plan steps its kind needs: a violation gets finding, remediation and
     verification; compliant and unproven get the verification only; none gets no step."""
     finding, remediation, verify = PLANS[action]
@@ -225,7 +247,7 @@ def _treatment(kind, reason, rule_id, action):
     return Treatment(kind, None, None, verify, rule_id, action, reason)
 
 
-def treat(category, result, rules):
+def treat(category: str | None, result: StateResult | None, rules: Rules) -> Treatment:
     """Treatment for one resource from its category and its StateResult (None = nothing visible
     proves anything)."""
     if category is None:

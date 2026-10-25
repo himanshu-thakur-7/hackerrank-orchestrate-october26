@@ -4,6 +4,8 @@ rows.
 Not exhaustive (a checklist of what was checked), so it never emits Coverage.
 """
 
+from __future__ import annotations
+
 import re
 
 from ghostaudit.loaders.common import LoadResult, Unit, kind
@@ -24,17 +26,17 @@ EXPOSING = {"FOUND", "IDENTIFIABLE", "ACTIVE"}
 PII_NAME = {"email": "email", "email_hash": "email_hash", "phone": "phone"}
 
 
-def matches(text):
+def matches(text: str) -> bool:
     return any(ROW_RE.match(line) for line in text.splitlines())
 
 
-def _state(status, category):
+def _state(status: str, category: str) -> str:
     """A handover status as a state; an active backup means its restore is still possible."""
     state = STATUS[status]
     return "RESTORABLE" if state == "ACTIVE" and category == "BACKUP_ARCHIVE" else state
 
 
-def _identity(ident, status):
+def _identity(ident: str, status: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """(identifiers, exposed PII) of a row: the identifier column, exposed when the status says
     the value is still shown."""
     k = kind(ident)
@@ -43,7 +45,7 @@ def _identity(ident, status):
     return ids, pii
 
 
-def load(file_id, captured_at, text):
+def load(file_id: str, captured_at: str, text: str) -> LoadResult:
     r = LoadResult("txt:handover")
     for n, line in enumerate(text.splitlines(), 1):
         if not line.startswith("- "):

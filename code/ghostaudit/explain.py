@@ -1,10 +1,23 @@
 """--explain: every observation, link, rule and decision behind one case's row (docs/03_DESIGN.md
 §6)."""
 
+from __future__ import annotations
+
 import json
 
+from typing import TYPE_CHECKING, cast
 
-def _header(engine, a, request, intent, view):
+if TYPE_CHECKING:
+    from ghostaudit.data import Request
+    from ghostaudit.engine import CaseAssessment, Engine, ResourceAssessment
+    from ghostaudit.identity import Identity
+    from ghostaudit.intent import Intent
+    from ghostaudit.store import CaseView
+
+
+def _header(
+    engine: Engine, a: CaseAssessment, request: Request, intent: Intent, view: CaseView
+) -> list[str]:
     out = [
         f"CASE {a.case_id}  email={request['email']}  audit_at={request['audit_at']}  "
         f"reported={request['reported_status']}",
@@ -25,11 +38,11 @@ def _header(engine, a, request, intent, view):
     return out
 
 
-def _evidence_lines(a, r, view):
+def _evidence_lines(a: CaseAssessment, r: ResourceAssessment, view: CaseView) -> list[str]:
     """The links, observations and claims behind one resource."""
     out = []
     for o in r.links:
-        hit = [t for t in o.identifiers if a.subject.matches(t)]
+        hit = [t for t in o.identifiers if cast("Identity", a.subject).matches(t)]
         out.append(f"    link   {o.file_id} {o.locator} (observed {o.observed_at}) via {hit}")
     for o in view.observations(r.resource_id):
         if o.system_id == r.system_id:
@@ -46,7 +59,7 @@ def _evidence_lines(a, r, view):
     return out
 
 
-def _decision_lines(a, r):
+def _decision_lines(a: CaseAssessment, r: ResourceAssessment) -> list[str]:
     """The reconstructed state, the policy decision and the steps for one resource."""
     st = r.state
     seen = f"{st.state} by {st.basis} {st.file_id} {st.locator} at {st.at}" if st else "UNPROVEN"
@@ -67,7 +80,7 @@ def _decision_lines(a, r):
     return out
 
 
-def render(engine, request, intent):
+def render(engine: Engine, request: Request, intent: Intent) -> str:
     """The full trace behind one row: subject, every resource's evidence and decision, the log
     and the row itself."""
     a = engine.assess(request, intent)

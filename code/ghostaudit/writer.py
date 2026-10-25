@@ -1,25 +1,30 @@
 """output.csv writer: exact header, natural numeric case_id order, compact JSON in schema key
 order, \\n endings."""
 
+from __future__ import annotations
+
 import csv
 import json
+
+from collections.abc import Iterable, Mapping
+from pathlib import Path
 
 HEADER = ["case_id", "deletion_status", "steps_json"]
 STEP_KEYS = ["step_no", "phase", "system_id", "resource_id", "operation", "state", "evidence_id"]
 
 
-def natural_key(case_id):
+def natural_key(case_id: str) -> tuple[str, int]:
     prefix, _, num = case_id.rpartition("_")
     return (prefix, int(num)) if num.isdigit() else (case_id, -1)
 
 
-def steps_json(steps):
+def steps_json(steps: Iterable[Mapping[str, object]]) -> str:
     return json.dumps(
         [{k: s[k] for k in STEP_KEYS} for s in steps], separators=(",", ":"), ensure_ascii=False
     )
 
 
-def write(path, rows):
+def write(path: str | Path, rows: Iterable[tuple[str, str, list]]) -> None:
     """rows: iterable of (case_id, status, steps). Written sorted by natural case_id (ADR 0001)."""
     rows = sorted(rows, key=lambda r: natural_key(r[0]))
     with open(path, "w", newline="", encoding="utf-8") as f:
