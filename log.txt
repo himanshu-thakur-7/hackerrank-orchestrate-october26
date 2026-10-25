@@ -273,3 +273,42 @@ repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
 
+## [2026-10-25T00:36:42Z] Prototype: recover account/analytics ids from activity; evidence recount
+
+User Prompt (verbatim, secrets redacted):
+Use the prototype skill — throwaway code in scratch/ only.
+Question: golden answers contain account_ids and anonymized analytics ids that no evidence ties to the
+person's email. How could a system recover them from participant-visible data before audit_at?
+Investigate system_activity: timing of DELETE_RECORD → account_service relative to each case's
+requested_at/reported_at, how downstream actions are batched, and whether any column correlates with
+the request row. Measure any heuristic you propose against the 32 samples (exact hit rate) and report
+where it is ambiguous. Do not use evidence captured after audit_at.
+
+Also, before I accept "16 eval cases have only post-audit evidence": recount using EVERY identifier type
+(current and historical emails, uppercase variants, sha256 hashes of each email, phones, user_id, name
+together with another identifier). For each eval case, count evidence files captured at or before
+audit_at that name the person. Show the distribution and list any case with zero. ultrathink
+Check:
+- The delete lands about 0.6–1.4 h before reported_at.
+- reported_status matches the reported_result of the delete (COMPLETE↔SUCCESS, PARTIALLY_COMPLETE↔PARTIAL, NOT_STARTED↔FAILED).
+- About 23 of 32 sample hits.
+- The 16 drops to a handful, or to zero except the screenshot-only cases.
+
+Agent Response Summary:
+Used the prototype skill; the throwaway Python scripts stay in gitignored scratch/ and no throwaway branch was created, per the user's branch rule. In the generated regime the account delete lands 0.75 to 1.23 h before reported_at, and reported_result matches reported_status in 23/23 cases. The window heuristic plus pre-audit evidence filter plus global one-to-one assignment scores 19/32 (21 with A23 linking) with 0 wrong. Adding a case_id rank tie-break reaches 23/32 with 1 wrong, but it is a generator artifact. The 8 misses are hand-written samples; 12 eval cases (the 42 h family) have no delete signal and rely on LINK_RESOURCE_IDENTITY plus screenshots. Downstream actions are batched by clock time across users, so anonymized analytics IDs are only recoverable through the rank artifact. The recount found 11 zero-evidence cases: 9 non-deletion and 2 screenshot-only (case_61, case_63), and case_63's screenshot contradicts its activity claim.
+
+Actions:
+* Invoked Skill prototype; read .claude/skills/prototype/LOGIC.md
+* Wrote and ran scratch/proto_account_link.py, proto_account_heuristic.py, proto_account_assign.py, proto_account_a23.py, proto_account_final.py, proto_downstream_link.py, proto_analytics.py, proto_ident_index.py, proto_png_transcripts.py, proto_recount.py
+* Viewed the 7 remaining PNG screenshots and transcribed identifiers
+* Wrote docs/03_ID_RECOVERY_PROTOTYPE.md; appended a correction to docs/02_DATA_NOTES.md
+* Committed and pushed to claude/stoic-bell-1t82oq
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+

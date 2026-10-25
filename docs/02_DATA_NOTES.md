@@ -717,3 +717,19 @@ New ambiguity: **A23**, sub-snapshots inside a post-audit file. Ambiguities clos
 - A17 (backup is BLOCK, never DELETE).
 
 Still open: A2 (resource_id collation), A3 (dependency order vs sort key), A23, the 16 eval cases with only post-audit evidence (5.4), and the unreachable gold resources (4.5).
+
+---
+
+## Correction to Pass 5 §5.4 (after the recount in docs/03_ID_RECOVERY_PROTOTYPE.md §5)
+
+The "16 eval cases with only post-audit evidence" count was **wrong**. It ignored PNG screenshots and phone numbers. Recounting with every identifier type, and with all 11 PNGs transcribed, gives:
+
+| Pre-audit files naming the subject | Eval cases |
+| --- | --- |
+| 0 | 11 |
+| 1 | 503 |
+| 2 | 4 |
+
+- **9 of the 11 are non-deletion requests** (case_534 to case_542), which need no evidence.
+- The two deletion cases, **case_61** and **case_63**, are screenshot-only cases whose person link rests on `LINK_RESOURCE_IDENTITY` activity claims (`activity_4007` / `activity_4008`).
+- In case_63, the screenshot `evidence_60` shows a different, unknown person (sj.park@naver.com) for `marketing_001`.
