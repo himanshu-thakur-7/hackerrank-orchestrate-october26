@@ -333,3 +333,28 @@ repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
 
+## [2026-10-25T00:39:59Z] Ruling: no rank tie-break; full PDF text and screenshot catalogue (02b)
+
+User Prompt (verbatim, secrets redacted):
+[Relayed by peer session "Prompt playbook website publishing" for the user, to be treated as the user's prompt]
+Good work on pass 6. One correction before anything else: do NOT adopt the case_id-order tie-break, even as a flagged last resort. You called it a generator artifact; using it means attributing a record to a person without a grounded link, which violates our principle (never attribute without a grounded link; absence of proof is not proof of absence). Where candidates tie, the builder will omit the step and log it as an unresolved link. Please add that ruling to docs/03_ID_RECOVERY_PROTOTYPE.md, and report the expected cost: how many eval cases and gold-style steps fall in tied groups after the grounded steps.
+
+Then do this: extract the full text of every PDF in dataset/evidence/documents and describe every PNG in dataset/evidence/images (all visible identifiers, resource ids, statuses, capture times). Save to docs/02b_DOCS_AND_SCREENS.md (reuse your PNG transcriptions from the recount, but add the PDFs). Then list which system_activity rows link each screenshot to a person (look for LINK_RESOURCE_IDENTITY rows shortly after each capture time), and say which links are contradicted by what the screenshot shows (case_63 is one). Commit and push, and keep logging per AGENTS.md.
+
+Agent Response Summary:
+Added the ruling to docs/03 (§6): no case_id tie-break; tied candidates are omitted and logged as unresolved links. Cost under grounded steps: 136 of 508 deletion eval cases in 65 tied groups, about 136–160 lost account steps (about 5% of steps), plus about 110 anonymized-analytics verification steps at risk; added open question A24 on whether COMPLETE is still claimable. Wrote docs/02b_DOCS_AND_SCREENS.md with the full text of the 4 PDFs and a catalogue of all 11 PNGs. Every one of the 12 LINK_RESOURCE_IDENTITY rows lands exactly 7 minutes after a screenshot or PDF capture. 9 are consistent; activity_4008 (case_63) is contradicted, since the screen shows the unknown sj.park@naver.com; activity_4007 (case_61) is unverifiable; activity_4009 is weakly supported, as the PDF is a statement and not export_1842. The reply to the peer session could not be sent because this cloud session cannot message other sessions.
+
+Actions:
+* Ran pdftotext on 4 PDFs; looked up the identities of linked users
+* Re-ran proto_account_assign (with and without A23) to count tied eval groups
+* Wrote docs/02b_DOCS_AND_SCREENS.md; appended §6 to docs/03_ID_RECOVERY_PROTOTYPE.md
+* Committed and pushed to claude/stoic-bell-1t82oq
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+

@@ -156,3 +156,36 @@ Identifier kinds behind the matches: email 392, user_id 308, name (with another)
   - **The screenshot contradicts the claim.** That is a trap, and it needs a decision.
 
 Both deletion cases with zero files are screenshot-only cases whose person link rests on a `LINK_RESOURCE_IDENTITY` activity claim.
+
+---
+
+## 6. Ruling: no case_id-order tie-break (relayed from the user, 2026-10-25)
+
+**Do not adopt the case_id-order tie-break, not even as a flagged last resort.** It attributes a record to a person without a grounded link, which violates the principle *"never attribute without a grounded link; absence of proof is not proof of absence"*.
+
+**Where candidates still tie after the grounded steps, the builder omits the step and logs it as an unresolved link.** The grounded steps are:
+
+- time window + `reported_result`↔`reported_status`;
+- the pre-audit identity filter;
+- global one-to-one elimination.
+
+This supersedes the "+ rank tie-break" rows in §2 and §3. The grounded ceiling on the samples is **19/32** (21/32 if A23 linking is allowed), with 0 wrong.
+
+### Expected cost on eval (grounded steps only)
+
+Source: re-run of `proto_account_assign.py`, both with and without A23 links; the eval numbers are identical either way.
+
+- **136 of the 508 deletion-type eval cases** still have at least two candidate primary-account deletes.
+  - They fall into **65 tied groups**: 55 pairs, 8 triples, and 2 cases whose candidates are partly claimed elsewhere.
+  - By status: COMPLETE 82, PARTIALLY_COMPLETE 32, NOT_STARTED 22.
+- Under the ruling, each of these cases loses the gold step(s) on its primary account:
+  - **1 step** when the account is already absent: `VERIFY_RECORD_ABSENT account_service`. This is cited in COMPLETE cases and has an empty evidence_id in INCOMPLETE ones.
+  - **3 steps** when the account is still present: REPORT_REMAINING_RECORD + DELETE_RECORD + VERIFY_RECORD_ABSENT. In the samples that is 3 of 22 INCOMPLETE cases, about 14%.
+- **Estimated loss: about 136 to 160 gold-style steps.** That is roughly 136 + 2 × 0.14 × 54 non-COMPLETE ≈ 151.
+  - The samples average 6.0 steps per case, so eval has about 3,050 steps over 508 deletion cases, and the loss is roughly **4.5–5% of steps**.
+  - It touches **27% of deletion cases** (136/508), but usually as one missing verification step each.
+- The **status** of these cases is not decided by the account alone, so the case-level status is not necessarily lost. One COMPLETE-specific risk: a COMPLETE case needs evidence for *every* relevant record. When the account is unresolved, its absence cannot be proven, so the builder must decide whether COMPLETE is still claimable (open, see A24 below).
+- The same ruling removes the rank-based recovery of the 7 already-anonymized analytics IDs (§3, H4). In eval that is about 7/32 × 508 ≈ **110 more VERIFY_RECORD_ANONYMIZED steps** at risk in COMPLETE-style cases, unless an evidence link exists.
+- The samples tied under the grounded steps are case_23 (triple), case_25/case_26 (resolved only with A23) and case_28/case_29.
+
+**A24 (new, open).** If a case's only unresolved item is the primary-account link, is COMPLETE still claimable? The options are: COMPLETE without that step; or INCOMPLETE "cannot prove". The latter conflicts with "absence of proof is not proof of absence", because the deletion may well be complete.
