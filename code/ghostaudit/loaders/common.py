@@ -148,6 +148,16 @@ def logfmt(text):
     return out
 
 
+def exposed_with_free_emails(fields):
+    """(pii_fields, emails found in free text). An email inside free text counts as an exposed
+    email even when no email field is set."""
+    free = emails_in_text(fields)
+    pii = pii_fields(fields)
+    if free and "email" not in pii:
+        pii = tuple(p for p in ("name", "email", "phone", "email_hash") if p in pii or p == "email")
+    return pii, free
+
+
 # Explicit absence signals (ADR 0014: these are strong evidence), checked before any flag.
 ABSENCE_SIGNALS = (
     ("http_status", {"404"}),

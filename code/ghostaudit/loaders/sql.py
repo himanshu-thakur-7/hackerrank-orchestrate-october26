@@ -23,9 +23,8 @@ from ghostaudit.loaders.common import (
     LoadResult,
     Unit,
     attrs,
-    emails_in_text,
+    exposed_with_free_emails,
     identifiers,
-    pii_fields,
     scalar_items,
     state_from_fields,
 )
@@ -116,10 +115,7 @@ def _typed_row(row, typed, captured_at):
 def _observation(file_id, table, row, normalized, loc):
     """One Observation for a row. An email found in free text counts as an exposed email."""
     system, cat, fields, observed = normalized
-    free = emails_in_text(fields)
-    pii = pii_fields(fields)
-    if free and "email" not in pii:
-        pii = tuple(p for p in ("name", "email", "phone", "email_hash") if p in pii or p == "email")
+    pii, free = exposed_with_free_emails(fields)
     return Observation(
         file_id,
         observed,

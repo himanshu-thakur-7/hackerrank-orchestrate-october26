@@ -28,6 +28,21 @@ def matches(text):
     return any(ROW_RE.match(line) for line in text.splitlines())
 
 
+def _state(status, category):
+    """A handover status as a state; an active backup means its restore is still possible."""
+    state = STATUS[status]
+    return "RESTORABLE" if state == "ACTIVE" and category == "BACKUP_ARCHIVE" else state
+
+
+def _identity(ident, status):
+    """(identifiers, exposed PII) of a row: the identifier column, exposed when the status says
+    the value is still shown."""
+    k = kind(ident)
+    ids = (ident.strip(),) if k else ()
+    pii = (PII_NAME[k],) if k in PII_NAME and status in EXPOSING else ()
+    return ids, pii
+
+
 def load(file_id, captured_at, text):
     r = LoadResult("txt:handover")
     for n, line in enumerate(text.splitlines(), 1):
@@ -38,19 +53,14 @@ def load(file_id, captured_at, text):
             r.unparsed.append(Unit(file_id, f"line {n}", line, "handover row not understood"))
             continue
         ts, system, res, cat, status, ident = m.groups()
-        state = STATUS[status]
-        if state == "ACTIVE" and cat == "BACKUP_ARCHIVE":
-            state = "RESTORABLE"
-        k = kind(ident)
-        ids = (ident.strip(),) if k else ()
-        pii = (PII_NAME[k],) if k in PII_NAME and status in EXPOSING else ()
+        ids, pii = _identity(ident, status)
         o = Observation(
             file_id,
             ts,
             system,
             res,
             "handover",
-            state,
+            _state(status, cat),
             category=cat,
             pii_fields=pii,
             identifiers=ids,

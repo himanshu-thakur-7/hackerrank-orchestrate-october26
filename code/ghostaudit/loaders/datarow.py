@@ -6,9 +6,8 @@ import json
 from ghostaudit.loaders.common import (
     Unit,
     attrs,
-    emails_in_text,
+    exposed_with_free_emails,
     identifiers,
-    pii_fields,
     scalar_items,
     state_from_fields,
 )
@@ -33,10 +32,7 @@ def observation(file_id, rec, system, collection, category, observed_at, locator
     fields = {k: v for k, v in rec.items() if not isinstance(v, (dict, list))}
     if isinstance(rec.get("document"), dict):
         fields.update(rec["document"])
-    free = emails_in_text(fields)
-    pii = pii_fields(fields)
-    if free and "email" not in pii:
-        pii = tuple(p for p in ("name", "email", "phone", "email_hash") if p in pii or p == "email")
+    pii, free = exposed_with_free_emails(fields)
     o = Observation(
         file_id,
         observed_at,

@@ -34,8 +34,9 @@ def matches(text):
     )
 
 
-def load(file_id, captured_at, text):
-    r = LoadResult("log:readback")
+def _traces(file_id, text, r):
+    """trace_id -> [(line no, ts, fields, raw line)] in file order. Lines outside the grammar are
+    unparsed; collector lines without a trace are not records."""
     traces = OrderedDict()
     for n, line in enumerate(text.splitlines(), 1):
         if not line.strip():
@@ -45,30 +46,28 @@ def load(file_id, captured_at, text):
             r.unparsed.append(Unit(file_id, f"line {n}", line, "not a readback log line"))
             continue
         f = logfmt(m.group(2))
-        if "trace_id" not in f:
-            continue  # collector start/end lines, not records
-        traces.setdefault(f["trace_id"], []).append((n, m.group(1), f, line))
-    for tid, lines in traces.items():
-        keys = [
-            f.get("lookup_key") for _, _, f, _ in lines if f.get("event", "").endswith("_started")
-        ]
-        done = [
-            (n, ts, f, raw) for n, ts, f, raw in lines if f.get("event", "").endswith("_completed")
-        ]
-        if not done:
-            n, _, _, raw = lines[0]
+        if "trace_id" in f:
+            traces.setdefault(f["trace_id"], []).append((n, m.group(1), f, line))
+    return traces
+
+
+def _trace_records(file_id, tid, lines, r):
+    """Observations for the completed events of one trace, owned by the trace's lookup keys."""
+    keys = [f.get("lookup_key") for _, _, f, _ in lines if f.get("event", "").endswith("_started")]
+    done = [(n, ts, f, raw) for n, ts, f, raw in lines if f.get("event", "").endswith("_completed")]
+    if not done:
+        n, _, _, raw = lines[0]
+        r.unparsed.append(Unit(file_id, f"line {n}", raw, f"trace {tid} has no completed event"))
+        return
+    for n, ts, f, raw in done:
+        if "resource_id" not in f:
             r.unparsed.append(
-                Unit(file_id, f"line {n}", raw, f"trace {tid} has no completed event")
+                Unit(file_id, f"line {n}", raw, "completed event without resource_id")
             )
             continue
-        for n, ts, f, raw in done:
-            if "resource_id" not in f:
-                r.unparsed.append(
-                    Unit(file_id, f"line {n}", raw, "completed event without resource_id")
-                )
-                continue
-            ids = identifiers(*keys, *f.values())
-            o = Observation(
+        ids = identifiers(*keys, *f.values())
+        r.observations.append(
+            Observation(
                 file_id,
                 ts,
                 f["service"],
@@ -80,7 +79,13 @@ def load(file_id, captured_at, text):
                 locator=f"line {n}",
                 attrs=attrs(f),
             )
-            r.observations.append(o)
-            if not ids:
-                r.unattributed.append(Unit(file_id, f"line {n}", raw, "no identifier"))
+        )
+        if not ids:
+            r.unattributed.append(Unit(file_id, f"line {n}", raw, "no identifier"))
+
+
+def load(file_id, captured_at, text):
+    r = LoadResult("log:readback")
+    for tid, lines in _traces(file_id, text, r).items():
+        _trace_records(file_id, tid, lines, r)
     return r
