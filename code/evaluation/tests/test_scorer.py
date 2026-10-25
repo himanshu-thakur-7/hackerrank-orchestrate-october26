@@ -62,3 +62,15 @@ class Scorer(unittest.TestCase):
         m = scorer.score({}, GOLD_TOY, ["B"])
         self.assertEqual(m["status_accuracy"], 0.0)
         self.assertEqual(m["identity_recall"], 0.0)
+
+
+class NoInflationWhenNothingAligns(unittest.TestCase):
+    def test_empty_predictions_score_zero_everywhere_in_the_proxy(self):
+        m = scorer.score({}, GOLD_TOY, ["A", "B"])
+        for k in ("field_acc_operation", "field_acc_state", "field_acc_evidence_id", "field_acc_step_no", "field_acc_mean"):
+            self.assertEqual(m[k], 0.0, k)
+        self.assertEqual(m["proxy"], 0.0)
+
+    def test_all_empty_on_both_sides_is_perfect(self):
+        gold = {"N": ("NOT_APPLICABLE", [])}
+        self.assertEqual(scorer.score(gold, gold, ["N"])["field_acc_mean"], 1.0)

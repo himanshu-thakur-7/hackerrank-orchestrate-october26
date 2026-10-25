@@ -98,8 +98,9 @@ def cmd_score(a):
         print("\n".join("  " + l for c in hold for l in scorer.case_diff(pred, gold, c)) or "  none")
     _table("ALL", m["all"])
 
-    run_dir = history.record(RUNS, a.pred, m, _commit())
-    prev = history.previous(RUNS, run_dir)
+    runs = RUNS / "score"            # selftest runs live in RUNS/selftest and never feed this gate
+    run_dir = history.record(runs, a.pred, m, _commit())
+    prev = history.previous(runs, run_dir)
     print(f"RUN recorded: {run_dir}")
     if prev is None:
         print("DIFF vs previous run: (first run)")
@@ -196,8 +197,8 @@ def cmd_selftest(_):
     ok &= not hits
 
     m = {"dev": scorer.score(gold, gold, dev), "holdout": scorer.score(gold, gold, hold), "all": scorer.score(gold, gold, dev + hold)}
-    d = history.record(RUNS, GOLD, m, _commit())
-    prev = history.previous(RUNS, d)
+    d = history.record(RUNS / "selftest", GOLD, m, _commit())
+    prev = history.previous(RUNS / "selftest", d)
     print(f"[5] run history: wrote {d.relative_to(ROOT) if d.is_relative_to(ROOT) else d} "
           f"(metrics.json, output.csv, commit); diff vs previous: "
           f"{'first run' if prev is None else str(len(history.diff(prev / 'output.csv', d / 'output.csv'))) + ' change(s)'}")
@@ -207,7 +208,7 @@ def cmd_selftest(_):
 
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    sub = p.add_subparsers(dest="cmd", required=True)
+    sub = p.add_subparsers(dest="command", required=True)
     c = sub.add_parser("contract"); c.add_argument("--file", default=str(ROOT / "output.csv")); c.add_argument("--requests", default=str(DATA / "deletion_requests.csv"))
     s = sub.add_parser("score"); s.add_argument("--pred", required=True); s.add_argument("--reveal-holdout", action="store_true"); s.add_argument("--accept-regression", default="")
     d = sub.add_parser("determinism"); d.add_argument("--cmd", default=f"{shlex.quote(sys.executable)} code/main.py"); d.add_argument("--file", default=str(ROOT / "output.csv"))
@@ -216,7 +217,7 @@ def main(argv=None):
     a = p.parse_args(argv)
     os.chdir(ROOT)
     return {"contract": cmd_contract, "score": cmd_score, "determinism": cmd_determinism,
-            "audit": cmd_audit, "selftest": cmd_selftest}[a.cmd](a)
+            "audit": cmd_audit, "selftest": cmd_selftest}[a.command](a)
 
 
 if __name__ == "__main__":

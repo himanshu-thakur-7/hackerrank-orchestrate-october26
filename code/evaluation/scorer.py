@@ -12,7 +12,8 @@ Metric definitions (all micro-averaged over the given cases unless stated):
                       (aligned = same case, phase, system, resource, operation; unaligned counts as wrong)
   strict_step_f1      F1 over full 7-field steps (step_no included)
   step_f1_unordered   F1 over steps without step_no
-  field_acc_*         on steps aligned by (case, phase, system, resource): operation, state, evidence_id, step_no
+  field_acc_*         on steps aligned by (case, phase, system, resource): operation, state, evidence_id, step_no;
+                      0.0 when steps exist but none align (no free credit), 1.0 only when both sides are empty
   sequence_exact      share of cases whose (phase, system, resource, operation, state) sequence is identical
   sequence_lcs_mean   mean per case of LCS / max(len gold, len pred); 1.0 when both are empty
   row_exact           share of cases with identical status and identical step list (pessimistic bound)
@@ -66,10 +67,12 @@ def score(pred, gold, case_ids):
     u_tp = u_pred = u_gold = 0
     field_ok = defaultdict(int)
     aligned = 0
+    any_steps = False
 
     for c in case_ids:
         gs, gsteps = gold[c]
         ps, psteps = pred.get(c, (None, []))
+        any_steps |= bool(gsteps or psteps)
         status_ok += ps == gs
         row_ok += ps == gs and psteps == gsteps
 
@@ -133,7 +136,8 @@ def score(pred, gold, case_ids):
     m["strict_step_f1"] = _prf(s_tp, s_pred, s_gold)[2]
     m["step_f1_unordered"] = _prf(u_tp, u_pred, u_gold)[2]
     for fld in FIELDS:
-        m[f"field_acc_{fld}"] = field_ok[fld] / aligned if aligned else 1.0
+        # nothing aligned: perfect only if neither side has any step, otherwise 0 (no free credit)
+        m[f"field_acc_{fld}"] = field_ok[fld] / aligned if aligned else (0.0 if any_steps else 1.0)
     m["field_acc_mean"] = sum(m[f"field_acc_{f}"] for f in FIELDS) / len(FIELDS)
     m["sequence_exact"] = seq_ok / n if n else 1.0
     m["sequence_lcs_mean"] = lcs_sum / n if n else 1.0

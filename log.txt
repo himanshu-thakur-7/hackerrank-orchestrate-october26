@@ -546,3 +546,24 @@ repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
 
+## [2026-10-25T01:08:59Z] T01 fixes found by the first baseline: determinism CLI, history separation, no free field-accuracy credit
+
+User Prompt (verbatim, secrets redacted):
+(same relayed prompt as the previous entries: T01 fix, then T02 and T03)
+
+Agent Response Summary:
+Scoring the first real (trivial, all-NOT_APPLICABLE) prediction file exposed three T01 bugs, each fixed test-first. (1) `determinism` crashed with a KeyError because the `--cmd` option and the subparser shared argparse dest "cmd". (2) The selftest's gold-vs-gold run sat in the same runs/ history, so the first real score tripped the diff gate; history is now split into runs/selftest and runs/score. (3) field_acc_* reported 1.000 when no steps aligned, inflating the proxy to 0.111; it is now 0.0 unless both sides are empty. 43 evaluation tests pass. The pre-split runs/ dirs were deleted (git-ignored local artifacts).
+
+Actions:
+* Added red tests in code/evaluation/tests/test_cli.py (BaselineFindings) and test_scorer.py (NoInflationWhenNothingAligns)
+* Fixed code/evaluation/main.py and scorer.py
+* Committed and pushed
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+

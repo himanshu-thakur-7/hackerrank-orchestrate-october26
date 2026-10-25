@@ -51,7 +51,7 @@ class Cli(unittest.TestCase):
         self.assertEqual(code, 2, out)
         self.assertIn("DIFF GATE", out)
         self.assertIn("case_01: - VERIFICATION account_service account_001", out)
-        self.assertEqual(len(list((self.tmp / "runs").iterdir())), 2)
+        self.assertEqual(len(list((self.tmp / "runs" / "score").iterdir())), 2)
 
     def test_selftest_passes(self):
         code, out = run("selftest", env_extra=self.env)
@@ -85,3 +85,24 @@ class SelftestTargetsSpecificChecks(unittest.TestCase):
         self.assertEqual(p.returncode, 0, out)
         self.assertIn("WARNING L0.pandas SKIPPED", out)
         self._assert_specific(out)
+
+
+class BaselineFindings(unittest.TestCase):
+    """Bugs found when the first real (trivial) prediction file was scored."""
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.env = {"GHOSTAUDIT_RUNS_DIR": str(self.tmp / "runs")}
+
+    def test_determinism_subcommand_accepts_cmd(self):
+        out = self.tmp / "o.csv"
+        cmd = f"{sys.executable} -c \"open('{out}','w').write('x')\""
+        code, text = run("determinism", "--cmd", cmd, "--file", str(out))
+        self.assertEqual(code, 0, text)
+        self.assertIn("2 runs identical", text)
+
+    def test_selftest_history_does_not_feed_the_score_diff_gate(self):
+        run("selftest", env_extra=self.env)
+        rows = mutate_step(gold_rows(), "case_01", 1, resource_id="account_999")
+        code, text = run("score", "--pred", str(tmp_copy(rows=rows)), env_extra=self.env)
+        self.assertEqual(code, 0, text)
+        self.assertIn("(first run)", text)
