@@ -6,7 +6,9 @@ real records). Expected Observations were read off the fixture text by hand.
 
 import unittest
 from pathlib import Path
+
 from _path import DATA  # noqa: F401
+
 from ghostaudit import loaders
 from ghostaudit.store import Observation
 

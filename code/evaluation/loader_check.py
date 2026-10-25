@@ -4,11 +4,11 @@ spot checks against raw text, and the smallest records that cannot be attributed
 Gold is used here only to EVALUATE loaders; nothing in this module is imported by the solver.
 """
 
-import csv
 import json
 import sys
 from collections import Counter, defaultdict
-from pathlib import Path
+
+from ghostaudit.data import read_csv
 
 # expected loader-level state for each gold operation that cites evidence
 EXPECT = {
@@ -39,10 +39,7 @@ def run(root, files=None, kinds=None, spot=False):
     from ghostaudit import identity, loaders
 
     data = root / "dataset"
-    manifest = {
-        r["file_id"]: r
-        for r in csv.DictReader(open(data / "evidence_files.csv", newline="", encoding="utf-8"))
-    }
+    manifest = {r["file_id"]: r for r in read_csv(data / "evidence_files.csv")}
     resolver = identity.Resolver.from_dataset(data)
     results, unknown = {}, []
     for fid, row in manifest.items():
@@ -57,7 +54,7 @@ def run(root, files=None, kinds=None, spot=False):
     print("DATASET SUMMARY (all evidence files)")
     by_sig = defaultdict(lambda: Counter())
     per_system = Counter()
-    for fid, r in results.items():
+    for r in results.values():
         c = by_sig[r.signature]
         c["files"] += 1
         built = r.signature in loaders.LOADERS
@@ -112,16 +109,8 @@ def run(root, files=None, kinds=None, spot=False):
         print(f"SQL DRIFT: {drift} replica-only resources in {files_with} files")
         print(f"DELETION_PENDING rows: {pending}")
     print("GOLD CHECK (sample steps citing the selected files)")
-    gold = {
-        r["case_id"]: json.loads(r["steps_json"])
-        for r in csv.DictReader(open(data / "sample_output.csv", newline="", encoding="utf-8"))
-    }
-    reqs = {
-        r["case_id"]: r
-        for r in csv.DictReader(
-            open(data / "sample_deletion_requests.csv", newline="", encoding="utf-8")
-        )
-    }
+    gold = {r["case_id"]: json.loads(r["steps_json"]) for r in read_csv(data / "sample_output.csv")}
+    reqs = {r["case_id"]: r for r in read_csv(data / "sample_deletion_requests.csv")}
     n = fails = 0
     owner = Counter()
     for c, steps in gold.items():

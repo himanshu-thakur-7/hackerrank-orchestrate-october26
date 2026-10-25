@@ -13,7 +13,7 @@ REGISTER_KEYS = {"system", "resource_id", "record_type", "result"}
 
 
 def is_register(records):
-    return bool(records) and all(isinstance(r, dict) and REGISTER_KEYS <= set(r) for r in records)
+    return bool(records) and all(isinstance(r, dict) and set(r) >= REGISTER_KEYS for r in records)
 
 
 def observation(file_id, rec, table, locator, default_time, result_out):

@@ -5,7 +5,9 @@ loaders that read the real files arrive in T04-T07.
 """
 
 import unittest
+
 from _path import DATA  # noqa: F401  (sets sys.path)
+
 from ghostaudit.store import ActivityEvent, Coverage, EvidenceFile, EvidenceStore, Link, Observation
 
 
@@ -220,7 +222,10 @@ class Links(unittest.TestCase):
         )  # contradicted links are never returned (ADR 0005)
         self.assertEqual(v.links_for_user("user_11"), [])  # not yet visible at this cutoff
         self.assertEqual(
-            [l.resource_id for l in st.as_of("2026-09-27T00:00:00Z").links_for_user("user_11")],
+            [
+                link.resource_id
+                for link in st.as_of("2026-09-27T00:00:00Z").links_for_user("user_11")
+            ],
             ["account_5762"],
         )
 

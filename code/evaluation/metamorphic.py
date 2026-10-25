@@ -5,7 +5,6 @@ pipeline, and compares with the baseline. Targets are chosen from the baseline a
 hard-coded. A failing relation is a bug in the pipeline, not in the relation.
 """
 
-import json
 import random
 import sys
 from dataclasses import dataclass, field
@@ -50,7 +49,8 @@ class Context:
 
     def __init__(self, data=DATA):
         sys.path.insert(0, str(ROOT / "code"))
-        from ghostaudit import data as gdata, intent
+        from ghostaudit import data as gdata
+        from ghostaudit import intent
         from ghostaudit.engine import Engine
 
         self.data = data
@@ -440,15 +440,18 @@ def m10_duplicate_text(ctx):
 def m11_break_tie(ctx):
     lk = ctx.engine.linker
     lk.account(ctx.cases()[0])
-    tied = {c: l for c, l in lk._accounts.items() if l.status == "TIED" and c in ctx.req}
+    tied = {c: acct for c, acct in lk._accounts.items() if acct.status == "TIED" and c in ctx.req}
     holders = {}
-    for c, l in lk._accounts.items():
-        for x in l.survivors:
+    for c, acct in lk._accounts.items():
+        for x in acct.survivors:
             holders.setdefault(x.activity_id, set()).add(c)
     pick = None
-    for c, l in sorted(tied.items(), key=lambda kv: (len(kv[0]), kv[0])):
-        if len(l.survivors) == 2:
-            for drop, keep in ((l.survivors[0], l.survivors[1]), (l.survivors[1], l.survivors[0])):
+    for c, acct in sorted(tied.items(), key=lambda kv: (len(kv[0]), kv[0])):
+        if len(acct.survivors) == 2:
+            for drop, keep in (
+                (acct.survivors[0], acct.survivors[1]),
+                (acct.survivors[1], acct.survivors[0]),
+            ):
                 if holders[keep.activity_id] == {c}:
                     pick = (c, drop, keep)
                     break
@@ -456,15 +459,15 @@ def m11_break_tie(ctx):
             break
     # every tie is shared: removing one candidate must leave all sharers unresolved (no tie-break)
     if pick is None:
-        c, l = min(tied.items(), key=lambda kv: (len(kv[0]), kv[0]))
-        pick = (c, l.survivors[0], l.survivors[1])
+        c, acct = min(tied.items(), key=lambda kv: (len(kv[0]), kv[0]))
+        pick = (c, acct.survivors[0], acct.survivors[1])
     c, drop, keep = pick
     with Overlay(ctx.data) as ov:
         ov.write_rows(
             "system_activity.csv",
             [r for r in ov.rows("system_activity.csv") if r["activity_id"] != drop.activity_id],
         )
-        out = ov.run()
+        ov.run()
         sys.path.insert(0, str(ROOT / "code"))
         from ghostaudit.engine import Engine
 
@@ -528,7 +531,7 @@ def m12_catalog_contradiction(ctx):
 
         e2 = Engine.from_dataset(ov.root)
         a2 = e2.assess(ctx.req[victim], ctx.intent.classify_rules(ctx.req[victim]["request_text"]))
-    rejected = [l for l in a2.log if l.startswith(f"REJECTED_LINK({link.activity_id} ")]
+    rejected = [acct for acct in a2.log if acct.startswith(f"REJECTED_LINK({link.activity_id} ")]
     stepped = [s for s in out[victim][1] if s["resource_id"] == link.resource_id]
     return Result(
         "M12",

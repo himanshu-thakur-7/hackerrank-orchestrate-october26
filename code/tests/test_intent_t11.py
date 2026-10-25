@@ -1,7 +1,6 @@
 """T11 intent: rules pre-screen + cached model for the remainder + usage tracker (ADR 0008).
 No test calls the network: the model client is a fake with the same call shape as the OpenAI SDK."""
 
-import csv
 import json
 import tempfile
 import unittest
@@ -9,7 +8,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from _path import DATA
+
 from ghostaudit import llm_intent, usage
+from ghostaudit.data import read_csv
 from ghostaudit.intent import classify_rules
 
 PROMPT = llm_intent.PROMPT_PATH.read_text(encoding="utf-8")
@@ -56,7 +57,7 @@ class Prompt(unittest.TestCase):
         texts = {
             r["request_text"]
             for f in ("deletion_requests.csv", "sample_deletion_requests.csv")
-            for r in csv.DictReader(open(DATA / f, newline="", encoding="utf-8"))
+            for r in read_csv(DATA / f)
         }
         self.assertFalse([t for t in texts if t in PROMPT])
 

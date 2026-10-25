@@ -3,7 +3,9 @@ observations.
 Each scenario mirrors a real dataset situation named in the test that uses it."""
 
 import hashlib
+
 from _path import DATA
+
 from ghostaudit import identity, policy
 from ghostaudit.engine import Engine
 from ghostaudit.intent import Intent

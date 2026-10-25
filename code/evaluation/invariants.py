@@ -34,9 +34,10 @@ NAMES = {
 
 def check(output_path, data_dir):
     sys.path.insert(0, str(ROOT / "code"))
-    from evaluation import audit
     from ghostaudit.engine import Engine
     from ghostaudit.loaders.common import system_of
+
+    from evaluation import audit
 
     d = Path(data_dir)
     eng = Engine.from_dataset(d)

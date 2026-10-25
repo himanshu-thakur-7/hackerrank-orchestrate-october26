@@ -5,7 +5,9 @@ and evidence_36 records; notification_delivery log lines 1-3 verbatim.
 
 import unittest
 from pathlib import Path
+
 from _path import DATA  # noqa: F401
+
 from ghostaudit import loaders
 from ghostaudit.store import Observation
 

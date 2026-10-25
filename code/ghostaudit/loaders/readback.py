@@ -26,11 +26,11 @@ GRAMMAR_RE = re.compile(
 
 
 def matches(text):
-    lines = [l for l in text.splitlines() if l.strip()]
+    lines = [text_line for text_line in text.splitlines() if text_line.strip()]
     return (
         bool(lines)
-        and all(GRAMMAR_RE.match(l) for l in lines)
-        and any("lookup_key=" in l for l in lines)
+        and all(GRAMMAR_RE.match(text_line) for text_line in lines)
+        and any("lookup_key=" in text_line for text_line in lines)
     )
 
 

@@ -1,8 +1,13 @@
 """CLI behaviour of code/evaluation/main.py (run as a subprocess, the way users and CI call it)."""
 
-import os, subprocess, sys, tempfile, unittest
+import os
+import subprocess
+import sys
+import tempfile
+import unittest
 from pathlib import Path
-from evaluation.tests.helpers import ROOT, GOLD, SAMPLE_REQ, gold_rows, tmp_copy, mutate_step
+
+from evaluation.tests.helpers import GOLD, ROOT, SAMPLE_REQ, gold_rows, mutate_step, tmp_copy
 
 MAIN = ROOT / "code" / "evaluation" / "main.py"
 

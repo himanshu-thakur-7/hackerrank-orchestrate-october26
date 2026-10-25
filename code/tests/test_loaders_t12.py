@@ -5,9 +5,11 @@ line by line."""
 
 import hashlib
 import unittest
+
 from _path import DATA
+
 from ghostaudit import loaders
-from ghostaudit.loaders import pdf, screens, screens_data
+from ghostaudit.loaders import pdf, screens_data
 from ghostaudit.store import Observation
 
 DOCS, IMGS = DATA / "evidence" / "documents", DATA / "evidence" / "images"

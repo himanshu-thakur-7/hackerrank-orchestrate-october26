@@ -28,7 +28,6 @@ reported for each candidate, but it is not used to choose.
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Optional
 
 from ghostaudit.loaders.common import EMAIL_IN_TEXT
 
@@ -37,7 +36,10 @@ ACCOUNT_DELETE_WINDOW_HOURS = (
     1.5,
 )  # the primary-account delete lands this long before reported_at (docs/03 §1)
 RESULT_OF = {"COMPLETE": "SUCCESS", "PARTIALLY_COMPLETE": "PARTIAL", "NOT_STARTED": "FAILED"}
-_T = lambda s: datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ")
+
+
+def _T(s):
+    return datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ")
 
 
 @dataclass(frozen=True)
@@ -53,8 +55,8 @@ class Candidate:
 class AccountLink:
     case_id: str
     status: str  # LINKED | TIED | NO_CANDIDATE | NOT_A_DELETION
-    resource_id: Optional[str] = None
-    activity_id: Optional[str] = None
+    resource_id: str | None = None
+    activity_id: str | None = None
     candidates: tuple = ()  # after window + result
     survivors: tuple = ()  # after identity filter + global elimination
     reason: str = ""
@@ -179,21 +181,21 @@ class Linker:
                         del cs2[aid]
                         changed = True
         for cid, cs in live.items():
-            l = links[cid]
-            l.survivors = tuple(sorted(cs.values(), key=lambda c: (c.event_time, c.activity_id)))
-            if l.status == "LINKED":
+            acct = links[cid]
+            acct.survivors = tuple(sorted(cs.values(), key=lambda c: (c.event_time, c.activity_id)))
+            if acct.status == "LINKED":
                 continue
-            if not l.candidates:
-                l.status, l.reason = "NO_CANDIDATE", "no account delete in the window"
+            if not acct.candidates:
+                acct.status, acct.reason = "NO_CANDIDATE", "no account delete in the window"
             elif not cs:
-                l.status, l.reason = (
+                acct.status, acct.reason = (
                     "NO_CANDIDATE",
                     "every candidate is tied to another person or claimed by another request",
                 )
             elif len(cs) == 1:
-                l.reason = "the only candidate is claimed by another request too"
+                acct.reason = "the only candidate is claimed by another request too"
             else:
-                l.reason = (
+                acct.reason = (
                     f"{len(cs)} candidates survive every grounded filter (ADR 0004: no tie-break)"
                 )
         self._accounts = links
@@ -213,9 +215,9 @@ class Linker:
         return dict(
             sorted(
                 Counter(
-                    len(l.survivors)
-                    for l in self._accounts.values()
-                    if l.status != "NOT_A_DELETION"
+                    len(acct.survivors)
+                    for acct in self._accounts.values()
+                    if acct.status != "NOT_A_DELETION"
                 ).items()
             )
         )
@@ -230,8 +232,8 @@ class Linker:
             for c in case_ids
             if c in self._accounts and self._accounts[c].status != "NOT_A_DELETION"
         ]
-        dist = dict(sorted(Counter(len(l.survivors) for l in ls).items()))
-        st = Counter(l.status for l in ls)
+        dist = dict(sorted(Counter(len(acct.survivors) for acct in ls).items()))
+        st = Counter(acct.status for acct in ls)
         return (
             f"linking: {len(ls)} deletion requests; surviving account candidates per request "
             f"{dist}; "

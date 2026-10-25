@@ -3,6 +3,7 @@ One test per edge case in docs/02_DATA_NOTES.md (scenarios are synthetic copies 
 records)."""
 
 import unittest
+
 from _world import DELETE, NEW, OLD, OLD_HASH, Coverage, act, engine, ob, request
 
 

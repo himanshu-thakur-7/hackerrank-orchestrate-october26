@@ -11,8 +11,13 @@ from pathlib import Path
 
 from ghostaudit.data import read_csv
 
-_digits = lambda s: re.sub(r"\D", "", s or "")
-_sha = lambda s: hashlib.sha256(s.encode("utf-8")).hexdigest()
+
+def _digits(s):
+    return re.sub(r"\D", "", s or "")
+
+
+def _sha(s):
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
 @dataclass

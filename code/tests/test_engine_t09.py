@@ -4,7 +4,9 @@ the
 matching sample_output.csv patterns (case_05, 12, 15, 17, 27, 31, 32), not recomputed."""
 
 import unittest
+
 from _world import DELETE, NEW, OLD_HASH, Coverage, act, engine, ob, request
+
 from ghostaudit.intent import Intent
 
 

@@ -9,7 +9,9 @@ that must explain it.
 
 import hashlib
 
-_sha = lambda s: hashlib.sha256(s.encode()).hexdigest()
+
+def _sha(s):
+    return hashlib.sha256(s.encode()).hexdigest()
 
 
 def L(ts, svc, trace, event, extra):
@@ -118,7 +120,7 @@ SQL_COLS = (
 
 def sql(captured, primary=(), replica=()):
     out = [
-        f"-- Ghost Data Still Exists: point-in-time database snapshot",
+        "-- Ghost Data Still Exists: point-in-time database snapshot",
         "-- Dialect: SQLite-compatible SQL",
         f"-- Captured at: {captured}",
         "-- Database topology: failover_replica",

@@ -3,7 +3,6 @@ from a real
 artifact: the run itself, the loader check, the generated reports, or the measured design
 documents."""
 
-import csv
 import json
 import re
 import subprocess
@@ -12,13 +11,16 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from ghostaudit.data import read_csv
+
 ROOT = Path(__file__).resolve().parents[3]
 README = (ROOT / "README.md").read_text(encoding="utf-8")
 
 
 def commands():
     return [
-        re.split(r"\s+#", l)[0].strip() for l in re.findall(r"^python3 code/\S+.*$", README, re.M)
+        re.split(r"\s+#", row)[0].strip()
+        for row in re.findall(r"^python3 code/\S+.*$", README, re.M)
     ] + re.findall(r"`(python3 code/[^`]+)`", README)
 
 
@@ -55,7 +57,7 @@ class Numbers(unittest.TestCase):
             text=True,
             cwd=ROOT,
         ).stdout
-        cls.rows = list(csv.DictReader(open(out, newline="", encoding="utf-8")))
+        cls.rows = read_csv(out)
 
     def test_counts_quoted_in_the_readme_match_the_real_run(self):
         self.assertIn(f"({len(self.rows)} rows)", README)
@@ -187,7 +189,7 @@ class EveryNumber(unittest.TestCase):
             cwd=ROOT,
         )
         cls.stdout = run.stdout
-        cls.rows = list(csv.DictReader(open(out, newline="", encoding="utf-8")))
+        cls.rows = read_csv(out)
         cls.loaders = subprocess.run(
             [sys.executable, "code/evaluation/main.py", "loaders"],
             capture_output=True,
@@ -244,7 +246,7 @@ class EveryNumber(unittest.TestCase):
         }
         self.assertEqual(set(readme), set(rows))
         for kind, label in readme.items():
-            line = next(l for l in README.split("\n") if l.startswith("| " + label))
+            line = next(row for row in README.split("\n") if row.startswith("| " + label))
             self.assertTrue(
                 line.rstrip().endswith("| " + " | ".join(str(x) for x in stats[kind]) + " |"),
                 (kind, line),
@@ -297,12 +299,7 @@ class EveryNumber(unittest.TestCase):
             self.assertIn(x.split()[0], USAGE, x)
 
     def test_sort_order_claim_is_computed_from_the_dataset(self):
-        ids = [
-            r["case_id"]
-            for r in csv.DictReader(
-                open(ROOT / "dataset" / "deletion_requests.csv", newline="", encoding="utf-8")
-            )
-        ]
+        ids = [r["case_id"] for r in read_csv(ROOT / "dataset" / "deletion_requests.csv")]
         moved = sum(a != b for a, b in zip(ids, sorted(ids), strict=True))
         three = sum(len(i.split("_")[1]) == 3 for i in ids)
         two = sum(len(i.split("_")[1]) == 2 for i in ids)
@@ -324,7 +321,7 @@ class EveryNumber(unittest.TestCase):
             return (t(r["reported_at"]) - t(r["requested_at"])).total_seconds() / 3600
 
         def rows(name):
-            return list(csv.DictReader(open(ROOT / "dataset" / name, newline="", encoding="utf-8")))
+            return read_csv(ROOT / "dataset" / name)
 
         generated = {"case_09"} | {
             f"case_{i}" for i in range(11, 33)
@@ -363,11 +360,7 @@ class EveryNumber(unittest.TestCase):
             f"unconfirmed",
             README,
         )
-        gold = list(
-            csv.DictReader(
-                open(ROOT / "dataset" / "sample_output.csv", newline="", encoding="utf-8")
-            )
-        )
+        gold = list(read_csv(ROOT / "dataset" / "sample_output.csv"))
         n92 = sum(
             any(st["evidence_id"] == "evidence_92" for st in json.loads(r["steps_json"]))
             for r in gold

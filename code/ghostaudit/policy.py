@@ -12,7 +12,6 @@ is not a deletion_rules category: connectors get the data-flow operations.
 
 import csv
 from dataclasses import dataclass
-from typing import Optional
 
 ABSENT = "ABSENT"
 
@@ -47,10 +46,10 @@ def _content(system_id, o):
     """Category shown by the record's own content (strong: outranks the activity claim), or None."""
     a = dict(o.attrs)
     event = a.get("event", "")
-    if system_id == "support_platform":
-        if event.startswith("attachment_") or "file" in a or "attachment" in o.table:
-            # an uploaded file (docs/02 §4.6 A9; ADR 0009 "artifact content")
-            return "SUPPORT_ATTACHMENT"
+    is_upload = event.startswith("attachment_") or "file" in a or "attachment" in o.table
+    if system_id == "support_platform" and is_upload:
+        # an uploaded file (docs/02 §4.6 A9; ADR 0009 "artifact content")
+        return "SUPPORT_ATTACHMENT"
     if system_id == "analytics_platform" and event == "contact_lookup_completed":
         return (
             "SECONDARY_IDENTIFIER"  # a contact identifier keyed by email hash, not a profile (§7.3)
@@ -132,11 +131,11 @@ class Rules:
 @dataclass(frozen=True)
 class Treatment:
     kind: str  # violation | compliant | unproven | none
-    finding: Optional[str] = None
-    remediation: Optional[str] = None
-    verification: Optional[str] = None
-    rule_id: Optional[str] = None
-    action: Optional[str] = None
+    finding: str | None = None
+    remediation: str | None = None
+    verification: str | None = None
+    rule_id: str | None = None
+    action: str | None = None
     reason: str = ""
 
 
@@ -169,7 +168,10 @@ def treat(category, result, rules):
             "none", rule_id=rule_id, action=action, reason=f"NO_PLAN({category}, {action})"
         )
     finding, remediation, verify = PLANS[action]
-    mk = lambda kind, why, f=None, r=None: Treatment(kind, f, r, verify, rule_id, action, why)
+
+    def mk(kind, why, f=None, r=None):
+        return Treatment(kind, f, r, verify, rule_id, action, why)
+
     if result is None:
         return mk("unproven", "UNPROVEN: no visible observation or coverage")
     s = result.state

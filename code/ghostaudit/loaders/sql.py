@@ -97,9 +97,9 @@ def _load(file_id, captured_at, text, db):
         if table == "snapshot_scope":
             continue
         cols = [c[1] for c in db.execute(f'pragma table_info("{table}")')]
-        rows = [dict(zip(cols, row)) for row in db.execute(f'select * from "{table}"')]
+        rows = [dict(zip(cols, row, strict=True)) for row in db.execute(f'select * from "{table}"')]
         typed = _typed(table)
-        generic = GENERIC_COLS <= set(cols)
+        generic = set(cols) >= GENERIC_COLS
         if not typed and not generic:
             r.unparsed.append(
                 Unit(

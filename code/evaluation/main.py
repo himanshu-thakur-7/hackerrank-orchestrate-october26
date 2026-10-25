@@ -40,7 +40,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -158,8 +158,8 @@ def cmd_score(a):
     }
     _table("DEV", m["dev"])
     print("DEV failures:")
-    detail = [l for c in dev for l in scorer.case_diff(pred, gold, c)]
-    print("\n".join("  " + l for l in detail) or "  none")
+    detail = [entry for c in dev for entry in scorer.case_diff(pred, gold, c)]
+    print("\n".join("  " + entry for entry in detail) or "  none")
     if a.split == "dev":
         print(
             f"HOLDOUT (aggregate only): proxy {m['holdout']['proxy']:.3f}, status_accuracy "
@@ -168,12 +168,13 @@ def cmd_score(a):
     else:
         _table("HOLDOUT (aggregate only)", m["holdout"])
     if a.reveal_holdout:
-        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        stamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         with open(REVEAL_LOG, "a", encoding="utf-8") as f:
             f.write(f"- {stamp} commit {_commit()} --reveal-holdout on {Path(a.pred).name}\n")
         print(f"HOLDOUT failures (revealed; logged to {REVEAL_LOG.name}):")
         print(
-            "\n".join("  " + l for c in hold for l in scorer.case_diff(pred, gold, c)) or "  none"
+            "\n".join("  " + entry for c in hold for entry in scorer.case_diff(pred, gold, c))
+            or "  none"
         )
     _table("ALL", m["all"])
 
@@ -186,13 +187,13 @@ def cmd_score(a):
         return 0
     lines = history.diff(prev / "output.csv", run_dir / "output.csv")
     dev_set = set(dev)
-    shown = [l for l in lines if l.split(":", 1)[0] in dev_set or a.reveal_holdout]
+    shown = [entry for entry in lines if entry.split(":", 1)[0] in dev_set or a.reveal_holdout]
     hidden = len(lines) - len(shown)
     print(
         f"DIFF vs {prev.name}: {len(lines)} change(s)"
         + (f" ({hidden} on holdout cases hidden)" if hidden else "")
     )
-    print("\n".join("  " + l for l in shown) or "  none")
+    print("\n".join("  " + entry for entry in shown) or "  none")
     import json
 
     old = json.loads((prev / "metrics.json").read_text()).get("dev", {})

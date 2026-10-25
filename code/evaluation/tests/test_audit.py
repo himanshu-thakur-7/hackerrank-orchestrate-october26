@@ -1,7 +1,9 @@
 """Literal audit: no case_N / evidence_N literals in code/ outside tests/ and fixtures/."""
 
-import tempfile, unittest
+import tempfile
+import unittest
 from pathlib import Path
+
 from evaluation import audit
 from evaluation.tests.helpers import ROOT
 

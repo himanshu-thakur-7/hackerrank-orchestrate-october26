@@ -105,9 +105,11 @@ TS_LINE = re.compile(TS + " ")
 def matches(text):
     """Every line is timestamped and at least one is in a known dialect; the rest surface as
     unparsed."""
-    lines = [l for l in text.splitlines() if l.strip()]
+    lines = [text_line for text_line in text.splitlines() if text_line.strip()]
     return (
-        bool(lines) and all(TS_LINE.match(l) for l in lines) and any(parse_line(l) for l in lines)
+        bool(lines)
+        and all(TS_LINE.match(text_line) for text_line in lines)
+        and any(parse_line(text_line) for text_line in lines)
     )
 
 

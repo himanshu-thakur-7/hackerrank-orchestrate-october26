@@ -27,6 +27,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from ghostaudit.data import read_csv
+
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "dataset"
 MODEL = "jev-1.14.0"
@@ -339,8 +341,8 @@ def write_cache(path, cache, origin=None):
 
 
 def auroc(scores, labels):
-    pos = [s for s, l in zip(scores, labels) if l]
-    neg = [s for s, l in zip(scores, labels) if not l]
+    pos = [s for s, label in zip(scores, labels, strict=True) if label]
+    neg = [s for s, label in zip(scores, labels, strict=True) if not label]
     if not pos or not neg:
         return None
     return sum((a > b) + 0.5 * (a == b) for a in pos for b in neg) / (len(pos) * len(neg))
@@ -464,8 +466,8 @@ def run(
 def sample_check(client, cache, k, usage, data_dir=DATA):
     """Score our own sample output and test the risk score against our REAL errors vs
     sample_output.csv."""
-    import csv
     import tempfile
+
     from evaluation.overlay import run_pipeline
 
     tmp = Path(tempfile.mkdtemp(prefix="ghostaudit_jev_"))
@@ -482,7 +484,7 @@ def sample_check(client, cache, k, usage, data_dir=DATA):
             )
             for s in json.loads(r["steps_json"])
         }
-        for r in csv.DictReader(open(data_dir / "sample_output.csv", newline="", encoding="utf-8"))
+        for r in read_csv(data_dir / "sample_output.csv")
     }
     items = build_items(data_dir, tmp / "sample_pred.csv")
     scores = score_items(items, client, cache, k=k, usage=usage)

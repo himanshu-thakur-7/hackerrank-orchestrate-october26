@@ -2,7 +2,8 @@
 
 import unittest
 from collections import Counter
-from evaluation import split, scorer
+
+from evaluation import scorer, split
 from evaluation.tests.helpers import GOLD, MANIFEST
 
 

@@ -3,10 +3,11 @@ rejected or
 unresolved link with its reason. Gold is used here only to EVALUATE; the solver never imports
 this."""
 
-import csv
 import json
 import sys
 from collections import Counter
+
+from ghostaudit.data import read_csv
 
 
 def run(root):
@@ -17,10 +18,7 @@ def run(root):
     d = root / "dataset"
     eng = Engine.from_dataset(d)
     lk = eng.linker
-    gold = {
-        r["case_id"]: json.loads(r["steps_json"])
-        for r in csv.DictReader(open(d / "sample_output.csv", newline="", encoding="utf-8"))
-    }
+    gold = {r["case_id"]: json.loads(r["steps_json"]) for r in read_csv(d / "sample_output.csv")}
     samples = data.load_requests(d / "sample_deletion_requests.csv")
     evals = data.load_requests(d / "deletion_requests.csv")
     res = Counter()
@@ -29,20 +27,20 @@ def run(root):
         g = sorted(
             {s["resource_id"] for s in gold[q["case_id"]] if s["system_id"] == "account_service"}
         )
-        l = lk.account(q["case_id"])
-        if l.status == "LINKED":
+        acct = lk.account(q["case_id"])
+        if acct.status == "LINKED":
             v = (
                 "EXACT"
-                if [l.resource_id] == g
-                else ("WRONG" if l.resource_id not in g else "PARTIAL")
+                if [acct.resource_id] == g
+                else ("WRONG" if acct.resource_id not in g else "PARTIAL")
             )
         else:
-            v = l.status
+            v = acct.status
         res[v] += 1
         if v != "EXACT":
             print(
-                f"  {q['case_id']}: {v:12} gold={g} ours={l.resource_id} "
-                f"survivors={[c.resource_id for c in l.survivors]} {l.reason}"
+                f"  {q['case_id']}: {v:12} gold={g} ours={acct.resource_id} "
+                f"survivors={[c.resource_id for c in acct.survivors]} {acct.reason}"
             )
     print(
         f"  samples: {res['EXACT']}/32 exact, {res['WRONG']} wrong, {res['TIED']} tied, "

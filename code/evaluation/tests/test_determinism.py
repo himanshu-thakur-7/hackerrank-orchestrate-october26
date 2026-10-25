@@ -1,7 +1,10 @@
 """Determinism gate: run the solver command twice, compare sha256 of the file it writes."""
 
-import sys, tempfile, unittest
+import sys
+import tempfile
+import unittest
 from pathlib import Path
+
 from evaluation import gate
 
 

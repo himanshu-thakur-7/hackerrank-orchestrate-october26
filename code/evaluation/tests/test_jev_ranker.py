@@ -2,7 +2,6 @@
 SDK's call shape."""
 
 import hashlib
-import os
 import subprocess
 import sys
 import tempfile

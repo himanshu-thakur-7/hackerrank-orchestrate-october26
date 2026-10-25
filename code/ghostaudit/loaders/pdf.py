@@ -59,6 +59,7 @@ def _pdftotext(raw):
 def _pypdf(raw):
     try:
         import io
+
         import pypdf
     except ImportError:
         return None
@@ -67,6 +68,7 @@ def _pypdf(raw):
 
 def extract_text(raw, backends=(_pdftotext, _pypdf)):
     import hashlib
+
     from ghostaudit.loaders import pdf_text_cache
 
     cached = pdf_text_cache.TEXT.get(hashlib.sha256(raw).hexdigest())
@@ -91,12 +93,14 @@ def units(text):
     lines = text.splitlines()
     ids = sorted(set(m.group(0) for m in RES_RE.finditer(text)), key=lambda r: text.index(r))
     if len(ids) <= 1:
-        first = next((n for n, l in enumerate(lines, 1) if ids and ids[0] in l), None)
+        first = next(
+            (n for n, text_line in enumerate(lines, 1) if ids and ids[0] in text_line), None
+        )
         return [(f"text line {first}" if first else "document", text, ids)]
     return [
-        (f"text line {n}", l, [m.group(0) for m in RES_RE.finditer(l)])
-        for n, l in enumerate(lines, 1)
-        if l.strip()
+        (f"text line {n}", text_line, [m.group(0) for m in RES_RE.finditer(text_line)])
+        for n, text_line in enumerate(lines, 1)
+        if text_line.strip()
     ]
 
 
@@ -106,12 +110,16 @@ def load(file_id, captured_at, raw):
     for loc, unit, ids in units(text):
         toks = identifiers(*_tokens(unit))
         if not ids:
-            person_lines = [(n, l) for n, l in enumerate(unit.splitlines(), 1) if _tokens(l)]
-            users = [tuple(USER_RE.findall(l)) for _, l in person_lines]
+            person_lines = [
+                (n, text_line)
+                for n, text_line in enumerate(unit.splitlines(), 1)
+                if _tokens(text_line)
+            ]
+            users = [tuple(USER_RE.findall(text_line)) for _, text_line in person_lines]
             if len(person_lines) > 1 and all(users) and len(set(users)) == len(users):
-                for n, l in person_lines:  # a register: one person per row
+                for n, text_line in person_lines:  # a register: one person per row
                     r.unattributed.append(
-                        Unit(file_id, f"text line {n}", l.strip(), "no resource id")
+                        Unit(file_id, f"text line {n}", text_line.strip(), "no resource id")
                     )
             elif toks:
                 r.unattributed.append(Unit(file_id, loc, " ".join(toks), "no resource id"))
@@ -121,7 +129,7 @@ def load(file_id, captured_at, raw):
             k = kind(t)
             if k in ("email", "phone"):
                 pii.add(k)
-        if any(NAME_RE.match(l) for l in unit.splitlines()):
+        if any(NAME_RE.match(text_line) for text_line in unit.splitlines()):
             pii.add("name")
         attrs = {}
         for line in unit.splitlines():

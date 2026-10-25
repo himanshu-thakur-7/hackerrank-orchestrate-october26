@@ -10,6 +10,7 @@ with OPENAI_API_KEY and TYPESAFE_API_KEY removed from the environment; output.cs
 sha256.
 """
 
+import contextlib
 import hashlib
 import os
 import subprocess
@@ -89,10 +90,8 @@ def blocked_env(block, base=None):
                 continue
             for exe in Path(folder).iterdir():
                 if exe.name != "pdftotext" and not (shadow / exe.name).exists():
-                    try:
+                    with contextlib.suppress(OSError):
                         (shadow / exe.name).symlink_to(exe)
-                    except OSError:
-                        pass
         env["PATH"] = str(shadow)
     return env
 
@@ -113,7 +112,7 @@ def matrix(workers=4):
         block, name, cmd = job
         p = subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT, env=blocked_env(block))
         label = f"matrix [{'all blocked' if len(block) > 1 else block[0] + ' blocked'}] {name}"
-        fails = [l for l in p.stderr.split("\n") if l.startswith(("FAIL:", "ERROR:"))]
+        fails = [line for line in p.stderr.split("\n") if line.startswith(("FAIL:", "ERROR:"))]
         return (
             label,
             p.returncode,
@@ -181,7 +180,7 @@ def summarize(results):
 
 
 def _last(text):
-    lines = [l for l in text.strip().split("\n") if l.strip()]
+    lines = [line for line in text.strip().split("\n") if line.strip()]
     return lines[-1].strip() if lines else ""
 
 

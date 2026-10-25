@@ -5,11 +5,13 @@ references.
 Scenarios are synthetic copies of the sample situations named in each test."""
 
 import unittest
+
+from _path import DATA
 from _world import DELETE, NEW, act, ob, request, resolver
+
 from ghostaudit import linking, policy
 from ghostaudit.engine import Engine
 from ghostaudit.store import ActivityEvent, EvidenceFile, EvidenceStore
-from _path import DATA
 
 
 def req(case_id, email, reported_at, status="COMPLETE", audit_at="2026-09-15T12:00:00Z"):
@@ -342,7 +344,8 @@ class EngineIntegration(unittest.TestCase):
         a = e.assess(q, DELETE)
         self.assertEqual(a.steps, [])
         self.assertTrue(
-            any(l.startswith("REJECTED_LINK(activity_4008 marketing_001") for l in a.log), a.log
+            any(entry.startswith("REJECTED_LINK(activity_4008 marketing_001") for entry in a.log),
+            a.log,
         )
 
 

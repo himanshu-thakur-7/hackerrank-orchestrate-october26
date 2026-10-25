@@ -7,7 +7,6 @@ only). Live calls happen only for cache misses and only with OPENAI_API_KEY set;
 cache module.
 """
 
-import csv
 import hashlib
 import sys
 from collections import Counter

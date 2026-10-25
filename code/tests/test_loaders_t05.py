@@ -5,9 +5,11 @@ customer_data_* tables with JSON record blobs. Fixtures are verbatim lines from 
 
 import unittest
 from pathlib import Path
+
 from _path import DATA  # noqa: F401
+
 from ghostaudit import loaders
-from ghostaudit.store import Coverage, EvidenceFile, EvidenceStore, Observation
+from ghostaudit.store import EvidenceFile, EvidenceStore, Observation
 
 FIX = Path(__file__).resolve().parent / "fixtures"
 

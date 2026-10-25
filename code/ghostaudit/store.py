@@ -9,8 +9,7 @@ exposed for linkage and category hints, never used to set a state (ADR 0003, 000
 
 import re
 from collections import defaultdict
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 
 ABSENT = "ABSENT"
 
@@ -23,6 +22,11 @@ def token_key(t):
     if len(digits) >= 9 and not re.search(r"[A-Za-z@]", t):
         return "tel:" + digits
     return t.lower()
+
+
+def _time_order(o):
+    """Observation sort key: time, then file, then position in the file (a total, stable order)."""
+    return (o.observed_at, o.file_id, o.locator)
 
 
 @dataclass(frozen=True)
@@ -41,7 +45,7 @@ class Observation:
     resource_id: str
     table: str  # e.g. customer_profiles_failover_replica; distinguishes replicas
     state: str  # PRESENT | ABSENT | ACTIVE | DISABLED | BLOCKED | RESTORABLE ...
-    category: Optional[str] = None  # explicit tag only (SUPPORT_MESSAGE, ...)
+    category: str | None = None  # explicit tag only (SUPPORT_MESSAGE, ...)
     pii_fields: tuple = ()  # direct identifiers still non-null on the record
     identifiers: tuple = ()  # exact identifiers seen in the record unit
     locator: str = ""  # line / json path, for --explain
@@ -88,7 +92,7 @@ class StateResult:
     basis: str  # "observation" | "coverage"
     at: str
     locator: str = ""
-    observation: Optional[Observation] = None
+    observation: Observation | None = None
 
 
 class EvidenceStore:
@@ -147,8 +151,7 @@ class CaseView:
             for o in self._s._by_identifier.get(token_key(t), ()):
                 if self._visible(o.file_id):
                     out[(o.system_id, o.resource_id)].add(o)
-        key = lambda o: (o.observed_at, o.file_id, o.locator)
-        return {k: sorted(v, key=key) for k, v in out.items()}
+        return {k: sorted(v, key=_time_order) for k, v in out.items()}
 
     def resources_with_identifier(self, tokens):
         return set(self.linking_observations(tokens))
@@ -233,7 +236,7 @@ class CaseView:
 
     def links_for_user(self, user_id):
         return [
-            l
-            for l in self._s.links
-            if l.user_id == user_id and l.at <= self.cutoff and l.status != "CONTRADICTED"
+            link
+            for link in self._s.links
+            if link.user_id == user_id and link.at <= self.cutoff and link.status != "CONTRADICTED"
         ]

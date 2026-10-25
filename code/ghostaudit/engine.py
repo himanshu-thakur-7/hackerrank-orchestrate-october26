@@ -13,9 +13,9 @@ anything that would need it is logged, never guessed (ADR 0004).
 import csv
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
-from ghostaudit import contract, data, identity, intent as intent_mod, linking, loaders, policy
+from ghostaudit import contract, data, identity, linking, loaders, policy
+from ghostaudit import intent as intent_mod
 from ghostaudit.loaders.common import system_of
 from ghostaudit.store import ActivityEvent, EvidenceFile, EvidenceStore, StateResult
 
@@ -25,8 +25,8 @@ class ResourceAssessment:
     system_id: str
     resource_id: str
     links: list  # visible observations naming the subject (the grounded link)
-    state: Optional[StateResult]
-    category: Optional[str]
+    state: StateResult | None
+    category: str | None
     category_source: str
     treatment: policy.Treatment
     # covering files after the deciding sighting that omit it (ADR 0014 risk)
@@ -41,7 +41,7 @@ class CaseAssessment:
     case_id: str
     status: str
     steps: list
-    subject: Optional[identity.Identity] = None
+    subject: identity.Identity | None = None
     resources: list = field(default_factory=list)
     log: list = field(default_factory=list)
 
@@ -177,7 +177,7 @@ class Engine:
                     f"absent; "
                     f"latest {last.file_id} {last.locator} at {last.observed_at}; ADR 0016)"
                 )
-        for (system_id, resource_id), (links, _) in sorted(found.items()):
+        for (_system_id, resource_id), (links, _) in sorted(found.items()):
             for o in links:
                 src = dict(o.attrs).get("source_resource_id")
                 if src and system_of(src) and (system_of(src), src) not in found:

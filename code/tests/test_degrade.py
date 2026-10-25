@@ -13,6 +13,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from _path import CODE, DATA, ROOT
+
 from ghostaudit import llm_intent, usage
 from ghostaudit.intent import classify_rules
 from ghostaudit.loaders import pdf
@@ -116,14 +117,13 @@ def run_main(out, env_extra, data=DATA, extra_path=None):
     env.update(env_extra)
     if extra_path:
         env["PYTHONPATH"] = str(extra_path) + os.pathsep + env.get("PYTHONPATH", "")
-    p = subprocess.run(
+    return subprocess.run(
         [sys.executable, str(CODE / "main.py"), "--data", str(data), "--out", str(out)],
         capture_output=True,
         text=True,
         cwd=ROOT,
         env=env,
     )
-    return p
 
 
 class WholePipeline(unittest.TestCase):

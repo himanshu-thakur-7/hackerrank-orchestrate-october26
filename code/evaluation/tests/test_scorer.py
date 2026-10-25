@@ -2,6 +2,7 @@
 hand."""
 
 import unittest
+
 from evaluation import scorer
 from evaluation.tests.helpers import GOLD
 

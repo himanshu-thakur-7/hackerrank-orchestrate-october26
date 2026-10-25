@@ -59,7 +59,7 @@ def sniff(raw, file_id="?"):
         raise UnknownSignature(
             f"{file_id}: not UTF-8 text and not a known binary format (byte {e.start}); first "
             f"bytes {raw[:16]!r}"
-        )
+        ) from e
     head = text.lstrip()
     if head.startswith("{"):
         try:
@@ -67,7 +67,7 @@ def sniff(raw, file_id="?"):
         except json.JSONDecodeError as e:
             raise UnknownSignature(
                 f"{file_id}: starts like JSON but does not parse ({e.msg} at line {e.lineno})"
-            )
+            ) from e
         keys = sorted(data) if isinstance(data, dict) else []
         if "service_exports" in keys:
             return "json:service_exports"
@@ -88,7 +88,7 @@ def sniff(raw, file_id="?"):
         return "log:record_lookup"
     if observability.matches(text):
         return "log:observability"
-    first = next((l for l in text.splitlines() if l.strip()), "")
+    first = next((line for line in text.splitlines() if line.strip()), "")
     raise UnknownSignature(f"{file_id}: unknown content signature; first line {first[:80]!r}")
 
 
@@ -104,7 +104,7 @@ def load_bytes(file_id, captured_at, raw, strict=True):
         try:
             return LOADERS[sig](file_id, captured_at, raw)
         except screens.MissingTranscription as e:
-            raise UnknownSignature(str(e))
+            raise UnknownSignature(str(e)) from e
     return LOADERS[sig](file_id, captured_at, raw.decode("utf-8"))
 
 

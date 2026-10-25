@@ -193,4 +193,8 @@ def json_line_map(text, data):
     hits = [(m.group(1), text.count("\n", 0, m.start()) + 1) for m in RID_RE.finditer(text)]
     order = []
     _ordered_dicts(data, order)
-    return {id(d): f"line {ln}" for d, (rid, ln) in zip(order, hits) if d.get("resource_id") == rid}
+    return {
+        id(d): f"line {ln}"
+        for d, (rid, ln) in zip(order, hits, strict=False)
+        if d.get("resource_id") == rid
+    }

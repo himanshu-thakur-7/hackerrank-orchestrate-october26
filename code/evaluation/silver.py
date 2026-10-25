@@ -24,7 +24,10 @@ STRATA = (
 def sample(ledger, status):
     rng = random.Random(SEED)
     picked, used = [], set()
-    nat = lambda c: (len(c), c)
+
+    def nat(c):
+        return (len(c), c)
+
     for name, k in STRATA:
         reason, _, st = (
             name.partition(":") if name.startswith("fully grounded:") else (name, "", "")

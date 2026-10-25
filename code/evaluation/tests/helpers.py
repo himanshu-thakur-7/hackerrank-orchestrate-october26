@@ -1,6 +1,8 @@
 """Shared fixtures for evaluation tests: copies of the labeled sample, optionally broken."""
 
-import csv, io, json, tempfile
+import csv
+import json
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]

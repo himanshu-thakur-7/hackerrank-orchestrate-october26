@@ -1,8 +1,15 @@
 """T02: CSV loading, identity resolution, rules-only intent, writer, and the baseline CLI."""
 
-import csv, hashlib, subprocess, sys, tempfile, unittest
+import csv
+import hashlib
+import subprocess
+import sys
+import tempfile
+import unittest
 from pathlib import Path
-from _path import ROOT, DATA, CODE
+
+from _path import CODE, DATA, ROOT
+
 from ghostaudit import data, identity, intent, writer
 
 EVAL_NON_DELETION = {

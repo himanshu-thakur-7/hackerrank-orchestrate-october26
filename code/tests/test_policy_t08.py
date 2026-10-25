@@ -3,7 +3,9 @@ of each (category, state) pair (docs/03_DESIGN.md §3 Stage 6 table; ADR 0010, 0
 """
 
 import unittest
+
 from _path import DATA
+
 from ghostaudit import policy
 from ghostaudit.store import ActivityEvent, Observation, StateResult
 

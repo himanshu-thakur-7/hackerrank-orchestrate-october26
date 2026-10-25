@@ -2,15 +2,16 @@
 violation strings."""
 
 import unittest
+
 from evaluation import gate
 from evaluation.tests.helpers import (
     GOLD,
-    SAMPLE_REQ,
     MANIFEST,
+    SAMPLE_REQ,
     gold_rows,
-    tmp_copy,
     mutate_step,
     required_warnings,
+    tmp_copy,
 )
 
 

@@ -13,8 +13,8 @@ LINE_RE = re.compile(
 
 
 def matches(text):
-    lines = [l for l in text.splitlines() if l.strip()]
-    return bool(lines) and all(LINE_RE.match(l) for l in lines)
+    lines = [text_line for text_line in text.splitlines() if text_line.strip()]
+    return bool(lines) and all(LINE_RE.match(text_line) for text_line in lines)
 
 
 def load(file_id, captured_at, text):
@@ -24,7 +24,7 @@ def load(file_id, captured_at, text):
             continue
         m = LINE_RE.match(line)
         f = logfmt(m.group(2)) if m else {}
-        if not m or not register.REGISTER_KEYS <= set(f):
+        if not m or not set(f) >= register.REGISTER_KEYS:
             r.unparsed.append(Unit(file_id, f"line {n}", line, "not a record_lookup line"))
             continue
         f["recorded_at"] = m.group(1)

@@ -7,7 +7,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from evaluation.overlay import Overlay, changed, run_pipeline
+from evaluation.overlay import Overlay, changed
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "dataset"
@@ -50,7 +50,10 @@ def _compare(cid, got, want):
     ws, wsteps = want
     if gs != ws:
         problems.append(f"status: expected {ws}, got {gs}")
-    strip = lambda steps: [{k: v for k, v in s.items() if k != "step_no"} for s in steps]
+
+    def strip(steps):
+        return [{k: v for k, v in s.items() if k != "step_no"} for s in steps]
+
     if strip(gsteps) != wsteps:
         problems.append(
             f"steps: expected "
@@ -64,7 +67,6 @@ def _compare(cid, got, want):
 
 def run_cases(cases, check_real=True):
     sys.path.insert(0, str(ROOT / "code"))
-    from ghostaudit import intent as intent_mod
     from ghostaudit import llm_intent
     from ghostaudit.engine import Engine
 

@@ -1,8 +1,10 @@
 """The pandas round-trip is optional: absent pandas -> SKIPPED warning, never a gate failure."""
 
-import sys, unittest
+import sys
+import unittest
+
 from evaluation import gate
-from evaluation.tests.helpers import GOLD, SAMPLE_REQ, MANIFEST, gold_rows, tmp_copy, mutate_step
+from evaluation.tests.helpers import GOLD, MANIFEST, SAMPLE_REQ, gold_rows, mutate_step, tmp_copy
 
 
 class PandasBlocked(unittest.TestCase):

@@ -9,11 +9,11 @@ gold-implied state of a resource (from its steps in sample_output.csv):
   uncited (INCOMPLETE, no finding) -> "compliant or unproven".
 """
 
-import csv
 import json
 import sys
 from collections import Counter
-from pathlib import Path
+
+from ghostaudit.data import read_csv
 
 FINDING_STATE = {
     "REPORT_REMAINING_RECORD": "PRESENT",
@@ -63,18 +63,16 @@ def agree(gold_state, mine):
 
 def run(root, split_name="dev", risk=False, limit=5):
     sys.path.insert(0, str(root / "code"))
-    from evaluation import split
     from ghostaudit import data, intent
     from ghostaudit.engine import Engine
+
+    from evaluation import split
 
     d = root / "dataset"
     eng = Engine.from_dataset(d)
     dev, hold, _ = split.load_frozen()
     ids = {"dev": dev, "holdout": hold, "all": dev + hold}[split_name]
-    gold = {
-        r["case_id"]: json.loads(r["steps_json"])
-        for r in csv.DictReader(open(d / "sample_output.csv", newline="", encoding="utf-8"))
-    }
+    gold = {r["case_id"]: json.loads(r["steps_json"]) for r in read_csv(d / "sample_output.csv")}
     reqs = {q["case_id"]: q for q in data.load_requests(d / "sample_deletion_requests.csv")}
     n_gold = found = ok = op_ok = extra = 0
     misses, bad, extras = Counter(), [], []

@@ -4,14 +4,14 @@ metrics.json, output.csv and commit (the git HEAD at run time), so regressions c
 
 import json
 import shutil
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from evaluation import scorer
 
 
 def record(runs_dir, output_path, metrics, commit, ts=None):
-    ts = ts or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    ts = ts or datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
     d = Path(runs_dir) / ts
     d.mkdir(parents=True, exist_ok=False)
     shutil.copyfile(output_path, d / "output.csv")
@@ -31,14 +31,17 @@ def previous(runs_dir, run_dir):
 
 def diff(prev_output, cur_output):
     a, b = scorer.load(prev_output), scorer.load(cur_output)
-    key = lambda s: (
-        s["phase"],
-        s["system_id"],
-        s["resource_id"],
-        s["operation"],
-        s["state"],
-        s["evidence_id"] or "-",
-    )
+
+    def key(s):
+        return (
+            s["phase"],
+            s["system_id"],
+            s["resource_id"],
+            s["operation"],
+            s["state"],
+            s["evidence_id"] or "-",
+        )
+
     out = []
     for c in sorted(
         set(a) | set(b),

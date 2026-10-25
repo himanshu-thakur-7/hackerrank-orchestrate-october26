@@ -43,6 +43,30 @@ PROXY = (
 )
 
 
+def _sequence(steps):
+    """Steps as ordered (phase, system, resource, operation, state) tuples, for sequence metrics."""
+    return [
+        (s["phase"], s["system_id"], s["resource_id"], s["operation"], s["state"]) for s in steps
+    ]
+
+
+def _findings(steps):
+    """The (system, resource, operation) keys of the FINDING steps."""
+    return {
+        (s["system_id"], s["resource_id"], s["operation"]) for s in steps if s["phase"] == "FINDING"
+    }
+
+
+def _full_steps(steps):
+    """Each step as a sorted item tuple, step_no included (strict step matching)."""
+    return [tuple(sorted(s.items())) for s in steps]
+
+
+def _unordered_steps(steps):
+    """Each step as a sorted item tuple without step_no (order-free step matching)."""
+    return [tuple(sorted((k, v) for k, v in s.items() if k != "step_no")) for s in steps]
+
+
 def load(path):
     with open(path, newline="", encoding="utf-8") as f:
         return {
@@ -94,11 +118,7 @@ def score(pred, gold, case_ids):
         status_ok += ps == gs
         row_ok += ps == gs and psteps == gsteps
 
-        seq = lambda steps: [
-            (s["phase"], s["system_id"], s["resource_id"], s["operation"], s["state"])
-            for s in steps
-        ]
-        gq, pq = seq(gsteps), seq(psteps)
+        gq, pq = _sequence(gsteps), _sequence(psteps)
         seq_ok += gq == pq
         lcs_sum += 1.0 if not gq and not pq else _lcs(gq, pq) / max(len(gq), len(pq))
 
@@ -107,12 +127,7 @@ def score(pred, gold, case_ids):
         id_tot += len(gres)
         id_hit += len(gres & pres)
 
-        fkey = lambda steps: {
-            (s["system_id"], s["resource_id"], s["operation"])
-            for s in steps
-            if s["phase"] == "FINDING"
-        }
-        gf, pf = fkey(gsteps), fkey(psteps)
+        gf, pf = _findings(gsteps), _findings(psteps)
         f_tp += len(gf & pf)
         f_pred += len(pf)
         f_gold += len(gf)
@@ -135,11 +150,7 @@ def score(pred, gold, case_ids):
                     == s["evidence_id"]
                 )
 
-        full = lambda steps: [tuple(sorted(s.items())) for s in steps]
-        noord = lambda steps: [
-            tuple(sorted((k, v) for k, v in s.items() if k != "step_no")) for s in steps
-        ]
-        for get, acc in ((full, "s"), (noord, "u")):
+        for get, acc in ((_full_steps, "s"), (_unordered_steps, "u")):
             gl, pl = get(gsteps), get(psteps)
             pool = list(pl)
             tp = 0
@@ -190,14 +201,17 @@ def case_diff(pred, gold, case_id):
     """Human-readable differences for one case (used for dev failure detail)."""
     gs, gsteps = gold[case_id]
     ps, psteps = pred.get(case_id, (None, []))
-    key = lambda s: (
-        s["phase"],
-        s["system_id"],
-        s["resource_id"],
-        s["operation"],
-        s["state"],
-        s["evidence_id"],
-    )
+
+    def key(s):
+        return (
+            s["phase"],
+            s["system_id"],
+            s["resource_id"],
+            s["operation"],
+            s["state"],
+            s["evidence_id"],
+        )
+
     g, p = [key(s) for s in gsteps], [key(s) for s in psteps]
     lines = [f"{case_id}: status pred={ps} gold={gs}"] if ps != gs else []
     lines += [f"{case_id}: missing  {' '.join(k)}" for k in g if k not in p]

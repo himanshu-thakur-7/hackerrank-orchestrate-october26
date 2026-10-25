@@ -288,7 +288,9 @@ def _format(raw, warnings):
     csv.writer(buf, lineterminator="\n").writerows(rows)
     if buf.getvalue() != text:
         a, b = text.split("\n"), buf.getvalue().split("\n")
-        n = next((k for k, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))
+        n = next(
+            (k for k, (x, y) in enumerate(zip(a, b, strict=False)) if x != y), min(len(a), len(b))
+        )
         return [
             f"L0.csv: line {n + 1} does not round-trip through the csv module (quoting differs)"
         ]

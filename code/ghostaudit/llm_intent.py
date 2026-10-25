@@ -60,7 +60,7 @@ def prompt_text():
 
 def cache_key(text, prompt=None, model=MODEL):
     return hashlib.sha256(
-        f"{model}\n{prompt if prompt is not None else prompt_text()}\n{text}".encode("utf-8")
+        f"{model}\n{prompt if prompt is not None else prompt_text()}\n{text}".encode()
     ).hexdigest()
 
 

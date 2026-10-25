@@ -15,7 +15,7 @@ import os
 import subprocess
 import sys
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -57,14 +57,15 @@ def final_run(data_dir=DATA, env=None):
 
 def collect(env=None):
     sys.path.insert(0, str(ROOT / "code"))
-    from evaluation import jev_ranker
     from ghostaudit import llm_intent
+
+    from evaluation import jev_ranker
 
     commit = subprocess.run(
         ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, cwd=ROOT
     ).stdout.strip()
     return {
-        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "commit": commit or "unknown",
         "final": final_run(env=env),
         "openai_origin": llm_intent.read_origin(),
@@ -83,9 +84,11 @@ def _cost(model, tin, tout):
 
 def render(d):
     sys.path.insert(0, str(ROOT / "code"))
-    from evaluation.jev_ranker import MODEL as JEV, PRICE_IN_PER_MTOK as JEV_IN
     from ghostaudit.llm_intent import MODEL as OPENAI
     from ghostaudit.usage import PRICE_PER_MTOK
+
+    from evaluation.jev_ranker import MODEL as JEV
+    from evaluation.jev_ranker import PRICE_IN_PER_MTOK as JEV_IN
 
     f, t = d["final"], d["final"]["totals"]
     n = f["requests"]
