@@ -966,3 +966,22 @@ branch=claude/stoic-bell-1t82oq
 repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
+
+## [2026-10-25T02:40:48Z] T17 spike: Jev gate FAIL on repeat stability (AUROC passes); no judge built
+
+User Prompt (verbatim, secrets redacted):
+(same relayed T13/T17 prompt as the T13 entry; part 2. TYPESAFE_API_KEY was read only by the SDK from the environment and was never printed or written: [REDACTED])
+
+Agent Response Summary:
+Under the prototype skill (scratch only), I installed typesafe-sdk 0.7.5 and read client.system_one plus the Noul/Choice/response types before coding. A one-question reach check succeeded (jev-1.14.0 echoed). The spike built 50 propositions from sample gold (25 true; 25 false across wrong resource, flipped state, wrong operation, decoy owner, post-cutoff), each with separate supports/contradicts Noul questions. AUROC 0.959/0.945 passes, but repeat stability over 20 identical calls is 0.090 > 0.05: FAIL. Option order bias 0/18. 88 calls, 60,871 in / 3,614 out tokens, about $0.003. Results are in docs/JEV_SPIKE.md; the fallback is the blind sub-agent audit. A runpy run_name mistake of mine briefly shadowed the stdlib inspect module during inspection; no impact.
+
+Actions:
+* pip install typesafe-sdk; read SDK source; wrote and ran scratch/proto_jev_spike.py (git-ignored); wrote docs/JEV_SPIKE.md; updated docs/BOARD.md
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none

@@ -27,7 +27,7 @@
 | T14 | usage_report.md, README, packaging script, final validation | P0 | 10 | T09, T11, T13, T16 | `python3 code/package.py && python3 code/evaluation/main.py final` | code.zip contains README.md + code/ only (no dataset/, .env, *.zip, __pycache__); final gates green; output.csv 518 rows | todo |
 | T15 | Metamorphic suite: dataset overlay helper + relations | P0 | 10 | T02 (helper), T09 (relations) | `python3 code/evaluation/main.py metamorphic` | All relations hold: shuffled rows, renamed case IDs, uppercase emails, injected post-cutoff file, added `.jr` decoy, contradicted screenshot, earlier audit_at | done |
 | T16 | Invariants on all 518 + blind silver-label audit + score band with per-case loss ledger | P1 | 10 | T09, T10 | `python3 code/evaluation/main.py invariants && python3 code/evaluation/main.py lossledger` | Invariants 518/518; every cited evidence_id exists and is ≤ audit_at; the loss ledger lists unresolved, not-observable, unproven and unlabeled cases with counts | done |
-| T17 | TypeSafe Jev judge (typesafe-sdk, pinned jev-1.14.0, disk-cached, advisory only) behind a spike gate | P2 | 9 | T01, T11 | `python3 code/evaluation/main.py judge-spike` | Spike reports AUROC ≥ 0.90 and repeat-stability ≤ 0.05, otherwise the judge stays disabled; output.csv hash unchanged with the judge on or off | todo |
+| T17 | TypeSafe Jev judge (typesafe-sdk, pinned jev-1.14.0, disk-cached, advisory only) behind a spike gate | P2 | 9 | T01, T11 | `python3 code/evaluation/main.py judge-spike` | Spike reports AUROC ≥ 0.90 and repeat-stability ≤ 0.05, otherwise the judge stays disabled; output.csv hash unchanged with the judge on or off | blocked (spike gate failed: repeat Δp 0.090 > 0.05) |
 
 **Build sequence** (critical path in bold): **T01 → T02 → T03 → T04 → T05 → T08 → T09** → T06 / T07 / T12 → T10 → **T15** → T16 → T13 → T11 → **T14**. T17 can run only after T11, and only if time allows.
 
@@ -139,6 +139,10 @@ Four sub-agents audited 14 eval cases from `dataset/` only (no engine output, co
 
 - `python3 code/evaluation/main.py custom`: **12/12** hand-written custom rows pass, from 11 fixtures (`code/evaluation/fixtures/custom_cases.py`): replica-only account, DELETION_PENDING, contradicted catalog link (a log artifact; screens are hash-keyed transcriptions), legal hold, uppercase historical email, post-cutoff resurrection, redacted tombstone, exposed tombstone, marketing-only trap, tied candidates (2 rows, UNRESOLVED_LINK checked in the log), attempted-but-unproven delete. All people and texts are synthetic and dated 2027; the 518 real rows are unchanged (checked). The trap text's model verdict was fetched once and cached (1 new cache entry).
 - `python3 code/evaluation/main.py report` writes `code/evaluation/evaluation_report.md` from real runs (~100 s): approach, pipeline layers, sample results (dev, holdout aggregates, run history), custom cases, metamorphic table, invariants, loss ledger and ceiling, silver audit with its limits, unlabeled-rule assumptions (DELETION_PENDING 8, legal hold 6, empty INCOMPLETE 3, stale link 0), failures and improvements, limitations with costs, and reproduction. `render()` is pure and unit-tested; generated reports are exempt from the literal audit by name (test-first).
+
+## T17 spike result (gate)
+
+`docs/JEV_SPIKE.md`. Jev `jev-1.14.0` is reachable from the container. 50 propositions (25 true / 25 false, 5 perturbation kinds): AUROC 0.959 (supports) / 0.945 (supports − contradicts) passes; repeat stability over 20 identical requests: Δp = 0.090 > 0.05 **fails**. No option-order bias (0/18 changes). 88 calls, 60,871 in / 3,614 out tokens, median latency 107 ms, ≈ $0.003. **Gate FAIL: no judge code is built**; the fallback is the blind sub-agent audit.
 
 ## Where this board deviates from the relayed list (and why)
 
