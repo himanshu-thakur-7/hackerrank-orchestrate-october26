@@ -252,3 +252,24 @@ repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
 
+## [2026-10-25T00:23:23Z] /loop data discovery: pass 5 (traps) - loop complete
+
+User Prompt (verbatim, secrets redacted):
+/loop (scheduled iteration; same prompt as the pass-1 entry above — one discovery pass per iteration, passes 1-5, append to docs/02_DATA_NOTES.md)
+
+Agent Response Summary:
+Ran pass 5 (traps) and stopped the loop because all 5 passes are done. Found 19 look-alike decoy emails (".jr" suffixes and sibling names such as karim.elmasri and nadia.popescu) and 11 SQL snapshots where a deleted account survives only in a replica. Found an in-file resurrection (evidence_30 account_2088: 404 then 200) and a post-audit resurrection in evidence_02 (account_3866 ACTIVE on 09-17), which sample case_27 correctly ignores. Found 16 eval cases whose subject appears only in files captured after audit_at. The 10 non-deletion cases are corroborated by CLASSIFY_REQUEST plus evidence_50. Added ambiguity A23 (pre-audit sub-snapshots inside a post-audit file) and wrote a 10-point trap checklist.
+
+Actions:
+* Wrote and ran scratch/pass5_traps.py; compared evidence_02 vs evidence_92 and inspected evidence_30 and evidence_50
+* Appended Pass 5 and Loop outcome sections to docs/02_DATA_NOTES.md
+* Committed and pushed; stopped the /loop (ScheduleWakeup stop)
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+

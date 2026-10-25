@@ -592,3 +592,128 @@ Some INCOMPLETE verification steps use `evidence_id = ""`, so they need no citat
 - **A9, message vs attachment.** The category comes from explicit labels where they exist (`evidence_03` CATEGORY column), and otherwise from content:
   - `evidence_58` is an uploaded PDF file with "uploader customer" and "file delivery_address_correction.pdf", i.e. an attachment.
   - `evidence_28` (PNG) is a conversation including an agent, i.e. a message with shared context.
+
+---
+
+## Pass 5 — Traps
+
+Script: `scratch/pass5_traps.py`, plus direct inspection of the lines quoted below.
+
+### 5.1 Look-alike emails
+
+- The evidence holds **769 distinct known emails** (current or historical) and **22 unknown emails**. 19 of the unknown ones are near-copies of a real user's email (SequenceMatcher ratio ≥ 0.85). **They are decoys and must not match.**
+- **Pattern 1, a `.jr` suffix** (15 cases). Examples:
+  - `evidence_01` line 2: `match_key="g.silva76.jr@gmail.com"` vs user_13 `g.silva76@gmail.com`. The trace `tr-5887496` resolves to `search_1874`, which is therefore **not** user_13's;
+  - `evidence_02` line 31: `smartinez6461.jr@gmail.com` vs user_28;
+  - `evidence_06` line 8: `zulu.lindiwe.jr@gmail.com` vs user_62;
+  - also `evidence_07`, `evidence_10`, `evidence_25`, `evidence_29`, `evidence_31`, `evidence_36`, `evidence_38`, `evidence_40`, `evidence_43`, `evidence_44`, `evidence_45` and `evidence_47`.
+- **Pattern 2, sibling names in the same file as the real subject.**
+  - `evidence_57` lines 10–11: `jonas.berglund@outlook.com` and `joana.berg@outlook.com` next to user_06 `jonas.berg@outlook.com` on line 9 (sample case_06 cites only `search_001`, line 9).
+  - `evidence_61` line 8: `nadia.popescu@yahoo.com`. user_10's real history is nadia.ionescu → nadia.petrescu → n.petrescu (`audit_121`, `audit_238`), so **popescu is a decoy that resembles a historical name**.
+  - `evidence_54` line 14: "Karim El-Masri, karim.elmasri@gmail.com" vs user_01 "Amina El-Masri, amina.elmasri@gmail.com". Also line 15 "Mateo Rios Gil" vs user_02 "Mateo Ríos", and line 17 "Priya Ramanathan, p.ramanathan@gmail.com" vs user_07 "Priya Raman".
+- **Rule.** Match identifiers **exactly** after lowercasing: email, `user_N`, sha256 hash, or normalised phone. **Never** match by fuzzy email or by name alone.
+  - Sample case_28's text even warns: "A search result with a similar email belongs to someone else."
+
+### 5.2 Primary vs replica drift
+
+Loading every SQL file into SQLite shows **11 snapshots with drift**. In every one, a resource exists **only in the replica**: deleted from the primary, still present in the copy. No rows exist only in the primary, and no shared row has different fields.
+
+| file | captured | tables | replica-only |
+| --- | --- | --- | --- |
+| evidence_54 | 2026-09-02 | customer_profiles_primary vs _failover_replica | account_005 (= sample case_05 REMAINING) |
+| evidence_05 | 2026-09-21 | customer_data_primary vs _read_replica | account_994 (= sample case_16 REMAINING, line 52) |
+| evidence_10 | 2026-08-27 | primary vs read_replica | account_6345 |
+| evidence_15 | 2026-08-02 | primary vs read_replica | account_8023 |
+| evidence_20 | 2026-07-08 | primary vs read_replica | account_4348 |
+| evidence_24 | 2026-06-13 | primary vs read_replica | account_3150, account_9608 |
+| evidence_29 | 2026-05-19 | primary vs replica_ap_south | account_585 |
+| evidence_33 | 2026-04-24 | primary vs replica_eu_west | account_6539, account_8105 |
+| evidence_38 | 2026-03-30 | primary vs replica_ap_south | account_5389 |
+| evidence_43 | 2026-03-05 | primary vs reporting_replica | account_3183 |
+| evidence_47 | 2026-02-08 | primary vs reporting_replica | account_1035 |
+
+- **A primary 404 or omission is not enough.** Any replica table in the same snapshot must also lack the record.
+- The sample reports the replica copy under `system_id = account_service` with the account's own `resource_id`. There is no separate replica system_id (case_05, case_16).
+
+### 5.3 Later observations that contradict earlier ones
+
+- **Resurrection inside one file.** `evidence_30` (`service_events_sa_east_20260516.log`):
+  - line 92, 2026-05-14T11:58:45Z: `account_2088 profile_lookup_completed rows=0 http_status=404`;
+  - line 109, 2026-05-16T11:58:23Z: same lookup_key `lars.e5052@outlook.com`, **`rows=1 http_status=200`**, read via `pool=account_service_replica` then `route=primary`.
+  - The account came back between the two lookups. **The latest observation at or before `audit_at` wins**, so in-file ordering by timestamp is required.
+- **A later file contradicts an earlier one.** `evidence_02` (`customer_data_snapshot_bundle_20260917.json`, manifest 09-17) vs `evidence_92` (09-15T11:44:55):
+  - `evidence_02` lines 519–530 (internal snapshot `captured_at 2026-09-17T12:00:00Z`) show **`account_3866` ACTIVE**, with customer_reference user_27, "Ananya Nair", ananya-nair@gmail.com.
+  - `evidence_92` line 16 has the same account as `status_code 404` on 09-15.
+  - Sample case_27 (audit 2026-09-15T12:00) is **COMPLETE** with `VERIFY_RECORD_ABSENT account_3866` citing `evidence_92`. **The post-audit resurrection must be ignored** for that case, and it would make any later case on user_27 INCOMPLETE.
+- **The other `evidence_02` rows agree with `evidence_92` on state.** There are 31 shared resources:
+  - `backup_3120` `restore_allowed false`;
+  - `data_flow_6244` `enabled false`;
+  - `data_flow_3827` / `data_flow_8524` `enabled true`;
+  - `support_4715` `"message_text": "[REDACTED]"`.
+  - `evidence_02` usually carries **more identifiers**: user_N, full name, phone, hash.
+- **New ambiguity A23.** `evidence_02` is one file with manifest `captured_at` 09-17, but it contains **internal snapshots dated earlier**: 09-09T12:00 at lines 4–20, and 09-15T09:00 and 09-15T12:00 from line 22 onward.
+  - The 09-09 snapshot shows `account_5684` ACTIVE for user_26, which is the only place that **links account_5684 to user_26** (case_26).
+  - The sample never cites `evidence_02` for audit_at 09-15, consistent with excluding the whole file by manifest time.
+  - It is undecided whether internal sub-snapshots at or before `audit_at` may be used for *identity linking* (not citation).
+  - **Proposed default:** filter by manifest `captured_at` for both evidence and linkage, because AGENTS.md §6.2 says "Evidence created later must not change the answer". This goes to the decision log.
+
+### 5.4 Files captured after audit_at
+
+- **Every eval case has at least one file captured after its `audit_at`,** because the latest capture is 2026-10-01T12:00. The time filter is mandatory.
+- In **16 eval cases** the subject's text identifiers (email, user_N or hash, current or historical, not phone) appear **only** in files captured after `audit_at`. Examples:
+  - `case_35` (user_13), `case_39` (user_14), `case_50` (user_20) and `case_55` (user_16): only `evidence_01` (09-15);
+  - `case_52` (user_18, audit 06-19): only `evidence_01` and `evidence_18` (PDF, 07-18);
+  - `case_53` (user_22): only `evidence_02`;
+  - `case_61` (user_07): only `evidence_58` (09-12);
+  - `case_534`: only `evidence_50`.
+- For these cases there is no citable participant evidence at the audit time. COMPLETE is impossible to prove, which argues for INCOMPLETE or a different link such as activity or PNG. **This needs a decision.**
+- `case_63` (user_09) is named in **no text-format evidence at all**. Its only link is the PNG `marketing_profile_console.png` (`evidence_60`) and `activity_4008` (`marketing_001` → user_09). That makes it a PNG-only case.
+
+### 5.5 Requests that are not deletions
+
+- The 10 non-deletion texts (case_533 to case_542, listed in §1.8) are **corroborated by activity and evidence**:
+  - The 10 `CLASSIFY_REQUEST` rows (`activity_3486` … `activity_3827`, "classified … as non-deletion; no destructive action was authorized") name `account_N`s.
+  - `evidence_50` (`security_audit_ledger_20261001.json`) maps each of those accounts to a non-deletion requester's email with `result FOUND`. Examples:
+    - `account_1733` → haruka-kato@gmail.com (case_533);
+    - `account_2176` → ieriksen5151@fastmail.com (case_540);
+    - `account_228` → omar.nasser@gmail.com (case_542);
+    - `account_2461` → elena.h3070@zoho.com (case_541).
+  - The accounts still exist, as they should. **These 10 cases are `NOT_APPLICABLE` with `[]`.**
+- The classification must come from `request_text`; activity is only a claim. `evidence_50` is captured 10-01, after most of their audit_at dates (09-22 to 10-01), so it is not usable as evidence anyway.
+- **Trap wording:**
+  - case_538 "Please **remove** me from marketing lists only";
+  - case_536 "Do not close the account";
+  - case_539 "not a request to erase it".
+  - A keyword classifier on "remove", "delete" or "erase" would misfire. Use an LLM or a negation-aware rule.
+- **The reverse trap was not found.** No deletion request is phrased so that it looks like a non-deletion one. All 508 others use the 17 deletion templates in 6 languages.
+- `case_52` vs `case_33` (the same user_18, a month apart) is a *temporal* trap. The same subject gets different evidence windows and possibly different answers. For example, `activity_4004` links export_1260 inside case_52's window, and `activity_4009` links export_1842 inside case_33's.
+
+### 5.6 Summary of traps, as a checklist for the builder
+
+1. Exact identifier matching only; reject `.jr` and sibling-name look-alikes (5.1).
+2. Lowercase request emails, since 20 eval requests are UPPERCASE (1.7).
+3. Resolve historical emails and hashes through the audit chain, including users with two changes (1.6).
+4. Check **every** replica table in a SQL snapshot, not just the primary (5.2).
+5. Order observations by time **inside** files; the latest at or before `audit_at` wins (5.3, `evidence_30`).
+6. Drop every file whose manifest `captured_at` is after `audit_at`, even if its sub-snapshots are earlier (5.3, `evidence_02`; A23 open).
+7. Treat `reported_status`, `reported_result` and activity `details` as claims (2.4: reported status disagrees with the truth in 14 of 32 samples).
+8. Non-deletion detection must be negation-aware (5.5).
+9. The same user can appear in several cases with different audit windows (5.5, case_33/case_52).
+10. Some gold resources are unreachable (4.5). Do not hard-code them.
+
+---
+
+## Loop outcome
+
+All 5 passes are done, and each one added new findings. The loop stops here, as the prompt asked.
+
+New ambiguity: **A23**, sub-snapshots inside a post-audit file. Ambiguities closed by data:
+
+- A1 (eval IDs are unpadded; numeric order is likely);
+- A5 and A7 (cite the latest file at or before `audit_at` that names the resource; the boundary is inclusive);
+- A9 (category label or content: message REDACT vs attachment DELETE);
+- A15 (INCOMPLETE verifies the primary account plus the retained audit record plus every remediated record);
+- A16 (tombstone is redact plus verify-redacted only);
+- A17 (backup is BLOCK, never DELETE).
+
+Still open: A2 (resource_id collation), A3 (dependency order vs sort key), A23, the 16 eval cases with only post-audit evidence (5.4), and the unreachable gold resources (4.5).
