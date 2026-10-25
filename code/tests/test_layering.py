@@ -51,18 +51,32 @@ class Layering(unittest.TestCase):
                     f"{name} imports {imported}",
                 )
 
-    def test_default_path_imports_no_optional_dependency(self):
+    def _optional_imports(self, preamble=""):
+        """Optional modules really imported after importing every solver module and main.py,
+        in a fresh interpreter that first runs `preamble`."""
         mods = sorted(_modules())
         probe = (
-            "import importlib, sys\n"
+            "import importlib, sys, types\n"
+            f"{preamble}"
             f"sys.path.insert(0, {str(CODE)!r})\n"
             f"for m in {mods!r} + ['main']:\n"
             "    importlib.import_module(m)\n"
-            f"print(sorted(m for m in sys.modules if m.split('.')[0] in {OPTIONAL!r}))\n"
+            # a None entry is how the dependency matrix hides a package: blocked, not imported
+            "print(sorted(m for m, mod in sys.modules.items()\n"
+            f"             if mod is not None and m.split('.')[0] in {OPTIONAL!r}))\n"
         )
         p = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True)
         self.assertEqual(p.returncode, 0, p.stderr)
-        self.assertEqual(p.stdout.strip(), "[]")
+        return p.stdout.strip()
+
+    def test_default_path_imports_no_optional_dependency(self):
+        self.assertEqual(self._optional_imports(), "[]")
+
+    def test_the_probe_ignores_blocked_modules_but_sees_imported_ones(self):
+        # the matrix blocks a package with sys.modules[name] = None (final.SITECUSTOMIZE)
+        self.assertEqual(self._optional_imports("sys.modules['pandas'] = None\n"), "[]")
+        imported = "sys.modules['pypdf'] = types.ModuleType('pypdf')\n"
+        self.assertEqual(self._optional_imports(imported), "['pypdf']")
 
     def test_module_level_imports_have_no_cycle(self):
         mods = _modules()

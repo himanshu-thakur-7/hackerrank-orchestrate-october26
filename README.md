@@ -588,7 +588,7 @@ Each change has to keep finding precision at 1.000 on the samples and the loss l
 4. **Board** (`docs/BOARD.md`): tasks T01–T17, each with an acceptance command, built test-first.
 5. **Independent checks:** blind sub-agent audits, metamorphic relations, the Jev spike with a pre-registered decision rule, and a readiness pass. Every turn is logged in `log.txt` (submitted separately).
 
-The tests: 180 solver tests in `code/tests/` and 119 evaluation tests in `code/evaluation/tests/`.
+The tests: 181 solver tests in `code/tests/` and 119 evaluation tests in `code/evaluation/tests/`.
 
 ### 12.1 Code quality
 
@@ -607,7 +607,7 @@ The tests: 180 solver tests in `code/tests/` and 119 evaluation tests in `code/e
 | mypy errors, evaluation (default profile) | 0 | 0 |
 | Branch coverage of `ghostaudit` from the solver tests | 86% total, lowest module 0% | 95% total, lowest module 89% |
 | `ghostaudit` modules under 85% coverage | 9 | 0 |
-| Unit tests (solver / evaluation) | 139 / 106 | 180 / 119 |
+| Unit tests (solver / evaluation) | 139 / 106 | 181 / 119 |
 
 "Before" is the same measurement on commit `09a7be4`, the tree before the quality pass, with today's configuration. The pass changed no behaviour: after every commit, `output.csv` and the engine log of all 550 cases (samples and evaluation) were byte-identical to the baseline.
 
