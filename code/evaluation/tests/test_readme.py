@@ -398,7 +398,7 @@ class EveryNumber(unittest.TestCase):
 
     def test_structure_toc_and_diagrams(self):
         headings = re.findall(r"^## (\d+)\. ", README, re.M)
-        self.assertEqual(headings, [str(i) for i in range(1, 16)])
+        self.assertEqual(headings, [str(i) for i in range(1, 15)])
         self.assertGreaterEqual(README.count("```mermaid"), 3)
         for h in re.findall(r"^## (\d+\. .+)$", README, re.M):
             anchor = "#" + re.sub(r"[^\w\- ]", "", h.lower()).replace(" ", "-")

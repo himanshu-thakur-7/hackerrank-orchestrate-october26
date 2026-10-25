@@ -1203,3 +1203,23 @@ branch=claude/stoic-bell-1t82oq
 repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
+
+## [2026-10-25T07:38:43Z] README is code documentation only; banned-term scan over code.zip; tool caches excluded
+
+User Prompt (verbatim, secrets redacted):
+(relayed by peer session "Prompt playbook website publishing" for the user) Correction to the README brief: the README must be a production-grade explanation of the code and nothing else, with no interview guide, and no file in code.zip may mention an interview, an interviewer, a judge or an AI judge. Docs-only, output.csv unchanged, a small commit, then continue the quality pass. 1) delete README section 14 and its TOC line, renumber, fix anchors, fold any unique fact into the matching section neutrally, reword reviewer-oriented passages; 2) remove the terms from docs/ (01_CONTRACT AI interview row; 03_DESIGN and ADR 0008 "code judge" justification, reworded neutrally; BOARD line), remove docs/READINESS.md from the zip, update packaging, test_package and the docs map; 3) the grep over the unzipped archive must return nothing, with a regression test; 4) rebuild code.zip, final --matrix, report sha and scan result, commit, push, log, continue.
+
+Agent Response Summary:
+README: the interview guide section is gone, the reproduce/layout section is now 14 and all 14 anchors resolve. Its one unique fact (next steps for tied accounts and analytics bursts) moved to a neutral "11.4 Open work"; the "strongest part of the story" wording was replaced. Docs reworded exactly at the lines named (03_DESIGN x2, ADR 0008 x2, 01_CONTRACT row removed, BOARD line); READINESS.md stays in the repo but is no longer packaged. test_package now asserts READINESS is absent and that no shipped file matches the banned terms (the pattern is built from fragments so the test does not match itself). The rebuild exposed a packaging leak: ruff's .ruff_cache folders were being zipped; hidden directories are now excluded and tested, and the caches are git-ignored. Scan over the unzipped archive: no matches. final --matrix 24/24 green; output.csv sha256 eb99c26b7974 unchanged; code.zip 160 files, 468,884 bytes.
+
+Actions:
+* Edited README.md, docs/03_DESIGN.md, docs/adr/0008-llm-scope-and-cache.md, docs/01_CONTRACT.md, docs/BOARD.md, code/package.py, code/evaluation/tests/test_package.py, code/evaluation/tests/test_readme.py, .gitignore
+* Rebuilt code.zip, ran the grep scan over the unzipped archive and final --matrix
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none

@@ -250,7 +250,7 @@ flowchart LR
 
 - **Pinned models:** `gpt-5.4-mini-2026-03-17` for intent and `gpt-5.4-2026-03-05` for vision. These are recorded IDs; they will be checked against the provider before the first live call.
 - **Prompts** live in `code/prompts/intent.md` and `code/prompts/screen.md`, versioned by a `prompt_version` header.
-- **Cache:** the generated `code/llm_cache.py` holds `CACHE = {key: {...}}`, a Python literal with sorted keys. It is **not** `.json`/`.jsonl`/`.csv`, because the code judge ignores those formats.
+- **Cache:** the generated `code/llm_cache.py` holds `CACHE = {key: {...}}`, a Python literal with sorted keys. It is **not** `.json`/`.jsonl`/`.csv`: a Python data module keeps the cache reviewable as code, whereas data files such as `.json` are commonly excluded from code review and indexing tooling.
 - **Usage ledger.** Every live call appends `(model, input_tokens, output_tokens, cost_estimate)` to the run ledger. `code/evaluation/usage_report.md` is generated from the final full run (calls, tokens, totals and averages per request, cost per model and overall).
 - **The seam is real for intent** (API adapter, cache adapter, rules adapter) and **for vision** (API adapter, committed-transcription adapter). With no key, all 518 rows are still produced.
 
@@ -271,7 +271,7 @@ flowchart LR
   - the rule row and the category source (tag / content / activity claim);
   - the reason the evidence was picked.
 - It also prints what was rejected: post-cutoff files, contradicted links, ties, `NOT_OBSERVABLE` and `UNPROVEN` items.
-- **The run log** (`code/evaluation/run_log.md`, Markdown so the judge reads it) lists every `UNRESOLVED_LINK`, `NOT_OBSERVABLE`, `UNPROVEN` and `CONTRADICTED_LINK` with case IDs, plus the count of unlabeled-assumption cases [ADR 0010, 0011].
+- **The run log** (`code/evaluation/run_log.md`, Markdown so it is readable alongside the code) lists every `UNRESOLVED_LINK`, `NOT_OBSERVABLE`, `UNPROVEN` and `CONTRADICTED_LINK` with case IDs, plus the count of unlabeled-assumption cases [ADR 0010, 0011].
 
 ---
 

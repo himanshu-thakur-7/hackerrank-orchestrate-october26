@@ -182,7 +182,7 @@ A new test checks that every command, path and count the README quotes exists or
 
 ## Submission README and docs in code.zip
 
-- `README.md` was rewritten as a self-contained guide: 15 sections, 5 mermaid diagrams, all 16 ADRs in one table, and an interview guide. `test_readme.py` checks every command, path and quoted number against the real run, the loader check, the generated reports or the measured design documents.
+- `README.md` was rewritten as a self-contained guide: 15 sections, 5 mermaid diagrams, all 16 ADRs in one table. `test_readme.py` checks every command, path and quoted number against the real run, the loader check, the generated reports or the measured design documents.
 - `code/package.py` now also ships `docs/`: sanitized copies of the design record, generated at build time with the originals untouched. `test_package.py` asserts the docs are present and Markdown-only, contain no email or phone (by pattern and by value against the identity files), and build byte-identically twice.
 
 ## Where this board deviates from the relayed list (and why)

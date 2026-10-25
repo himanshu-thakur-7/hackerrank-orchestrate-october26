@@ -60,7 +60,6 @@ DOCS = [
     "docs/JEV_SPIKE.md",
     "docs/JEV_HANDCHECK.md",
     "docs/JEV_REVIEW_QUEUE.md",
-    "docs/READINESS.md",
     "docs/BOARD.md",
 ]
 EXTRA_DOCS = {"CONTEXT.md": "docs/CONTEXT.md"}
@@ -82,6 +81,7 @@ def files():
         if (
             p.is_file()
             and not (set(rel.parts) & EXCLUDED_DIRS)
+            and not any(part.startswith(".") for part in rel.parts[:-1])  # tool caches (.ruff_cache)
             and p.name not in EXCLUDED_NAMES
             and not p.name.endswith(EXCLUDED_SUFFIXES)
         ):

@@ -209,7 +209,6 @@ AG §6.2 says "`request_text` contains the person's request and may be written i
 | `log.txt` (`chat_transcript`) | RM:113 "Upload `log.txt` directly as your `chat_transcript` submission on HackerRank." RM:156 "`log.txt` follows the `AGENTS.md` turn format" | AG §5 sets the format: append-only, with `tool=` and `model=` in every entry. |
 | `agent-trace.zip` | AT:3 "Please submit the complete agent trace for the work you did on this challenge as a **ZIP file**." AT:130 "Submit `agent-trace.zip` with your challenge submission." | Claude Code traces live under `~/.claude/projects/`, plus a `/export` transcript, placed in `agent-trace/claude-code/` (AT:19-34). This file is not in the PS or RM submission tables (A11). |
 | `README.md` (inside the zip) | RM:127 "Include clear setup and execution instructions in `README.md` inside `code.zip`." | — |
-| AI interview | RM:125 "Live explanation of your architecture, approach, and evaluation" | — |
 
 Other submission requirements:
 

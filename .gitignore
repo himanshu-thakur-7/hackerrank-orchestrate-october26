@@ -4,3 +4,6 @@ __pycache__/
 .env
 runs/
 code.zip
+.ruff_cache/
+.mypy_cache/
+.coverage

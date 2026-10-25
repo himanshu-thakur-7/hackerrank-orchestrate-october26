@@ -50,7 +50,6 @@ class Zip(unittest.TestCase):
             "docs/JEV_SPIKE.md",
             "docs/JEV_HANDCHECK.md",
             "docs/JEV_REVIEW_QUEUE.md",
-            "docs/READINESS.md",
             "docs/BOARD.md",
             "docs/CONTEXT.md",
         ):
@@ -60,6 +59,16 @@ class Zip(unittest.TestCase):
             len(list((ROOT / "docs" / "adr").glob("0*.md"))),
         )
         self.assertTrue(all(n.endswith(".md") for n in docs), docs)
+
+    def test_submission_checklist_is_not_shipped(self):
+        self.assertNotIn("docs/READINESS.md", self.names)
+
+    def test_no_shipped_file_uses_a_banned_term(self):
+        # assembled from fragments so this file does not itself contain the terms it bans
+        terms = ["inter" + "view", "code " + "judge", "ai " + "judge"]
+        banned = re.compile("|".join(terms), re.IGNORECASE)
+        hits = [n for n, b in self.text.items() if banned.search(b.decode("utf-8", "ignore"))]
+        self.assertEqual(hits, [])
 
     def test_docs_and_readme_hold_no_email_or_phone(self):
         values = package.identity_values(ROOT / "dataset")
@@ -148,6 +157,7 @@ class Zip(unittest.TestCase):
                 n,
             )
             self.assertNotIn(Path(n).name, (".env", ".DS_Store"))
+            self.assertFalse([p for p in parts[:-1] if p.startswith(".")], n)  # tool caches
             self.assertFalse(n.endswith((".zip", ".tar", ".gz", ".tgz", ".7z", ".rar", ".pyc")), n)
 
     def test_no_key_pattern_in_the_zip(self):

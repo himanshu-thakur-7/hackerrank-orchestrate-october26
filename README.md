@@ -29,8 +29,7 @@ Every number in this README comes from a real run. `code/evaluation/tests/test_r
 11. [Results and honesty](#11-results-and-honesty)
 12. [How it was built](#12-how-it-was-built)
 13. [Known risks and their reverts](#13-known-risks-and-their-reverts)
-14. [Interview guide](#14-interview-guide)
-15. [Reproduce, layout and docs map](#15-reproduce-layout-and-docs-map)
+14. [Reproduce, layout and docs map](#14-reproduce-layout-and-docs-map)
 
 ---
 
@@ -379,7 +378,7 @@ Each ADR was written as a question with measured context, a recommendation and t
 
 ### Decisions that evidence overturned
 
-These are the strongest part of the story, because each one is a rule that was **changed by measurement rather than defended**.
+Each of these rules was **changed by measurement rather than defended**.
 
 - **ADR 0006, amended.**
   - **The original ruling:** an attempted-but-unproven delete was a *remaining record*, citing the activity row.
@@ -556,7 +555,14 @@ The samples over-represent hand-written situations, and 22 + 10 cases are too fe
 | contradicted | 1 | A link rejected by its artifact (ADR 0005) |
 | unknown | 0 | Must stay 0 |
 
-### 11.4 Bugs the evaluation found and fixed
+### 11.4 Open work
+
+- **Tied accounts:** grounded tie-breakers for the 136 tied cases, such as a second independent signal per candidate (a readback trace or a support record naming the account).
+- **Analytics bursts:** measuring the activity-burst pattern behind the missing VERIFY_RECORD_ANONYMIZED steps.
+
+Each change has to keep finding precision at 1.000 on the samples and the loss ledger's `unknown` count at 0.
+
+### 11.5 Bugs the evaluation found and fixed
 
 | Found by | Bug | Fix |
 | --- | --- | --- |
@@ -582,7 +588,7 @@ The samples over-represent hand-written situations, and 22 + 10 cases are too fe
 4. **Board** (`docs/BOARD.md`): tasks T01–T17, each with an acceptance command, built test-first.
 5. **Independent checks:** blind sub-agent audits, metamorphic relations, the Jev spike with a pre-registered decision rule, and a readiness pass. Every turn is logged in `log.txt` (submitted separately).
 
-The tests: 156 solver tests in `code/tests/` and 108 evaluation tests in `code/evaluation/tests/`.
+The tests: 156 solver tests in `code/tests/` and 110 evaluation tests in `code/evaluation/tests/`.
 
 ---
 
@@ -599,81 +605,9 @@ The tests: 156 solver tests in `code/tests/` and 108 evaluation tests in `code/e
 
 ---
 
-## 14. Interview guide
+## 14. Reproduce, layout and docs map
 
-**1. Why omit tied accounts instead of picking one?**
-- The only tie-breaker available, case-id order, is a generator artifact. It got 23/32 on samples, with 1 wrong pick.
-- Attributing a person's data on a guess is the error the task is about. Omitting costs about 5% of steps and keeps precision clean.
-- Proof: ADR 0004, and the custom cases case_9010/9011.
-
-**2. Why not use a model for linking or identity?**
-- 19 of the 22 unknown emails in the evidence are near-copies of a real user's email. Similarity-based matching would attribute exactly those decoys.
-- Exact identifiers, history and hashes are verifiable and deterministic.
-- Proof: `docs/02_DATA_NOTES.md` §5.1 and metamorphic check M4.
-
-**3. Why OpenAI mini, not a bigger model?**
-- The model answers three yes/no questions for 6 ambiguous texts, and the full review of all 398 texts agreed with the rules everywhere.
-- A larger model adds cost and latency without a measurable gain, and the committed cache makes the run free and reproducible.
-- Proof: `code/evaluation/usage_report.md` and `code/evaluation/intent_disagreements.md`.
-
-**4. How do you know the output is right with only 32 labels?**
-- We don't claim to. We check what can be checked without gold:
-  - 9 invariants on all 518 rows;
-  - 13 metamorphic relations;
-  - 12 custom cases;
-  - a blind audit of 20 eval cases from raw evidence;
-  - a loss ledger in which every gap has a named reason.
-- The step-recall ceiling (about 0.89) is the honest estimate.
-- Proof: `code/evaluation/evaluation_report.md`.
-
-**5. What is the biggest risk?**
-- The 136 tied cases, a deliberate recall loss.
-- After that, the unlabeled rules (DELETION_PENDING, legal holds, `INCOMPLETE,[]`), which the hidden labels may treat differently. Each is isolated in one ADR, with a one-line revert where possible.
-- Proof: [§13](#13-known-risks-and-their-reverts).
-
-**6. How is determinism guaranteed?**
-- Rows are sorted numerically. Steps have a total key (phase, operation rank, system, resource). JSON uses fixed separators. Model verdicts come from a committed cache keyed by sha256.
-- It is verified by two identical runs, three hash seeds, an identical result on Python 3.11, 3.12 and 3.13, and a clean-room run from the zip with no keys.
-- Proof: `code/evaluation/final.py`.
-
-**7. Where did evaluation change a decision?**
-- Four times:
-  - ADR 0006 (12/12 gold contradicted the first ruling);
-  - ADR 0014 (7 coverage contradictions);
-  - ADR 0016 (a reused id from an earlier lifecycle);
-  - the support-category precedence bug found by a blind sub-agent (12 eval rows changed).
-- Proof: [§8](#decisions-that-evidence-overturned).
-
-**8. What does Jev add, and what did it not?**
-- **Added:** an independent, repeatable ranking of state and time claims, which passed a gate written before it ran. Its 15 lowest-scored eval steps contained 0 engine mistakes.
-- **Did not add:** any check of ownership or operation type. It scores those like true claims, so they stay deterministic.
-- Proof: `docs/JEV_SPIKE.md` and `docs/JEV_HANDCHECK.md`.
-
-**9. Why is a deletion with nothing to report `INCOMPLETE,[]`?**
-- COMPLETE would claim compliance without evidence. NOT_APPLICABLE is wrong, because deletion was requested. Any step would be fabricated.
-- 3 eval rows are affected, and the revert is one line.
-- Proof: ADR 0015.
-
-**10. How do you handle evidence captured after the audit?**
-- It does not exist for that case: not for citing, not for linking, not even its earlier sub-snapshots.
-- Metamorphic checks M5–M7 test it, and invariant I1 checks every citation on all 518 rows.
-- Proof: ADR 0002.
-
-**11. What would you do with another day?**
-- Look for grounded tie-breakers for the 136 tied cases, such as a second independent signal per candidate (a readback trace or a support record naming the account).
-- Measure the analytics-burst pattern behind the missing VERIFY_RECORD_ANONYMIZED steps.
-- Each has to keep finding precision at 1.000 on samples and the loss ledger's `unknown` at 0.
-
-**12. How do you stop the code from "learning" the samples?**
-- The literal audit fails on any case or evidence id in `code/`. The holdout is aggregate-only, and every reveal is logged. One-file-per-case is banned as a feature (ADR 0007).
-- Custom cases use synthetic people dated 2027.
-- Proof: `code/evaluation/audit.py` and `code/evaluation/holdout_reveals.md`.
-
----
-
-## 15. Reproduce, layout and docs map
-
-### 15.1 Commands
+### 14.1 Commands
 
 ```text
 python3 code/main.py                                  # output.csv; 0 live model calls with the committed cache
@@ -701,7 +635,7 @@ python3 code/evaluation/main.py score                 # scores the 32 labeled sa
 - with `--matrix`: both test suites rerun with each optional dependency blocked (`pandas`, `openai`, `pypdf`, `typesafe_sdk`, the `pdftotext` executable), then with all of them blocked and keys unset;
 - the clean room: `code.zip` unzipped into an empty directory and run there against `dataset/`, with no keys in the environment, producing the same `output.csv` sha256.
 
-### 15.2 Optional dependencies (nothing on the default path imports them)
+### 14.2 Optional dependencies (nothing on the default path imports them)
 
 | Piece | Used for | Without it |
 | --- | --- | --- |
@@ -713,7 +647,7 @@ python3 code/evaluation/main.py score                 # scores the 32 labeled sa
 - **Environment variables (names only):** `OPENAI_API_KEY`, `TYPESAFE_API_KEY`.
 - **How keys are handled:** the SDKs read them from the environment. Our code never prints, logs or stores them.
 
-### 15.3 What is in code.zip
+### 14.3 What is in code.zip
 
 ```text
 README.md                     this file
@@ -726,14 +660,14 @@ code/
     evaluation_report.md      generated evaluation report
     usage_report.md           generated token and cost report
   tests/                      solver unit tests and small fixtures
-evaluation/                   byte-identical copies of the two reports (either reading of the brief)
+evaluation/                   byte-identical copies of the two generated reports
 docs/                         sanitized copies of the design record (emails and phones masked)
   adr/                        ADR 0001–0016 and an index
   CONTEXT.md                  domain glossary
   ...                         the files in the docs map below
 ```
 
-### 15.4 Docs map
+### 14.4 Docs map
 
 | Document | Read it for |
 | --- | --- |
@@ -747,5 +681,4 @@ docs/                         sanitized copies of the design record (emails and 
 | `docs/LOSS_LEDGER.md` | Per-case reasons for every known gap |
 | `docs/SILVER_AUDIT.md`, `docs/silver_audit/` | The blind audit and the auditors' notes |
 | `docs/JEV_SPIKE.md`, `docs/JEV_HANDCHECK.md`, `docs/JEV_REVIEW_QUEUE.md` | The Jev spike, the hand check, the advisory queue |
-| `docs/READINESS.md` | Submission checklist, AGENTS.md compliance and the security pass |
 | `docs/BOARD.md` | Tasks T01–T17 with acceptance commands and results |

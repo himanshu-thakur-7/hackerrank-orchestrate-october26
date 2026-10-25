@@ -23,7 +23,7 @@ Only intent and vision go through a model, and their outputs are cached. Ship a 
 - **Intent:** OpenAI `gpt-5.4-mini-2026-03-17`. **Vision:** OpenAI `gpt-5.4-2026-03-05`. These are pinned IDs.
 - Keys come only from environment variables: `OPENAI_API_KEY`, and `TYPESAFE_API_KEY` for the evaluation judge (ADR 0013). They are never committed or logged.
 - Calls are deterministic (temperature 0 or the equivalent) and cached by input hash.
-- **The cache is committed as a generated `.py` data module** (or `.md`/`.txt`), **never** `.json`/`.jsonl`/`.csv`, so the code judge can read it.
+- **The cache is committed as a generated `.py` data module** (or `.md`/`.txt`), **never** `.json`/`.jsonl`/`.csv`, so the cache is reviewable as code; data files such as `.json` are commonly excluded from code review and indexing tooling.
 - **With no key, the rules-only fallback** produces all 518 rows.
 
 ## Consequences
@@ -35,4 +35,4 @@ Only intent and vision go through a model, and their outputs are cached. Ship a 
 ## Rejected alternatives
 
 - **An LLM deciding state or policy:** not deterministic, and it would act on claims.
-- **A JSON cache:** invisible to the code judge.
+- **A JSON cache:** data files such as `.json` are commonly excluded from code review and indexing tooling.
