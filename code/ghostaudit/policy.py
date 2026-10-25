@@ -150,6 +150,81 @@ PLANS = {
 }
 
 
+def _judge_delete(state, pii):
+    """DELETE: compliant only when the record is gone."""
+    if state == ABSENT:
+        return "compliant", "absent"
+    return "violation", f"{state}, must be absent"
+
+
+def _judge_keep_without_identifiers(state, pii):
+    """REDACT / ANONYMIZE: the record stays, but no direct identifier may remain on it."""
+    if state == ABSENT:
+        return "none", "ABSENT, but policy keeps the record"
+    if pii:
+        return "violation", f"exposes {', '.join(pii)}"
+    return "compliant", "present without direct identifiers"
+
+
+def _judge_retain(state, pii):
+    """RETAIN: the record must still exist; a missing one is logged, never planned."""
+    if state == ABSENT:
+        return "none", "RETAINED_RECORD_MISSING"
+    return "compliant", "present, retained"
+
+
+_BACKUP_STATES = {
+    "RESTORABLE": ("violation", "restore allowed"),
+    "BLOCKED": ("compliant", "restore blocked"),
+    ABSENT: ("none", "backup absent"),
+}
+_FLOW_STATES = {"ACTIVE": ("violation", "flow enabled"), "DISABLED": ("compliant", "flow disabled")}
+
+
+def _judge_backup(state, pii):
+    """BLOCK_RESTORE (rule_14): the backup is retained but its restore access must be blocked."""
+    return _BACKUP_STATES.get(state, ("unproven", f"{state}: restore access not shown"))
+
+
+def _judge_flow(state, pii):
+    """DISABLE_FLOW: a connector must be shown disabled."""
+    return _FLOW_STATES.get(state, ("unproven", f"{state}: flow state not shown"))
+
+
+# action -> judge(state, exposed PII fields) -> (kind, reason); kind is violation | compliant |
+# unproven | none
+JUDGES = {
+    "DELETE": _judge_delete,
+    "REDACT": _judge_keep_without_identifiers,
+    "ANONYMIZE": _judge_keep_without_identifiers,
+    "RETAIN": _judge_retain,
+    "BLOCK_RESTORE": _judge_backup,
+    "DISABLE_FLOW": _judge_flow,
+}
+
+
+def action_for(category, rules):
+    """(rule_id, action) for a category. Connectors are not a deletion_rules category and always
+    get DISABLE_FLOW; a retained backup (rule_14) must also have its restore access blocked."""
+    if category == "DATA_FLOW":
+        return None, "DISABLE_FLOW"
+    rule_id, action = rules.action(category)
+    if category == "BACKUP_ARCHIVE" and action == "RETAIN":
+        return rule_id, "BLOCK_RESTORE"
+    return rule_id, action
+
+
+def _treatment(kind, reason, rule_id, action):
+    """A Treatment carrying the plan steps its kind needs: a violation gets finding, remediation and
+    verification; compliant and unproven get the verification only; none gets no step."""
+    finding, remediation, verify = PLANS[action]
+    if kind == "none":
+        return Treatment("none", rule_id=rule_id, action=action, reason=reason)
+    if kind == "violation":
+        return Treatment(kind, finding, remediation, verify, rule_id, action, reason)
+    return Treatment(kind, None, None, verify, rule_id, action, reason)
+
+
 def treat(category, result, rules):
     """Treatment for one resource from its category and its StateResult (None = nothing visible
     proves anything)."""
@@ -157,55 +232,15 @@ def treat(category, result, rules):
         return Treatment("none", reason="UNRESOLVED_CATEGORY")
     if category in UNOBSERVABLE:
         return Treatment("none", reason=f"NOT_OBSERVABLE({category})")
-    if category == "DATA_FLOW":
-        rule_id, action = None, "DISABLE_FLOW"
-    else:
-        rule_id, action = rules.action(category)
-        if category == "BACKUP_ARCHIVE" and action == "RETAIN":
-            action = "BLOCK_RESTORE"  # rule_14: retain, and restore access must be blocked
+    rule_id, action = action_for(category, rules)
     if action not in PLANS:
         return Treatment(
             "none", rule_id=rule_id, action=action, reason=f"NO_PLAN({category}, {action})"
         )
-    finding, remediation, verify = PLANS[action]
-
-    def mk(kind, why, f=None, r=None):
-        return Treatment(kind, f, r, verify, rule_id, action, why)
-
     if result is None:
-        return mk("unproven", "UNPROVEN: no visible observation or coverage")
-    s = result.state
-    pii = result.observation.pii_fields if result.observation else ()
-    if action == "DELETE":
-        return (
-            mk("compliant", "absent")
-            if s == ABSENT
-            else mk("violation", f"{s}, must be absent", finding, remediation)
+        return _treatment(
+            "unproven", "UNPROVEN: no visible observation or coverage", rule_id, action
         )
-    if action in ("REDACT", "ANONYMIZE"):
-        if s == ABSENT:
-            return Treatment(
-                "none", rule_id=rule_id, action=action, reason="ABSENT, but policy keeps the record"
-            )
-        if pii:
-            return mk("violation", f"exposes {', '.join(pii)}", finding, remediation)
-        return mk("compliant", "present without direct identifiers")
-    if action == "RETAIN":
-        if s == ABSENT:
-            return Treatment(
-                "none", rule_id=rule_id, action=action, reason="RETAINED_RECORD_MISSING"
-            )
-        return mk("compliant", "present, retained")
-    if action == "BLOCK_RESTORE":
-        if s == "RESTORABLE":
-            return mk("violation", "restore allowed", finding, remediation)
-        if s == "BLOCKED":
-            return mk("compliant", "restore blocked")
-        if s == ABSENT:
-            return Treatment("none", rule_id=rule_id, action=action, reason="backup absent")
-        return mk("unproven", f"{s}: restore access not shown")
-    if s == "ACTIVE":
-        return mk("violation", "flow enabled", finding, remediation)
-    if s == "DISABLED":
-        return mk("compliant", "flow disabled")
-    return mk("unproven", f"{s}: flow state not shown")
+    pii = result.observation.pii_fields if result.observation else ()
+    kind, reason = JUDGES[action](result.state, pii)
+    return _treatment(kind, reason, rule_id, action)
