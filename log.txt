@@ -434,3 +434,25 @@ repo_root=/home/user/hackerrank-orchestrate-october26
 worktree=main
 parent_agent=none
 
+## [2026-10-25T00:52:30Z] Build plan as kanban board (docs/BOARD.md)
+
+User Prompt (verbatim, secrets redacted):
+[Relayed by peer session "Prompt playbook website publishing" for the user, to be treated as the user's prompt]
+Plan the build as a kanban board. Try the kanban-init skill via the Skill tool (project name ghost-audit). If the kanban skills cannot run in this cloud container (no sqlite3 CLI, no ~/.claude DB), do NOT burn time: use docs/BOARD.md as the board, in a table with ID, title, priority, depends-on, acceptance command and expected result, status. Either way, mirror the board into docs/BOARD.md and keep it updated whenever a task moves. Create one task per item. Each needs: goal, scope, acceptance criteria (a runnable command and its expected result), dependencies, priority. Align the tasks to the build order in docs/03_DESIGN.md section 9 and cite the ADRs each task must respect; if my list below conflicts with your design, follow your design and say why. [T01–T17 list as given: evaluation core; CSV loaders/identity/writer; models + fact store; service-export + readback loaders; inventory + replica SQL; bundles/record-lists/handover/ledger/record_lookup; observability logs; state + policy; verdict + planner; linking; intent + usage; screenshots + PDF; custom cases + report; usage/README/packaging; metamorphic suite; invariants + silver audit + score band; TypeSafe Jev judge with spike gate AUROC>=0.90, stability<=0.05.] Commit and push the board, keep logging per AGENTS.md, then show me the board in your reply and stop to wait for my next prompt.
+
+Agent Response Summary:
+Launched the kanban-init skill. It needs the sqlite3 CLI, which is absent in this container, so per the instruction I did not create the DB or a kanban.json pointing to it, and used docs/BOARD.md as the board. Wrote 17 tasks with priority, design slice, dependencies, acceptance command and expected result, status (all todo), and a task card per task with goal, scope and the ADRs it must respect. Documented five deviations from the relayed list: rules-only intent moved into T02, the handover txt moved into T04, T12 raised to P1 (PDFs and committed transcriptions) with live vision at P2 because ADR 0005 and the fallback need screen facts, the T15 split by dependency, and T17's SDK recorded as given and unverified. Stopping to wait for the next prompt.
+
+Actions:
+* Skill kanban-init (could not run: no sqlite3 CLI)
+* Wrote docs/BOARD.md
+* Committed and pushed to claude/stoic-bell-1t82oq
+
+Context:
+tool=Claude Code
+model=claude-opus-5-5
+branch=claude/stoic-bell-1t82oq
+repo_root=/home/user/hackerrank-orchestrate-october26
+worktree=main
+parent_agent=none
+
